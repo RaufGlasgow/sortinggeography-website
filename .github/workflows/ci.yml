@@ -1,0 +1,119 @@
+name: ci
+
+# The website's CI. Ubuntu only, seconds per run, and FREE — public repos get
+# unlimited GitHub Actions minutes, which is the entire reason this repo is
+# public and separate from the game.
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+
+# One run per branch. A burst of commits supersedes itself instead of stacking
+# a burst of runs and a burst of notification emails.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every HTML file parses
+        run: |
+          python3 - <<'PY'
+          import sys, pathlib
+          from html.parser import HTMLParser
+
+          # Tags that legitimately never close. Everything else must balance, or
+          # the page renders differently in some browser than it does here.
+          VOID = {"area","base","br","col","embed","hr","img","input","link",
+                  "meta","param","source","track","wbr"}
+
+          class Check(HTMLParser):
+              def __init__(self):
+                  super().__init__(); self.stack=[]; self.bad=[]
+              def handle_starttag(self, tag, attrs):
+                  if tag not in VOID: self.stack.append((tag, self.getpos()[0]))
+              def handle_endtag(self, tag):
+                  if tag in VOID: return
+                  if not self.stack:
+                      self.bad.append(f"stray </{tag}> at line {self.getpos()[0]}"); return
+                  open_tag, line = self.stack.pop()
+                  if open_tag != tag:
+                      self.bad.append(
+                          f"</{tag}> at line {self.getpos()[0]} closes <{open_tag}> "
+                          f"opened at line {line}")
+
+          failed = False
+          for p in sorted(pathlib.Path('.').rglob('*.html')):
+              c = Check(); c.feed(p.read_text(encoding='utf-8'))
+              problems = c.bad + [f"<{t}> at line {l} never closed" for t, l in c.stack]
+              if problems:
+                  failed = True
+                  print(f"FAIL {p}")
+                  for msg in problems[:10]:
+                      print(f"     {msg}")
+              else:
+                  print(f"ok   {p}")
+          sys.exit(1 if failed else 0)
+          PY
+
+      - name: No broken internal links, and no missing local assets
+        run: |
+          python3 - <<'PY'
+          import sys, re, pathlib
+          from urllib.parse import urlparse
+
+          root = pathlib.Path('.')
+          pages = sorted(root.rglob('*.html'))
+          refs = re.compile(r'(?:href|src)\s*=\s*"([^"]+)"')
+          missing = []
+          for p in pages:
+              for target in refs.findall(p.read_text(encoding='utf-8')):
+                  u = urlparse(target)
+                  # External, anchors and mailto are out of scope for this check.
+                  if u.scheme or target.startswith(('#', 'mailto:', '//')):
+                      continue
+                  dest = (p.parent / u.path).resolve()
+                  if not dest.exists():
+                      missing.append(f"{p}: -> {target}")
+          if missing:
+              print("Broken local references:")
+              for m in missing: print("  " + m)
+              sys.exit(1)
+          print(f"ok   {len(pages)} pages, all local references resolve")
+          PY
+
+      - name: The palette rule holds (no gold, no orange — Ra'uf, hard rule)
+        run: |
+          python3 - <<'PY'
+          import sys, re, pathlib
+          # The app's identity BANS gold and orange everywhere except the in-game
+          # reward burst, which does not exist on a website. Catching it here keeps
+          # the site from drifting away from the app it advertises.
+          #
+          # COMMENTS ARE STRIPPED FIRST. The rule bans those colours from the
+          # DESIGN, not from prose describing the rule — without this, the comment
+          # documenting the ban trips the check that enforces it.
+          BANNED = re.compile(r'\b(gold(?:enrod)?|orange|#ff[a-f0-9]{2}00|#f{1,2}a500)\b', re.I)
+          CSS_COMMENT = re.compile(r'/\*.*?\*/', re.S)
+          HTML_COMMENT = re.compile(r'<!--.*?-->', re.S)
+          bad = []
+          for p in sorted(pathlib.Path('.').rglob('*.css')) + sorted(pathlib.Path('.').rglob('*.html')):
+              text = p.read_text(encoding='utf-8')
+              # Blank the comments but keep line numbering intact.
+              def blank(m): return re.sub(r'[^\n]', ' ', m.group(0))
+              text = CSS_COMMENT.sub(blank, text)
+              text = HTML_COMMENT.sub(blank, text)
+              for i, line in enumerate(text.splitlines(), 1):
+                  if BANNED.search(line):
+                      bad.append(f"{p}:{i}: {line.strip()[:90]}")
+          if bad:
+              print("Gold/orange found — banned by the visual identity:")
+              for b in bad: print("  " + b)
+              sys.exit(1)
+          print("ok   palette clean")
+          PY

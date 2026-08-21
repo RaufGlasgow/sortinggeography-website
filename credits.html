@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data sources — Sorting Geography</title>
+<meta name="description" content="Every figure in Sorting Geography, and where it came from.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="bar">
+  <a class="wordmark" href="index.html">Sorting&nbsp;Geography</a>
+  <nav><a href="index.html">Home</a> <a href="privacy.html">Privacy</a></nav>
+</header>
+
+<main class="prose">
+  <h1>Where the numbers come from</h1>
+  <p class="lede">
+    Sorting Geography is a game about real figures, so every value it shows carries
+    a receipt: the organisation that published it, a link to that publication, and
+    the year the figure describes. This page lists all of them.
+  </p>
+  <p>
+    It is generated from the dataset the app actually ships — currently
+    <strong>56 measures</strong> drawn from <strong>56 sources</strong>
+    (dataset <code>dataset-v035-3a5c983a9b0f</code>) — not maintained by hand, so it cannot drift
+    from what you see in the game.
+  </p>
+  <p>
+    Where a figure is redistributed by an intermediary, both are named: "FAO (via
+    World Bank WDI)" means the World Bank republished the FAO's number, and both
+    deserve the credit.
+  </p>
+
+  <table class="sources">
+    <thead><tr><th>Source</th><th>Used for</th></tr></thead>
+    <tbody>
+    <tr>
+      <td><a href="https://web.archive.org/web/20240408180810/https://www.cia.gov/the-world-factbook/field/airports" rel="noopener noreferrer nofollow">CIA World Factbook 2024 edition, field `airports`</a></td>
+      <td class="axes">airports count</td>
+    </tr>
+    <tr>
+      <td><a href="https://web.archive.org/web/20240422190744/https://www.cia.gov/the-world-factbook/field/birth-rate/" rel="noopener noreferrer nofollow">CIA World Factbook 2024 edition, field `birth rate` (2023 est.)</a></td>
+      <td class="axes">birth rate</td>
+    </tr>
+    <tr>
+      <td><a href="https://web.archive.org/web/20240418083207/https://www.cia.gov/the-world-factbook/field/coastline" rel="noopener noreferrer nofollow">CIA World Factbook 2024 edition, field `coastline` (archived 2024-04-18)</a></td>
+      <td class="axes">coastline km</td>
+    </tr>
+    <tr>
+      <td><a href="https://web.archive.org/web/20240408180826/https://www.cia.gov/the-world-factbook/field/death-rate" rel="noopener noreferrer nofollow">CIA World Factbook 2024 edition, field `death rate` (2023 est.)</a></td>
+      <td class="axes">death rate</td>
+    </tr>
+    <tr>
+      <td><a href="https://web.archive.org/web/20240412192152/https://www.cia.gov/the-world-factbook/field/elevation/" rel="noopener noreferrer nofollow">CIA World Factbook 2024 edition, field `elevation` (highest point)</a></td>
+      <td class="axes">highest point m</td>
+    </tr>
+    <tr>
+      <td><a href="https://web.archive.org/web/20240412192152/https://www.cia.gov/the-world-factbook/field/elevation/" rel="noopener noreferrer nofollow">CIA World Factbook 2024 edition, field `elevation` (mean elevation)</a></td>
+      <td class="axes">mean elevation m</td>
+    </tr>
+    <tr>
+      <td><a href="https://web.archive.org/web/20240408180711/https://www.cia.gov/the-world-factbook/field/land-boundaries/" rel="noopener noreferrer nofollow">CIA World Factbook 2024 edition, field `land boundaries` (total)</a></td>
+      <td class="axes">land boundary km</td>
+    </tr>
+    <tr>
+      <td><a href="https://web.archive.org/web/20240425021521/https://www.cia.gov/the-world-factbook/field/major-rivers-by-length-in-km" rel="noopener noreferrer nofollow">CIA World Factbook 2024 edition, field `major rivers (by length in km)`</a></td>
+      <td class="axes">longest river km</td>
+    </tr>
+    <tr>
+      <td><a href="https://web.archive.org/web/20240408180832/https://www.cia.gov/the-world-factbook/field/railways" rel="noopener noreferrer nofollow">CIA World Factbook 2024 edition, field `railways` (total)</a></td>
+      <td class="axes">railways km</td>
+    </tr>
+    <tr>
+      <td><a href="https://web.archive.org/web/20240423115934/https://www.cia.gov/the-world-factbook/field/roadways/" rel="noopener noreferrer nofollow">CIA World Factbook 2024 edition, field `roadways` (total)</a></td>
+      <td class="axes">roadways km</td>
+    </tr>
+    <tr>
+      <td><a href="https://web.archive.org/web/20240418083207/https://www.cia.gov/the-world-factbook/field/coastline" rel="noopener noreferrer nofollow">Derived: CIA World Factbook 2024 `coastline` divided by World Bank WDI 2023 land area (AG.LND.TOTL.K2)</a></td>
+      <td class="axes">coastline per land area</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/EN.GHG.CO2.MT.CE.AR5" rel="noopener noreferrer nofollow">EDGAR / EU JRC 2024 (via World Bank WDI, indicator EN.GHG.CO2.MT.CE.AR5)</a></td>
+      <td class="axes">co2 total mt</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/AG.LND.FRST.ZS" rel="noopener noreferrer nofollow">FAO (Forest Resources Assessment) 2023 (via World Bank WDI, indicator AG.LND.FRST.ZS)</a></td>
+      <td class="axes">forest pct</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/AG.LND.AGRI.ZS" rel="noopener noreferrer nofollow">FAO 2023 (via World Bank WDI, indicator AG.LND.AGRI.ZS)</a></td>
+      <td class="axes">agricultural land pct</td>
+    </tr>
+    <tr>
+      <td><a href="https://bulks-faostat.fao.org/production/FoodBalanceSheets_E_All_Data_(Normalized).zip" rel="noopener noreferrer nofollow">FAO Food Balance Sheets (2010-) — Fish &amp; Seafood, food supply quantity per capita (via FAOSTAT bulk)</a></td>
+      <td class="axes">fish seafood kg</td>
+    </tr>
+    <tr>
+      <td><a href="https://bulks-faostat.fao.org/production/FoodBalanceSheets_E_All_Data_(Normalized).zip" rel="noopener noreferrer nofollow">FAO Food Balance Sheets — Food supply quantity, Meat (kg/capita/yr), 2023 (via FAOSTAT)</a></td>
+      <td class="axes">meat supply kg</td>
+    </tr>
+    <tr>
+      <td><a href="https://bulks-faostat.fao.org/production/FoodBalanceSheets_E_All_Data_(Normalized).zip" rel="noopener noreferrer nofollow">FAO Food Balance Sheets — Food supply quantity, Sugar &amp; Sweeteners (Item 2909 / Element 645), 2023 (via FAOSTAT bulk; supply per capita)</a></td>
+      <td class="axes">sugar supply kg</td>
+    </tr>
+    <tr>
+      <td><a href="https://download.geonames.org/export/dump/cities500.zip" rel="noopener noreferrer nofollow">GeoNames cities500, feature code PPLC (population)</a></td>
+      <td class="axes">capital population proper</td>
+    </tr>
+    <tr>
+      <td><a href="https://download.geonames.org/export/dump/countryInfo.txt" rel="noopener noreferrer nofollow">GeoNames countryInfo.txt, `neighbours` column (cardinality)</a></td>
+      <td class="axes">land neighbour count</td>
+    </tr>
+    <tr>
+      <td><a href="https://raw.githubusercontent.com/eggert/tz/2026a/zone1970.tab" rel="noopener noreferrer nofollow">IANA Time Zone Database (tzdb) 2026a, zone1970.tab</a></td>
+      <td class="axes">time zone count</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/EG.ELC.RNEW.ZS" rel="noopener noreferrer nofollow">IEA (via WDI) 2021 (via World Bank WDI, indicator EG.ELC.RNEW.ZS)</a></td>
+      <td class="axes">renewable electricity pct</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/EG.FEC.RNEW.ZS" rel="noopener noreferrer nofollow">IEA 2021 (via World Bank WDI, indicator EG.FEC.RNEW.ZS)</a></td>
+      <td class="axes">renewable energy pct</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS" rel="noopener noreferrer nofollow">ILO (modelled estimate) 2025 (via World Bank WDI, indicator SL.UEM.TOTL.ZS)</a></td>
+      <td class="axes">unemployment pct</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/IT.CEL.SETS.P2" rel="noopener noreferrer nofollow">ITU 2022 (via World Bank WDI, indicator IT.CEL.SETS.P2)</a></td>
+      <td class="axes">mobile per 100</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/IT.NET.BBND.P2" rel="noopener noreferrer nofollow">ITU 2022 (via World Bank WDI, indicator IT.NET.BBND.P2)</a></td>
+      <td class="axes">fixed broadband per 100</td>
+    </tr>
+    <tr>
+      <td><a href="https://www.statista.com/statistics/507950/global-per-capita-tea-consumption-by-country/" rel="noopener noreferrer nofollow">International Tea Committee (ITC) — annual per-capita tea consumption, 2016 (compiled by Statista; values converted from pounds at 1 lb = 0.45359237 kg). Restricted to the leading tea markets ITC reports per-country; rest of roster = honest no-data.</a></td>
+      <td class="axes">tea consumption kg</td>
+    </tr>
+    <tr>
+      <td><a href="https://www.ncdrisc.org/data-downloads-height.html" rel="noopener noreferrer nofollow">NCD Risk Factor Collaboration (NCD-RisC) — &#x27;A century of trends in adult human height&#x27;, eLife 2016;5:e13410 (men, 1996 birth cohort, age 18; ~10yr-old by design — newest NCD-RisC FINAL-ADULT-height release; the later 2020 NCD-RisC height study covers ages 5–19 only, so it does not supersede this adult dataset)</a></td>
+      <td class="axes">avg height cm</td>
+    </tr>
+    <tr>
+      <td><a href="https://github.com/nvkelso/natural-earth-vector/tree/v5.1.1/geojson" rel="noopener noreferrer nofollow">Natural Earth 1:50m v5.1.1, area-weighted centroid</a></td>
+      <td class="axes">latitude</td>
+    </tr>
+    <tr>
+      <td><a href="https://www.oiv.int/sites/default/files/2026-05/OIV-State_of_the_World_Wine_Sector_in_2025.pdf" rel="noopener noreferrer nofollow">OIV (International Organisation of Vine and Wine) — State of the World Wine Sector in 2025, Table 3 (apparent wine consumption, 2025); per-capita derived as total volume ÷ population (WB 2023)</a></td>
+      <td class="axes">wine lpc</td>
+    </tr>
+    <tr>
+      <td><a href="https://ourworldindata.org/grapher/co-emissions-per-capita" rel="noopener noreferrer nofollow">Our World in Data (Global Carbon Project) 2024</a></td>
+      <td class="axes">co2 per capita</td>
+    </tr>
+    <tr>
+      <td><a href="https://data360.worldbank.org/en/indicator/RWB_PFI_OVRL" rel="noopener noreferrer nofollow">Reporters Without Borders (RSF) — World Press Freedom Index 2024, Overall Score (via World Bank Data360)</a></td>
+      <td class="axes">press freedom</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/MS.MIL.XPND.GD.ZS" rel="noopener noreferrer nofollow">SIPRI 2023 (via World Bank WDI, indicator MS.MIL.XPND.GD.ZS)</a></td>
+      <td class="axes">military pct gdp</td>
+    </tr>
+    <tr>
+      <td><a href="https://ourworldindata.org/grapher/corruption-perception-index" rel="noopener noreferrer nofollow">Transparency International — Corruption Perceptions Index 2024 (via Our World in Data)</a></td>
+      <td class="axes">corruption cpi</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/SH.DYN.MORT" rel="noopener noreferrer nofollow">UN IGME (UNICEF/WHO/World Bank/UN-DESA) 2024 (via World Bank WDI, indicator SH.DYN.MORT)</a></td>
+      <td class="axes">under5 mortality</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/SP.POP.65UP.TO.ZS" rel="noopener noreferrer nofollow">UN Population Division (WPP) 2024 (via World Bank WDI, indicator SP.POP.65UP.TO.ZS)</a></td>
+      <td class="axes">pop 65 plus pct</td>
+    </tr>
+    <tr>
+      <td><a href="https://ourworldindata.org/grapher/life-expectancy" rel="noopener noreferrer nofollow">UN WPP 2024 via Our World in Data</a></td>
+      <td class="axes">life expectancy</td>
+    </tr>
+    <tr>
+      <td><a href="https://ourworldindata.org/grapher/median-age" rel="noopener noreferrer nofollow">UN WPP 2024 via Our World in Data</a></td>
+      <td class="axes">median age</td>
+    </tr>
+    <tr>
+      <td><a href="https://hdr.undp.org/sites/default/files/2025_HDR/HDR25_Composite_indices_complete_time_series.csv" rel="noopener noreferrer nofollow">UNDP Human Development Report 2025 — Human Development Index (composite, 0–1), data year 2023</a></td>
+      <td class="axes">hdi</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/SH.XPD.CHEX.PC.CD" rel="noopener noreferrer nofollow">WHO Global Health Expenditure Database 2023 (via World Bank WDI, indicator SH.XPD.CHEX.PC.CD)</a></td>
+      <td class="axes">health expenditure pc</td>
+    </tr>
+    <tr>
+      <td><a href="https://ghoapi.azureedge.net/api/NCD_BMI_30A" rel="noopener noreferrer nofollow">WHO Global Health Observatory — Obesity among adults, BMI ≥ 30 kg/m² (age-standardized estimate, both sexes), NCD-RisC-compiled</a></td>
+      <td class="axes">obesity pct</td>
+    </tr>
+    <tr>
+      <td><a href="https://ghoapi.azureedge.net/api/SA_0000001688" rel="noopener noreferrer nofollow">WHO Global Health Observatory — total alcohol per capita (15+) consumption, SDG indicator 3.5.2 (recorded 3-yr avg + unrecorded, both sexes)</a></td>
+      <td class="axes">alcohol lpc</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/SH.H2O.BASW.ZS" rel="noopener noreferrer nofollow">WHO/UNICEF JMP 2018 (via World Bank WDI, indicator SH.H2O.BASW.ZS)</a></td>
+      <td class="axes">drinking water pct</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/SH.STA.BASS.ZS" rel="noopener noreferrer nofollow">WHO/UNICEF JMP 2018 (via World Bank WDI, indicator SH.STA.BASS.ZS)</a></td>
+      <td class="axes">sanitation pct</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/NY.GNP.PCAP.CD" rel="noopener noreferrer nofollow">World Bank (Atlas method) 2023 (via World Bank WDI, indicator NY.GNP.PCAP.CD)</a></td>
+      <td class="axes">gni per capita usd</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/EG.ELC.ACCS.ZS" rel="noopener noreferrer nofollow">World Bank / ESMAP (SDG 7.1.1) 2023 (via World Bank WDI, indicator EG.ELC.ACCS.ZS)</a></td>
+      <td class="axes">electricity access pct</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/AG.LND.TOTL.K2" rel="noopener noreferrer nofollow">World Bank WDI 2023</a></td>
+      <td class="axes">land area km2</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/EN.POP.DNST" rel="noopener noreferrer nofollow">World Bank WDI 2023</a></td>
+      <td class="axes">population density</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/SP.POP.TOTL" rel="noopener noreferrer nofollow">World Bank WDI 2023</a></td>
+      <td class="axes">population</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/NY.GDP.MKTP.CD" rel="noopener noreferrer nofollow">World Bank WDI 2023 (indicator NY.GDP.MKTP.CD)</a></td>
+      <td class="axes">gdp total usd</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/NY.GDP.PCAP.CD" rel="noopener noreferrer nofollow">World Bank WDI 2023 (indicator NY.GDP.PCAP.CD)</a></td>
+      <td class="axes">gdp per capita usd</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/IT.NET.USER.ZS" rel="noopener noreferrer nofollow">World Bank WDI 2024</a></td>
+      <td class="axes">internet users pct</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/SP.DYN.TFRT.IN" rel="noopener noreferrer nofollow">World Bank WDI 2024</a></td>
+      <td class="axes">fertility rate</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/SP.URB.TOTL.IN.ZS" rel="noopener noreferrer nofollow">World Bank WDI 2024</a></td>
+      <td class="axes">urban population pct</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/SH.PRV.SMOK" rel="noopener noreferrer nofollow">World Bank WDI 2024 — Prevalence of current tobacco use (% of adults 15+, age-standardized); WHO Global Health Observatory estimates redistributed by the World Bank under CC BY 4.0</a></td>
+      <td class="axes">smoking pct</td>
+    </tr>
+    <tr>
+      <td><a href="https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG" rel="noopener noreferrer nofollow">World Bank national accounts 2023 (via World Bank WDI, indicator NY.GDP.MKTP.KD.ZG)</a></td>
+      <td class="axes">gdp growth pct</td>
+    </tr>
+    <tr>
+      <td><a href="https://ourworldindata.org/grapher/happiness-cantril-ladder" rel="noopener noreferrer nofollow">World Happiness Report / Gallup World Poll — Self-reported life satisfaction (Cantril ladder, 0–10), 2025 (via Our World in Data)</a></td>
+      <td class="axes">life satisfaction</td>
+    </tr>
+    </tbody>
+  </table>
+
+  <h2>Licences</h2>
+  <p>
+    Most of this data is published under
+    <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener noreferrer">CC BY 4.0</a>,
+    which permits reuse with attribution — this page is that attribution. Some sources
+    carry their own terms, and a few restrict commercial use; where that is so we either
+    hold permission or the measure does not ship. We would rather lose a question than
+    use a figure we have no right to.
+  </p>
+  <p>
+    Country outlines come from <a href="https://www.naturalearthdata.com/" rel="noopener noreferrer">Natural Earth</a>
+    (public domain). Place names and capitals come from
+    <a href="https://www.geonames.org/" rel="noopener noreferrer">GeoNames</a> (CC BY 4.0).
+    Time-zone data comes from the <a href="https://www.iana.org/time-zones" rel="noopener noreferrer">IANA Time Zone Database</a> (public domain).
+  </p>
+
+  <h2>Found something wrong?</h2>
+  <p>
+    Data goes stale and sources revise their figures. If a number looks wrong, say so
+    and we will check it against the source and correct it — every value is traceable
+    to exactly one publication, which is what makes that possible.
+  </p>
+</main>
+
+<footer class="bar foot">
+  <span>Sorting Geography</span>
+  <nav><a href="privacy.html">Privacy</a> <a href="credits.html">Data sources</a></nav>
+</footer>
+</body>
+</html>

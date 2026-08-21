@@ -1,0 +1,88 @@
+/* Sorting Geography — website
+   Palette is the app's approved identity (ux-foundation.md, Ra'uf 2026-06-07):
+   Forest Green primary, Ocean Blue secondary, Violet for REWARDS ONLY,
+   parchment->ink neutrals. HARD RULE: no gold, no orange, anywhere.
+   Solid colours, no gradients; soft radii with a defined border. */
+:root {
+  --green:       #103A22;
+  --green-deep:  #0b2a18;
+  --green-soft:  #18552F;
+  --ocean:       #1c4f6b;
+  --violet:      #4c3a75;
+  --parchment:   #f5f1e6;
+  --card:        #fffdf7;
+  --ink:         #16150f;
+  --ink-soft:    #4a473c;
+  --rule:        #d9d2bf;
+  --radius:      20px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --green: #18552F; --green-deep: #0d2f1b; --green-soft: #1f6b3c;
+    --ocean: #2b6c8e; --violet: #6a52a3;
+    --parchment: #000000; --card: #131310; --ink: #f3efe2;
+    --ink-soft: #b0aa97; --rule: #2e2c24;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--parchment); color: var(--ink);
+  font: 17px/1.65 ui-rounded, "SF Pro Rounded", system-ui, -apple-system, Segoe UI, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--green-soft); text-underline-offset: 3px; }
+@media (prefers-color-scheme: dark) { a { color: #7fc99a; } }
+
+.bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: 1rem clamp(1rem, 4vw, 2.5rem);
+  background: var(--green); color: #f5f1e6;
+}
+.bar a { color: #e9e3d2; text-decoration: none; }
+.bar nav a { margin-left: 1.1rem; font-size: .95rem; opacity: .9; }
+.bar nav a:hover { opacity: 1; text-decoration: underline; }
+.wordmark { font-weight: 700; letter-spacing: -.01em; font-size: 1.15rem; }
+.foot { margin-top: 4rem; font-size: .9rem; background: var(--green-deep); }
+
+.hero {
+  padding: clamp(3rem, 9vw, 6rem) clamp(1rem, 4vw, 2.5rem);
+  background: var(--green); color: #f5f1e6; text-align: center;
+}
+.hero h1 { font-size: clamp(2rem, 6vw, 3.2rem); margin: 0 0 .6rem; letter-spacing: -.02em; }
+.hero p { max-width: 34rem; margin: 0 auto; font-size: clamp(1.05rem, 2.4vw, 1.25rem); opacity: .93; }
+.tag {
+  display: inline-block; margin-bottom: 1.4rem; padding: .3rem .8rem;
+  border: 1px solid rgba(245,241,230,.45); border-radius: 999px;
+  font-size: .8rem; letter-spacing: .06em; text-transform: uppercase;
+}
+
+main { max-width: 62rem; margin: 0 auto; padding: clamp(2rem, 6vw, 3.5rem) clamp(1rem, 4vw, 2.5rem); }
+.prose { max-width: 46rem; }
+h2 { font-size: 1.5rem; margin: 2.6rem 0 .8rem; letter-spacing: -.01em; }
+.lede { font-size: 1.15rem; color: var(--ink-soft); }
+
+.cards { display: grid; gap: 1.1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin-top: 2rem; }
+.card {
+  background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius);
+  padding: 1.4rem 1.5rem;
+}
+.card h3 { margin: 0 0 .45rem; font-size: 1.1rem; }
+.card p  { margin: 0; color: var(--ink-soft); font-size: .97rem; }
+
+.example {
+  background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius);
+  padding: 1.5rem; margin-top: 1.6rem;
+}
+.example ol { margin: .6rem 0 0; padding-left: 1.3rem; }
+.example li { margin: .35rem 0; }
+.q { font-weight: 600; }
+.muted { color: var(--ink-soft); font-size: .95rem; }
+
+table.sources { width: 100%; border-collapse: collapse; margin-top: 1.6rem; font-size: .95rem; }
+table.sources th, table.sources td {
+  text-align: left; padding: .7rem .6rem; border-bottom: 1px solid var(--rule); vertical-align: top;
+}
+table.sources th { font-size: .8rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-soft); }
+td.axes { color: var(--ink-soft); }
+.table-wrap { overflow-x: auto; }
+code { background: var(--card); border: 1px solid var(--rule); border-radius: 6px; padding: .1rem .35rem; font-size: .9em; }
