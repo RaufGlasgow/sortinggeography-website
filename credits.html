@@ -22,8 +22,8 @@
   </p>
   <p>
     It is generated from the dataset the app actually ships — currently
-    <strong>121 measures</strong> drawn from <strong>115 sources</strong>
-    (dataset <code>dataset-v054-330ad0ef8d90</code>) — not maintained by hand, so it cannot drift
+    <strong>130 measures</strong> drawn from <strong>124 sources</strong>
+    (dataset <code>dataset-v055-af676cc8b546</code>) — not maintained by hand, so it cannot drift
     from what you see in the game.
   </p>
   <p>
@@ -78,6 +78,14 @@
     <tr>
       <td><a href="https://web.archive.org/web/20240418083207/https://www.cia.gov/the-world-factbook/field/coastline" rel="noopener noreferrer nofollow">Derived: CIA World Factbook 2024 `coastline` divided by World Bank WDI 2023 land area (AG.LND.TOTL.K2)</a></td>
       <td class="axes">coastline per land area</td>
+    </tr>
+    <tr>
+      <td><a href="https://web.archive.org/web/20240408180832/https://www.cia.gov/the-world-factbook/field/railways" rel="noopener noreferrer nofollow">Derived: CIA World Factbook 2024 `railways` divided by World Bank WDI 2023 land area (AG.LND.TOTL.K2)</a></td>
+      <td class="axes">rail density km per 1000km2</td>
+    </tr>
+    <tr>
+      <td><a href="https://web.archive.org/web/20240423115934/https://www.cia.gov/the-world-factbook/field/roadways/" rel="noopener noreferrer nofollow">Derived: CIA World Factbook 2024 `roadways` divided by World Bank WDI 2023 land area (AG.LND.TOTL.K2)</a></td>
+      <td class="axes">road density km per 100km2</td>
     </tr>
     <tr>
       <td><a href="https://download.geonames.org/export/dump/cities500.zip" rel="noopener noreferrer nofollow">Derived: GeoNames cities500 largest-city population divided by World Bank WDI 2023 population (SP.POP.TOTL)</a></td>
@@ -300,6 +308,10 @@
       <td class="axes">co2 per capita</td>
     </tr>
     <tr>
+      <td><a href="https://davidmegginson.github.io/ourairports-data/airports.csv" rel="noopener noreferrer nofollow">OurAirports daily airports.csv dump, 2026 (scheduled-service small/medium/large airports only)</a></td>
+      <td class="axes">highest airport m</td>
+    </tr>
+    <tr>
       <td><a href="https://data360.worldbank.org/en/indicator/RWB_PFI_OVRL" rel="noopener noreferrer nofollow">Reporters Without Borders (RSF) — World Press Freedom Index 2024, Overall Score (via World Bank Data360)</a></td>
       <td class="axes">press freedom</td>
     </tr>
@@ -314,6 +326,18 @@
     <tr>
       <td><a href="https://data.worldbank.org/indicator/SM.POP.TOTL" rel="noopener noreferrer nofollow">UN DESA International Migrant Stock 2024 (via World Bank WDI, indicator SM.POP.TOTL)</a></td>
       <td class="axes">migrant stock total</td>
+    </tr>
+    <tr>
+      <td><a href="https://www.un.org/development/desa/pd/content/international-migrant-stock" rel="noopener noreferrer nofollow">UN DESA International Migrant Stock 2024, Table 1 (destination = World, origin = country), both sexes</a></td>
+      <td class="axes">emigrants abroad total</td>
+    </tr>
+    <tr>
+      <td><a href="https://www.un.org/development/desa/pd/content/international-migrant-stock" rel="noopener noreferrer nofollow">UN DESA International Migrant Stock 2024, Table 1 (destination = World, origin = country), over UN WPP 2024 resident population</a></td>
+      <td class="axes">emigrants abroad pct of pop</td>
+    </tr>
+    <tr>
+      <td><a href="https://www.un.org/development/desa/pd/content/international-migrant-stock" rel="noopener noreferrer nofollow">UN DESA International Migrant Stock 2024, Table 1 (destination = country, origin = World), over UN WPP 2024 resident population</a></td>
+      <td class="axes">foreign born share pct</td>
     </tr>
     <tr>
       <td><a href="https://data.worldbank.org/indicator/SH.DYN.MORT" rel="noopener noreferrer nofollow">UN IGME (UNICEF/WHO/World Bank/UN-DESA) 2024 (via World Bank WDI, indicator SH.DYN.MORT)</a></td>
@@ -354,6 +378,18 @@
     <tr>
       <td><a href="https://data.worldbank.org/indicator/SP.POP.TOTL.FE.ZS" rel="noopener noreferrer nofollow">UN World Population Prospects 2024 (via World Bank WDI, indicator SP.POP.TOTL.FE.ZS)</a></td>
       <td class="axes">female share of population</td>
+    </tr>
+    <tr>
+      <td><a href="https://population.un.org/wpp/" rel="noopener noreferrer nofollow">UN World Population Prospects 2024, Demographic Indicators (medium variant), LExFemale minus LExMale, 2024</a></td>
+      <td class="axes">life expectancy gap fm</td>
+    </tr>
+    <tr>
+      <td><a href="https://population.un.org/wpp/" rel="noopener noreferrer nofollow">UN World Population Prospects 2024, Demographic Indicators (medium variant), MAC, 2024</a></td>
+      <td class="axes">mean age at childbearing</td>
+    </tr>
+    <tr>
+      <td><a href="https://population.un.org/wpp/" rel="noopener noreferrer nofollow">UN World Population Prospects 2024, TPopulation1July at 2024 divided by the same series at 1950 (one revision, present-day borders)</a></td>
+      <td class="axes">pop multiple since 1950</td>
     </tr>
     <tr>
       <td><a href="https://data.worldbank.org/indicator/SP.URB.GROW" rel="noopener noreferrer nofollow">UN World Urbanization Prospects (via World Bank WDI, indicator SP.URB.GROW)</a></td>
