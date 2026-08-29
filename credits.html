@@ -23,7 +23,7 @@
   <p>
     It is generated from the dataset the app actually ships — currently
     <strong>190 measures</strong> drawn from <strong>181 sources</strong>
-    (dataset <code>dataset-v076-4160df748edf</code>) — not maintained by hand, so it cannot drift
+    (dataset <code>dataset-v077-6dec1bcc3bdb</code>) — not maintained by hand, so it cannot drift
     from what you see in the game.
   </p>
   <p>
@@ -100,12 +100,12 @@
       <td class="axes">capital distance to sea km</td>
     </tr>
     <tr>
-      <td><a href="https://download.geonames.org/export/dump/cities500.zip" rel="noopener noreferrer nofollow">Derived: GeoNames cities500 largest-city population divided by World Bank WDI 2023 population (SP.POP.TOTL)</a></td>
-      <td class="axes">largest city share of population</td>
-    </tr>
-    <tr>
       <td><a href="https://github.com/nvkelso/natural-earth-vector/blob/master/geojson/ne_10m_coastline.geojson" rel="noopener noreferrer nofollow">Derived: Natural Earth 1:10m coastline over the vendored Natural Earth 1:50m admin-0 countries (both PUBLIC DOMAIN)</a></td>
       <td class="axes">max distance from the sea km</td>
+    </tr>
+    <tr>
+      <td><a href="https://population.un.org/wup/assets/Download/Cities/WUP2025-F21-DEGURBA-Cities_Pop.xlsx" rel="noopener noreferrer nofollow">Derived: UN WUP 2025 File 21 largest-city population divided by World Bank WDI 2023 population (SP.POP.TOTL)</a></td>
+      <td class="axes">largest city share of population</td>
     </tr>
     <tr>
       <td><a href="https://data.worldbank.org/indicator/EN.GHG.CO2.MT.CE.AR5" rel="noopener noreferrer nofollow">EDGAR / EU JRC 2024 (via World Bank WDI, indicator EN.GHG.CO2.MT.CE.AR5)</a></td>
@@ -340,10 +340,6 @@
       <td class="axes">sheep per person</td>
     </tr>
     <tr>
-      <td><a href="https://download.geonames.org/export/dump/cities500.zip" rel="noopener noreferrer nofollow">GeoNames cities500, maximum population over a country&#x27;s PPL* rows (PPLX excluded)</a></td>
-      <td class="axes">largest city population</td>
-    </tr>
-    <tr>
       <td><a href="https://download.geonames.org/export/dump/countryInfo.txt" rel="noopener noreferrer nofollow">GeoNames countryInfo.txt, `neighbours` column (cardinality)</a></td>
       <td class="axes">land neighbour count</td>
     </tr>
@@ -498,6 +494,10 @@
     <tr>
       <td><a href="https://population.un.org/wup/assets/Download/Cities/WUP2025-F20-DEGURBA-Capital_Cities.xlsx" rel="noopener noreferrer nofollow">UN DESA World Urbanization Prospects 2025, File 20 Population of Capital Cities (mid-2025)</a></td>
       <td class="axes">capital population proper</td>
+    </tr>
+    <tr>
+      <td><a href="https://population.un.org/wup/assets/Download/Cities/WUP2025-F21-DEGURBA-Cities_Pop.xlsx" rel="noopener noreferrer nofollow">UN DESA World Urbanization Prospects 2025, File 21 Population Residing in Cities with 50,000 Inhabitants or More (mid-2025), most populous city per country</a></td>
+      <td class="axes">largest city population</td>
     </tr>
     <tr>
       <td><a href="https://data.worldbank.org/indicator/SH.DYN.MORT" rel="noopener noreferrer nofollow">UN IGME (UNICEF/WHO/World Bank/UN-DESA) 2024 (via World Bank WDI, indicator SH.DYN.MORT)</a></td>
