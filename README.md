@@ -43,21 +43,25 @@ HTML is served straight from here and the Worker only handles the few dynamic pa
 
 | Path | What |
 | --- | --- |
-| `/api/subscribe` | POST an email to the launch list (KV `LAUNCH_EMAILS`) |
+| `/api/subscribe` | POST an email to the launch list (KV `LAUNCH_EMAILS`), and send the confirmation through Resend |
 | `/api/unsubscribe?email=` | GET; **deletes** the address rather than flagging it |
 | `/api/export-emails?key=` | GET the list as CSV; requires `EXPORT_SECRET` |
 | `/index.html` | 301 to `/`, so Google never sees two URLs for one page |
 
-Three deliberate differences from the Sorting History worker, each because the thing
-behind it does not exist here:
+The welcome email goes through **Resend**, the same provider the Sorting History site
+uses — `api.resend.com`, an `RESEND_API_KEY` secret, sent fire-and-forget inside
+`ctx.waitUntil` so a mail failure can never fail a signup that was already stored. If the
+key is unset the address is stored and no mail is attempted.
+
+Two deliberate differences from the Sorting History worker, each because the thing behind
+it does not exist here:
 
 - **No language auto-redirect.** That site ships `/de /pt /nl /es`; this one is
   English-only, and redirecting into directories that do not exist would 404 real
   visitors. Add it *with* the translated pages, never before them.
-- **No welcome email.** No mail provider is wired, so a signup is stored and the page
-  promises nothing that does not happen.
-- **The unsubscribe page uses this app's palette.** The Sorting History version links in
-  orange; copying it would fail this repo's palette check, correctly.
+- **This app's palette in the mail and the unsubscribe page.** The Sorting History
+  versions head and link in `#e07850`, an orange; the identity bans it outside the
+  in-game reward burst, and this repo's palette check would fail on it, correctly.
 
 ### Deploying
 
@@ -69,6 +73,7 @@ wrangler login                                   # once, interactive
 wrangler kv namespace create LAUNCH_EMAILS       # copy the id into wrangler.toml
 wrangler kv namespace create LAUNCH_EMAILS --preview
 wrangler secret put EXPORT_SECRET                # any long random string
+wrangler secret put RESEND_API_KEY               # from resend.com, same account as Sorting History
 wrangler deploy
 ```
 
@@ -76,6 +81,12 @@ Then bind the domain. `sortinggeography.com` is already delegated to Cloudflare 
 nameservers as sortinghistory.com) but has **no A record**, so nothing is served yet.
 Adding it as a Custom Domain on the Worker creates the DNS records automatically —
 do `sortinggeography.com` and `www.sortinggeography.com`.
+
+**One more account step for the mail:** the sender is `hello@sortinggeography.com`, so
+`sortinggeography.com` must be added and verified as a domain in Resend (it publishes DKIM
+and SPF records to add in Cloudflare DNS). Until that is done Resend will reject the send —
+the signup is still stored, and the visitor is still told they are on the list, so verify
+the domain before announcing the site anywhere.
 
 ## House rules
 

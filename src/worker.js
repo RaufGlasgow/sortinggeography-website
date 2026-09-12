@@ -9,9 +9,12 @@
 //     this site is English-only today, and redirecting to directories that do
 //     not exist would 404 real visitors. Add it WITH the translated pages, not
 //     before them.
-//   • NO welcome email. Sorting History sends one on signup through its mail
-//     provider; no provider is wired here, so a signup is stored and nothing is
-//     claimed to the visitor that does not happen.
+//   • The welcome email goes through RESEND, the same provider the Sorting
+//     History site uses (api.resend.com, RESEND_API_KEY, fire-and-forget in
+//     ctx.waitUntil so a mail failure never fails the signup). An earlier draft
+//     of this file claimed no provider was wired in the family and left it out;
+//     that was simply wrong - Ra'uf: "Sortinghistory does all the time!" - and
+//     it was wrong because I had not read that site's sendWelcomeEmail.
 //   • The unsubscribe page uses the APP's palette — forest green, ocean blue,
 //     violet for rewards only. NO GOLD AND NO ORANGE anywhere: the identity
 //     reserves gold for one in-game reward moment, and this repo's CI enforces
@@ -24,7 +27,7 @@ export default {
 
     if (url.pathname === '/api/subscribe') {
       if (request.method === 'OPTIONS') return handleCORS();
-      if (request.method === 'POST') return handleSubscribe(request, env);
+      if (request.method === 'POST') return handleSubscribe(request, env, ctx);
       return new Response('Method not allowed', { status: 405 });
     }
 
@@ -57,7 +60,7 @@ function handleCORS() {
   });
 }
 
-async function handleSubscribe(request, env) {
+async function handleSubscribe(request, env, ctx) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -84,10 +87,11 @@ async function handleSubscribe(request, env) {
       }),
     );
 
-    // Says only what actually happens: the address is stored, and it is used
-    // once. No welcome email is sent, so none is promised.
+    // Fire-and-forget: a mail failure must never fail a signup that was stored.
+    ctx.waitUntil(sendWelcomeEmail(email, env));
+
     return new Response(
-      JSON.stringify({ success: true, message: 'Thank you. We will write once, when it ships.' }),
+      JSON.stringify({ success: true, message: 'You are on the list. Check your email.' }),
       { status: 200, headers },
     );
   } catch (error) {
@@ -95,6 +99,48 @@ async function handleSubscribe(request, env) {
       JSON.stringify({ success: false, error: 'Something went wrong. Please try again.' }),
       { status: 500, headers },
     );
+  }
+}
+
+// Resend, same as the Sorting History site. The palette is this app's, though:
+// that site's email heads in #e07850, an orange, which the identity bans
+// everywhere outside the in-game reward burst.
+async function sendWelcomeEmail(email, env) {
+  if (!env.RESEND_API_KEY) return; // not configured yet - store the signup, send nothing
+
+  const unsubscribeUrl =
+    `https://sortinggeography.com/api/unsubscribe?email=${encodeURIComponent(email)}`;
+
+  const html = `<!doctype html>
+<html><head><meta charset="utf-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#f5f1e6;color:#16150f;margin:0;padding:2rem;">
+  <div style="max-width:32rem;margin:0 auto;background:#fffdf7;border:1px solid #d9d2bf;border-radius:20px;padding:2rem;">
+    <h1 style="color:#103A22;font-size:1.35rem;margin-top:0;">You are on the list</h1>
+    <p style="line-height:1.6;">Thank you for signing up for Sorting Geography.</p>
+    <p style="line-height:1.6;">It is a daily geography game: five countries, one question, put them in order. Tallest mountain, longest coastline, most rainfall &mdash; nearly two hundred ways to sort the world, all of it from named public sources with the date and the link shown.</p>
+    <p style="line-height:1.6;">I am building it for my family, and I hope you enjoy it as much as we do.</p>
+    <p style="line-height:1.6;">We will write when it ships, and when new ways to sort arrive. Nothing else.</p>
+    <hr style="border:none;border-top:1px solid #d9d2bf;margin:1.5rem 0;">
+    <p style="font-size:.85rem;color:#4a473c;"><a href="${unsubscribeUrl}" style="color:#1c4f6b;">Unsubscribe</a> &mdash; one click, and the address is deleted.</p>
+  </div>
+</body></html>`;
+
+  try {
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Sorting Geography <hello@sortinggeography.com>',
+        to: [email],
+        subject: 'You are on the list',
+        html,
+      }),
+    });
+  } catch (e) {
+    // Fire-and-forget: never fail a stored subscription because mail failed.
   }
 }
 

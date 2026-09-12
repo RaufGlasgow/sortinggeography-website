@@ -85,7 +85,7 @@
       questions are good and the data is right.
     </p>
     <form class="notify" id="notify" method="post" action="/api/subscribe">
-      <label for="email">Leave an address and we will write once, when it ships.</label>
+      <label for="email">Leave an address and we will tell you when it ships.</label>
       <div class="notify-row">
         <input id="email" name="email" type="email" required autocomplete="email"
                inputmode="email" placeholder="you@example.com">
@@ -93,8 +93,9 @@
       </div>
       <p class="notify-msg" id="notify-msg" role="status" aria-live="polite"></p>
       <p class="muted notify-fine">
-        One email, at launch. Nothing else, ever, and no trackers on this site.
-        Every message carries an unsubscribe link.
+        A note straight away to confirm, then a message when the game ships and when new
+        ways to sort arrive. Nothing else, and no trackers on this site. Every message
+        carries an unsubscribe link, and using it deletes the address.
       </p>
     </form>
     <script>
