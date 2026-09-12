@@ -84,6 +84,45 @@
       In development, for iPhone and Android. No release date yet — it ships when the
       questions are good and the data is right.
     </p>
+    <form class="notify" id="notify" method="post" action="/api/subscribe">
+      <label for="email">Leave an address and we will write once, when it ships.</label>
+      <div class="notify-row">
+        <input id="email" name="email" type="email" required autocomplete="email"
+               inputmode="email" placeholder="you@example.com">
+        <button type="submit">Tell me at launch</button>
+      </div>
+      <p class="notify-msg" id="notify-msg" role="status" aria-live="polite"></p>
+      <p class="muted notify-fine">
+        One email, at launch. Nothing else, ever, and no trackers on this site.
+        Every message carries an unsubscribe link.
+      </p>
+    </form>
+    <script>
+      (function () {
+        var form = document.getElementById('notify');
+        var msg = document.getElementById('notify-msg');
+        if (!form || !msg) return;
+        form.addEventListener('submit', function (event) {
+          event.preventDefault();
+          var button = form.querySelector('button');
+          button.disabled = true;
+          msg.textContent = 'Sending…';
+          msg.className = 'notify-msg';
+          fetch('/api/subscribe', { method: 'POST', body: new FormData(form) })
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+              msg.textContent = data.message || data.error || 'Something went wrong.';
+              msg.className = 'notify-msg ' + (data.success ? 'ok' : 'bad');
+              if (data.success) form.reset();
+            })
+            .catch(function () {
+              msg.textContent = 'Something went wrong. Please try again.';
+              msg.className = 'notify-msg bad';
+            })
+            .then(function () { button.disabled = false; });
+        });
+      })();
+    </script>
   </div>
 </main>
 

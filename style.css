@@ -86,3 +86,30 @@ table.sources th { font-size: .8rem; letter-spacing: .05em; text-transform: uppe
 td.axes { color: var(--ink-soft); }
 .table-wrap { overflow-x: auto; }
 code { background: var(--card); border: 1px solid var(--rule); border-radius: 6px; padding: .1rem .35rem; font-size: .9em; }
+
+/* ---- Launch-email signup (the "When?" section) --------------------------
+   Palette only: forest green, ocean blue, parchment. No gold, no orange —
+   the identity reserves gold for one in-game reward moment and CI enforces
+   the ban here. */
+.notify { margin-top: 1.25rem; }
+.notify label { display: block; margin-bottom: .5rem; }
+.notify-row { display: flex; flex-wrap: wrap; gap: .5rem; }
+.notify input {
+  flex: 1 1 14rem; min-width: 0; padding: .7rem .85rem;
+  font: inherit; color: var(--ink);
+  background: var(--card); border: 1px solid var(--rule);
+  border-radius: calc(var(--radius) / 2);
+}
+.notify input:focus-visible { outline: 2px solid var(--ocean); outline-offset: 1px; }
+.notify button {
+  flex: 0 0 auto; padding: .7rem 1.1rem; font: inherit; font-weight: 600;
+  color: var(--parchment); background: var(--green);
+  border: 1px solid var(--green); border-radius: calc(var(--radius) / 2);
+  cursor: pointer;
+}
+.notify button:hover { background: var(--green-soft); border-color: var(--green-soft); }
+.notify button:disabled { opacity: .6; cursor: default; }
+.notify-msg { min-height: 1.4em; margin: .6rem 0 0; }
+.notify-msg.ok { color: var(--green); font-weight: 600; }
+.notify-msg.bad { color: var(--ocean); font-weight: 600; }
+.notify-fine { margin-top: .35rem; font-size: .9rem; }

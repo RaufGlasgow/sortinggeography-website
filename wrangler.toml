@@ -1,0 +1,20 @@
+# Sorting Geography's marketing site — a Cloudflare Worker serving static assets,
+# mirroring the Sorting History site's shape so there is one pattern in the
+# family, not two.
+#
+# The KV namespace ids below are placeholders until `wrangler kv namespace create`
+# has been run against Ra'uf's Cloudflare account; the deploy step fills them in.
+name = "sortinggeography-website"
+compatibility_date = "2025-01-05"
+main = "src/worker.js"
+
+[assets]
+directory = "./"
+binding = "ASSETS"
+
+# Launch-email signups. Same binding name as the Sorting History site so the
+# worker code reads identically across the family.
+[[kv_namespaces]]
+binding = "LAUNCH_EMAILS"
+id = "PLACEHOLDER_FILL_ON_FIRST_DEPLOY"
+preview_id = "PLACEHOLDER_FILL_ON_FIRST_DEPLOY"
