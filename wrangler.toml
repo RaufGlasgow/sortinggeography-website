@@ -8,6 +8,19 @@ name = "sortinggeography-website"
 compatibility_date = "2025-01-05"
 main = "src/worker.js"
 
+# The custom domains. With `custom_domain = true`, `wrangler deploy` creates the
+# DNS records and issues the certificates itself — there is no dashboard step.
+# Cloudflare matches a custom domain EXACTLY, so www is a separate entry: a
+# Worker on sortinggeography.com does not receive www.sortinggeography.com.
+# (Verified against the current Cloudflare docs, 2026-09-12.)
+[[routes]]
+pattern = "sortinggeography.com"
+custom_domain = true
+
+[[routes]]
+pattern = "www.sortinggeography.com"
+custom_domain = true
+
 [assets]
 directory = "./"
 binding = "ASSETS"
