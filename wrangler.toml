@@ -29,5 +29,5 @@ binding = "ASSETS"
 # worker code reads identically across the family.
 [[kv_namespaces]]
 binding = "LAUNCH_EMAILS"
-id = "PLACEHOLDER_FILL_ON_FIRST_DEPLOY"
-preview_id = "PLACEHOLDER_FILL_ON_FIRST_DEPLOY"
+id = "8532058e502645b2bcb300ada76a7caf"
+preview_id = "5cbcd0ed30314ec48c662971bed1febc"

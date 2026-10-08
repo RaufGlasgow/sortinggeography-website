@@ -8,3 +8,5 @@ scripts
 wrangler.toml
 .assetsignore
 .DS_Store
+docs
+README.md
