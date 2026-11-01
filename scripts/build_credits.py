@@ -119,6 +119,12 @@ TEMPLATE = """<!doctype html>
     <a href="https://www.geonames.org/" rel="noopener noreferrer">GeoNames</a> (CC BY 4.0).
     Time-zone data comes from the <a href="https://www.iana.org/time-zones" rel="noopener noreferrer">IANA Time Zone Database</a> (public domain).
   </p>
+  <p>
+    The game's Japanese line breaking uses the phrase model of
+    <a href="https://github.com/google/budoux" rel="noopener noreferrer">BudouX</a> by Google (version 0.9.3),
+    under the <a href="https://www.apache.org/licenses/LICENSE-2.0" rel="noopener noreferrer">Apache License 2.0</a>.
+    The full licence text is in the app, under Settings, Licences.
+  </p>
 
   <h2>Found something wrong?</h2>
   <p>
