@@ -31,7 +31,7 @@ import { serveAsset } from './pages.js';
 // Mail (welcome, backlog) lives in src/mail.js: workerd treats every named
 // export of this main module as an entrypoint, so this file exports only the
 // handler (scripts/test_served.mjs caught a constant export breaking start-up).
-import { sendWelcomeEmail, handleWelcomeBacklog } from './mail.js';
+import { sendWelcomeEmail, handleWelcomeBacklog, isSignupKey } from './mail.js';
 import { tokenValid } from './token.js';
 
 export default {
@@ -227,6 +227,7 @@ async function handleExport(request, env) {
     do {
       const list = await env.LAUNCH_EMAILS.list(cursor ? { cursor } : {});
       for (const entry of list.keys) {
+        if (!isSignupKey(entry.name)) continue; // the daily send counter (src/mail.js)
         const value = await env.LAUNCH_EMAILS.get(entry.name);
         if (!value) continue;
         try {

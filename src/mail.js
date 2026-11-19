@@ -9,6 +9,28 @@ import { unsubscribeToken } from './token.js';
 // few dead addresses can never block the backlog for everyone else.
 export const MAX_FAILURES = 3;
 
+// A cap on welcomes sent per UTC day, across everyone (18.5 review E6). The
+// per-IP limit alone still lets one source sign up thousands of strangers a
+// day, each mailed once. Past the cap a welcome is not sent and not counted as
+// a failure: the signup simply waits for the next day's backlog send.
+// DAILY_SEND_CAP (wrangler.toml [vars]) sets it; missing or not a positive
+// whole number means DEFAULT_DAILY_SEND_CAP, never "no cap".
+export const DEFAULT_DAILY_SEND_CAP = 90;
+const SENDS_KEY = (now) => `sends:${now.toISOString().slice(0, 10)}`;
+
+export function dailyCap(env) {
+  const n = Number(env.DAILY_SEND_CAP);
+  return Number.isInteger(n) && n > 0 ? n : DEFAULT_DAILY_SEND_CAP;
+}
+
+// The counter's key has no "@", so it can never be a signup's key; the export
+// and the backlog skip every key without one.
+export const isSignupKey = (name) => name.includes('@');
+
+async function sentToday(env, now) {
+  return Number((await env.LAUNCH_EMAILS.get(SENDS_KEY(now))) || 0);
+}
+
 // Resend, same as the Sorting History site; the template is src/email.js.
 // Returns true only when Resend accepted the message (2xx), and only then is
 // the signup marked welcomedAt, so a send that failed (domain not yet
@@ -17,6 +39,8 @@ export async function sendWelcomeEmail(email, lang, env) {
   // Not configured yet: store the signup, send nothing. Without the
   // unsubscribe secret there is no honest unsubscribe link, so no mail either.
   if (!env.RESEND_API_KEY || !env.UNSUBSCRIBE_SECRET) return false;
+  const now = new Date();
+  if ((await sentToday(env, now)) >= dailyCap(env)) return false; // waits for the backlog
   const { message } = welcomeEmail(email, lang, await unsubscribeToken(email, env.UNSUBSCRIBE_SECRET));
   let ok = false;
   try {
@@ -29,6 +53,12 @@ export async function sendWelcomeEmail(email, lang, env) {
       body: JSON.stringify(message),
     });
     ok = res.ok;
+    if (ok) {
+      // KV is eventually consistent, so the count can run a little over under
+      // a burst; the per-IP limit keeps that small. Kept two days, then gone.
+      await env.LAUNCH_EMAILS.put(SENDS_KEY(now), String((await sentToday(env, now)) + 1),
+        { expirationTtl: 2 * 86400 });
+    }
   } catch (e) {
     ok = false; // fire-and-forget: never fail a stored subscription because mail failed
   }
@@ -73,6 +103,7 @@ export async function handleWelcomeBacklog(request, env) {
   do {
     const list = await env.LAUNCH_EMAILS.list(cursor ? { cursor } : {});
     for (const entry of list.keys) {
+      if (!isSignupKey(entry.name)) continue;
       const value = await env.LAUNCH_EMAILS.get(entry.name);
       if (!value) continue;
       let record;
@@ -86,14 +117,17 @@ export async function handleWelcomeBacklog(request, env) {
 
   // Never-failed first, then the least-failed: refused addresses go last.
   waiting.sort((a, b) => (a.failures || 0) - (b.failures || 0));
-  if (!send) return Response.json({ dryRun: true, waiting: waiting.length, givenUp });
+  if (!send) return Response.json({ dryRun: true, waiting: waiting.length, givenUp, dailyCap: dailyCap(env) });
 
+  // Never past today's cap (E6): what is left waits for tomorrow's call.
+  const room = Math.max(0, dailyCap(env) - (await sentToday(env, new Date())));
   let sent = 0;
   let failed = 0;
-  for (const record of waiting.slice(0, BACKLOG_BATCH)) {
+  for (const record of waiting.slice(0, Math.min(BACKLOG_BATCH, room))) {
     if (await sendWelcomeEmail(record.email, record.lang || 'en', env)) sent += 1;
     else failed += 1;
   }
-  return Response.json({ dryRun: false, sent, failed, remaining: waiting.length - sent, givenUp });
+  return Response.json({ dryRun: false, sent, failed, remaining: waiting.length - sent, givenUp,
+    capReached: room <= BACKLOG_BATCH && waiting.length > room });
 }
 

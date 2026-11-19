@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import worker from '../src/worker.js';
-import { sendWelcomeEmail, BACKLOG_BATCH, MAX_FAILURES } from '../src/mail.js';
+import { sendWelcomeEmail, BACKLOG_BATCH, MAX_FAILURES, DEFAULT_DAILY_SEND_CAP, dailyCap } from '../src/mail.js';
 import { welcomeEmail, LANGS, pickLang, unsubscribeUrl, esc } from '../src/email.js';
 import { unsubscribeToken, tokenValid } from '../src/token.js';
 
@@ -20,7 +20,8 @@ function fakeKV(seed = {}) {
   return {
     m,
     async get(k) { return m.has(k) ? m.get(k) : null; },
-    async put(k, v) { m.set(k, v); },
+    puts: [],
+    async put(k, v, opts) { m.set(k, v); this.puts.push([k, opts]); },
     async delete(k) { m.delete(k); },
     async list() { return { keys: [...m.keys()].map((name) => ({ name })), list_complete: true }; },
   };
@@ -301,7 +302,8 @@ test('backlog refuses without the secret, with a wrong one, and when the secret 
 
 test('backlog dry run counts who is waiting and sends nothing', async () => {
   const env = envWith({ LAUNCH_EMAILS: seeded(5, 2), EXPORT_SECRET: 's', RESEND_API_KEY: 'k' });
-  assert.deepEqual(await (await backlog(env, { key: 's' })).json(), { dryRun: true, waiting: 3, givenUp: 0 });
+  assert.deepEqual(await (await backlog(env, { key: 's' })).json(),
+    { dryRun: true, waiting: 3, givenUp: 0, dailyCap: DEFAULT_DAILY_SEND_CAP });
   assert.equal(sent.length, 0);
 });
 
@@ -342,7 +344,7 @@ test('backlog: refused addresses go last and are given up after MAX_FAILURES (E4
   }
   const last = outs.at(-1);
   assert.deepEqual([last.sent, last.failed, last.remaining, last.givenUp], [0, 0, 0, 45]);
-  for (const [k, v] of kv.m) if (k !== 'good@example.com') assert.equal(JSON.parse(v).failures, MAX_FAILURES);
+  for (const [k, v] of kv.m) if (k.includes('@') && k !== 'good@example.com') assert.equal(JSON.parse(v).failures, MAX_FAILURES);
 });
 
 test('src/worker.js exports only its handler (workerd treats named exports as entrypoints)', () => {
@@ -355,4 +357,62 @@ test('the template words carry no number typed by hand (counts come from facts)'
   const words = src.slice(src.indexOf('const TEXT = {'), src.indexOf('export const LANGS'));
   assert.ok(words.length > 100, 'found the TEXT block');
   assert.doesNotMatch(words.replace(/\/\/.*$/gm, ''), /\b\d{2,}\b/, 'a count in the words must be ${f.<fact>}');
+});
+
+// ---- the daily cap (E6) -----------------------------------------------------------
+test('past DAILY_SEND_CAP a signup is stored but not sent, and not counted a failure', async () => {
+  const env = envWith({ RESEND_API_KEY: 'k', DAILY_SEND_CAP: '2' });
+  for (const e of ['a@example.com', 'b@example.com', 'c@example.com']) {
+    assert.equal((await subscribe(env, { email: e })).status, 200);
+  }
+  assert.equal(sent.length, 2);
+  const c = JSON.parse(env.LAUNCH_EMAILS.m.get('c@example.com'));
+  assert.equal(c.welcomedAt, undefined);
+  assert.equal(c.failures, undefined, 'a capped welcome is deferred, not failed');
+});
+
+test('a refused send does not use up the cap', async () => {
+  resendStatus = 500;
+  const env = envWith({ RESEND_API_KEY: 'k', DAILY_SEND_CAP: '1' });
+  await subscribe(env, { email: 'a@example.com' });
+  resendStatus = 200;
+  await subscribe(env, { email: 'b@example.com' });
+  assert.ok(JSON.parse(env.LAUNCH_EMAILS.m.get('b@example.com')).welcomedAt);
+});
+
+test('the backlog stops at the cap and says so; the next day it sends the rest', async () => {
+  const env = envWith({ LAUNCH_EMAILS: seeded(5), EXPORT_SECRET: 's', RESEND_API_KEY: 'k', DAILY_SEND_CAP: '3' });
+  const day1 = await (await backlog(env, { key: 's', send: '1' })).json();
+  assert.deepEqual([day1.sent, day1.failed, day1.remaining, day1.capReached], [3, 0, 2, true]);
+  const again = await (await backlog(env, { key: 's', send: '1' })).json();
+  assert.deepEqual([again.sent, again.failed, again.capReached], [0, 0, true], 'no failures recorded while capped');
+  for (const k of [...env.LAUNCH_EMAILS.m.keys()]) if (!k.includes('@')) env.LAUNCH_EMAILS.m.delete(k); // a new UTC day
+  const day2 = await (await backlog(env, { key: 's', send: '1' })).json();
+  assert.deepEqual([day2.sent, day2.remaining, day2.capReached], [2, 0, false]);
+  assert.equal(sent.length, 5);
+});
+
+test('the counter is dated, expires, and is never a signup (export and backlog skip it)', async () => {
+  const env = envWith({ RESEND_API_KEY: 'k', EXPORT_SECRET: 's' });
+  await subscribe(env, { email: 'a@example.com' });
+  const today = `sends:${new Date().toISOString().slice(0, 10)}`;
+  assert.equal(env.LAUNCH_EMAILS.m.get(today), '1');
+  const [, opts] = env.LAUNCH_EMAILS.puts.find(([k]) => k === today);
+  assert.ok(opts && opts.expirationTtl > 0 && opts.expirationTtl <= 3 * 86400);
+  const csv = await (await worker.fetch(new Request(`${SITE}/api/export-emails?key=s`), env, ctx())).text();
+  assert.equal(csv.trim().split('\n').length, 2, 'header + the one signup, no counter row');
+  assert.deepEqual(await (await backlog(env, { key: 's' })).json(),
+    { dryRun: true, waiting: 0, givenUp: 0, dailyCap: DEFAULT_DAILY_SEND_CAP });
+});
+
+for (const v of [undefined, '', '0', '-1', '1.5', 'lots']) {
+  test(`DAILY_SEND_CAP=${JSON.stringify(v)} means the default cap, never no cap`, () => {
+    assert.equal(dailyCap({ DAILY_SEND_CAP: v }), DEFAULT_DAILY_SEND_CAP);
+  });
+}
+
+test('wrangler.toml sets DAILY_SEND_CAP to a positive whole number', () => {
+  const toml = readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8');
+  const m = toml.match(/^DAILY_SEND_CAP = "(\d+)"$/m);
+  assert.ok(m && Number(m[1]) > 0 && dailyCap({ DAILY_SEND_CAP: m[1] }) === Number(m[1]));
 });
