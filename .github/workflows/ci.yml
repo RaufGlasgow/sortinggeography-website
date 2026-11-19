@@ -23,6 +23,9 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # A normal run takes well under a minute. Without a cap a hung step runs
+    # for GitHub's default six hours.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 

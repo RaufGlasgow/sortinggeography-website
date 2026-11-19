@@ -42,19 +42,41 @@ before(async () => {
   base = `http://127.0.0.1:${port}`;
   const cmd = (process.env.WRANGLER || 'wrangler').split(' ');
   dev = spawn(cmd[0], [...cmd.slice(1), 'dev', '--ip', '127.0.0.1', '--port', String(port), '--log-level', 'warn'],
-    { cwd: fileURLToPath(SITE), env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+    // detached: wrangler gets its own process group, so after() can stop
+    // npx, wrangler AND workerd together. Killing only npx left workerd
+    // holding the pipes open on GitHub's runner and the job never ended.
+    { cwd: fileURLToPath(SITE), env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' },
+      stdio: ['ignore', 'pipe', 'pipe'], detached: true });
   dev.stdout.on('data', (d) => { log += d; });
   dev.stderr.on('data', (d) => { log += d; });
   const deadline = Date.now() + 90_000;
   for (;;) {
     if (dev.exitCode !== null) throw new Error(`wrangler dev exited ${dev.exitCode}:\n${log}`);
-    try { const r = await fetch(base + '/robots.txt'); await r.text(); if (r.ok) break; } catch {}
+    try {
+      const r = await fetch(base + '/robots.txt', { signal: AbortSignal.timeout(3000) });
+      await r.text();
+      if (r.ok) break;
+    } catch {}
     if (Date.now() > deadline) throw new Error(`wrangler dev did not start in 90 s:\n${log}`);
     await new Promise((r) => setTimeout(r, 500));
   }
 });
 
-after(() => { dev?.kill('SIGTERM'); });
+// Stop the whole group, force it after 5 s, and let go of the pipes, so the
+// test process always exits.
+after(async () => {
+  if (!dev) return;
+  const group = (sig) => { try { process.kill(-dev.pid, sig); } catch {} };
+  const gone = new Promise((r) => (dev.exitCode !== null || dev.signalCode !== null ? r() : dev.once('exit', r)));
+  group('SIGTERM');
+  const forced = setTimeout(() => group('SIGKILL'), 5000);
+  await Promise.race([gone, new Promise((r) => setTimeout(r, 8000))]);
+  clearTimeout(forced);
+  group('SIGKILL');
+  dev.stdout.destroy();
+  dev.stderr.destroy();
+  dev.unref();
+});
 
 test('the site has pages to check', () => {
   assert.ok(servedPages().length >= 6, servedPages().join(', '));
@@ -66,7 +88,8 @@ for (const page of servedPages()) {
     // The asset layer serves /x/index.html at /x/ and /x.html at /x (it
     // redirects the .html name), so fetch the URL a visitor ends up on.
     const path = '/' + page.replace(/index\.html$/, '').replace(/\.html$/, '');
-    const res = await fetch(base + path, { headers: { Accept: 'text/html' }, redirect: 'manual' });
+    const res = await fetch(base + path, { headers: { Accept: 'text/html' }, redirect: 'manual',
+      signal: AbortSignal.timeout(15000) });
     assert.equal(res.status, 200, `${path}: HTTP ${res.status}`);
     const sent = await res.text();
     for (const mark of ['<!--', '-->']) {
