@@ -86,11 +86,17 @@ first) and fails if `src/features.json` claims a feature main lacks, or misses o
 has. It cannot run in this public repo's CI, because the game repo is private, so it is
 this step and it is not optional: no game repo, no deploy.
 
+**One wrangler, pinned: `npx --yes wrangler@4.74.0`** (team-lead 2026-11-19). The same
+version runs CI's "Every page as the real worker sends it" (`scripts/test_served.mjs`), so
+what is tested is what deploys. Do not use a bare `wrangler` (Homebrew may have moved it) or
+`wrangler@3`. `scripts/check_wrangler_pin.py` (CI) fails if this line and `ci.yml` ever name
+different versions; change both together.
+
 ```sh
 git -C ../Sorting-Geography fetch origin
 python3 scripts/build_features.py --game ../Sorting-Geography
-wrangler deploy
-python3 scripts/check_live.py          # after: support, privacy, app-ads.txt answer 200
+npx --yes wrangler@4.74.0 deploy
+python3 scripts/check_live.py          # after: pages 200, no HTML comment served, MX
 ```
 
 `wrangler.toml` already carries both custom domains:

@@ -23,6 +23,9 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # A normal run takes well under a minute. Without a cap a hung step runs
+    # for GitHub's default six hours.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -157,6 +160,12 @@ jobs:
       - name: Support, privacy, app-ads.txt and robots.txt in place (Story 18.9)
         run: python3 scripts/check_store_pages.py
 
+      - name: Comment marks only in real comments, never in scripts, styles or attributes (Story 18.9c)
+        run: python3 scripts/check_comments.py
+
+      - name: CI tests the same wrangler version that deploys (Story 18.9c)
+        run: python3 scripts/check_wrangler_pin.py
+
       - name: Every guard goes red when broken on purpose
         run: python3 scripts/test_checks.py
 
@@ -173,3 +182,11 @@ jobs:
 
       - name: The launch flips before, at and after the moment
         run: node --test scripts/test_launch.mjs
+
+      # The real worker (workerd + HTMLRewriter, local only: no account, no
+      # deploy) serves every page; each must be its source minus its comments.
+      - name: Every page as the real worker sends it (Story 18.9c)
+        env:
+          WRANGLER: npx --yes wrangler@4.74.0
+          WRANGLER_SEND_METRICS: 'false'
+        run: node --test scripts/test_served.mjs

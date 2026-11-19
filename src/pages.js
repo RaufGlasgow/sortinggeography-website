@@ -23,18 +23,7 @@ export async function serveAsset(request, env, nowMs) {
   headers.delete('If-Modified-Since');
   const response = await env.ASSETS.fetch(new Request(request, { headers }));
   if (!(response.headers.get('Content-Type') || '').includes('text/html')) return response;
-  const clean = new Response(stripComments(await response.text()), response);
-  clean.headers.delete('Content-Length');
-  return stampLaunch(clean, nowMs);
-}
-
-// No served page carries an HTML comment (18.9b B5). The source pages keep
-// theirs: they hold the build markers (`<!-- launch:NAME -->`,
-// `<!-- feature:NAME -->`) and the notes for whoever edits the page, none of
-// which is for a visitor. scripts/test_launch.mjs sends every page through
-// serveAsset and fails on any `<!--` left.
-export function stripComments(html) {
-  return html.replace(/<!--[\s\S]*?-->/g, '');
+  return stampLaunch(response, nowMs);
 }
 
 export function stampLaunch(response, nowMs, Rewriter = globalThis.HTMLRewriter) {
@@ -42,8 +31,22 @@ export function stampLaunch(response, nowMs, Rewriter = globalThis.HTMLRewriter)
   out.headers.delete('ETag');
   out.headers.delete('Last-Modified');
   out.headers.set('Cache-Control', 'no-cache');
+  // The body changes length (attributes added, comments removed).
+  out.headers.delete('Content-Length');
   const state = launchState(nowMs);
   return new Rewriter()
+    // No served page carries an HTML comment (18.9b B5, 18.9c). The source
+    // pages keep theirs: build markers (`<!-- launch:NAME -->`,
+    // `<!-- feature:NAME -->`) and notes for whoever edits the page, none of
+    // it for a visitor. HTMLRewriter's own parser finds the comments, so a
+    // '<!--' inside a script or an attribute is never mistaken for one.
+    // scripts/check_comments.py refuses such text in the source anyway, and
+    // scripts/test_served.mjs fetches every page from the real worker.
+    .onDocument({
+      comments(comment) {
+        comment.remove();
+      },
+    })
     .on('html', {
       element(el) {
         el.setAttribute('data-launch', state);

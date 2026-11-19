@@ -23,6 +23,8 @@ import build_launch  # noqa: E402
 import check_platform  # noqa: E402
 import check_store_pages  # noqa: E402
 import build_features  # noqa: E402
+import check_comments  # noqa: E402
+import check_wrangler_pin  # noqa: E402
 import json  # noqa: E402
 import subprocess  # noqa: E402
 
@@ -483,6 +485,79 @@ feature_case("'Daily streak' put back into privacy", True, lambda r: edit(
     r, "privacy/index.html", "your scores and your", "your scores, your Daily streak and your"))
 feature_case("a streak line inside a generated region", True, lambda r: edit(
     r, "privacy/index.html", "<!-- feature:privacy-summary -->", "<!-- feature:privacy-summary --><li>Keep your streak.</li>"))
+
+# 18.9c: '<!--' and '-->' only inside real comments, so the worker's
+# HTMLRewriter strip and test_served.mjs's split agree on every page.
+def comment_case(name: str, expect_red: bool, mutate=None) -> None:
+    root = copy_site()
+    try:
+        if mutate:
+            mutate(root)
+        red = bool(check_comments.check(root))
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} comment  {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"comment: {name}")
+
+
+H1 = "<h1>Terms</h1>"
+comment_case("today's pages", False)
+comment_case("an ordinary comment added to the body", False, lambda r: edit(
+    r, "terms/index.html", H1, H1 + "<!-- a note -->"))
+comment_case("'<!--' inside an inline script", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + '<script>var a = "<!-- x";</script>'))
+comment_case("'-->' inside an inline script", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + '<script>if (a-->0) {}</script>'))
+comment_case("'<!--' inside a style", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + '<style>p::after { content: "<!--"; }</style>'))
+comment_case("'-->' inside an attribute", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + '<p title="a-->b">x</p>'))
+comment_case("'<!--' inside a single-quoted attribute", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + "<p data-x='<!--'>x</p>"))
+comment_case("a stray '-->' in page text", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + "<p>a --> b</p>"))
+comment_case("a comment never closed", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + "<!-- open"))
+comment_case("a comment that opens another inside it", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + "<!-- a <!-- b -->"))
+comment_case("an escaped &lt;!-- in text is fine", False, lambda r: edit(
+    r, "terms/index.html", H1, H1 + "<p>&lt;!-- shown as text</p>"))
+
+# 18.9c: the wrangler CI tests is the wrangler that deploys.
+def pin_case(name: str, expect_red: bool, mutate=None) -> None:
+    root = copy_site()
+    try:
+        if mutate:
+            mutate(root)
+        red = bool(check_wrangler_pin.check(root))
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} pin      {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"pin: {name}")
+
+
+RB = "docs/DEPLOY-RUNBOOK.md"
+pin_case("today: CI and deploy both 4.74.0", False)
+pin_case("deploy step moved to another version", True, lambda r: edit(
+    r, RB, "npx --yes wrangler@4.74.0 deploy\n", "npx --yes wrangler@4.75.0 deploy\n"))
+pin_case("CI moved to another version", True, lambda r: edit(
+    r, ".github/workflows/ci.yml", "WRANGLER: npx --yes wrangler@4.74.0", "WRANGLER: npx --yes wrangler@4.75.0"))
+pin_case("deploy step back to bare wrangler deploy", True, lambda r: edit(
+    r, RB, "npx --yes wrangler@4.74.0 deploy\n", "wrangler deploy\n"))
+pin_case("deploy step back to wrangler@3", True, lambda r: edit(
+    r, RB, "npx --yes wrangler@4.74.0 deploy\n", "npx -y wrangler@3 deploy\n"))
+pin_case("deploy command deleted from Step 4", True, lambda r: edit(
+    r, RB, "npx --yes wrangler@4.74.0 deploy\n", "\n"))
+pin_case("an unpinned deploy line beside the pinned one", True, lambda r: edit(
+    r, RB, "npx --yes wrangler@4.74.0 deploy\n", "npx --yes wrangler@4.74.0 deploy\nwrangler deploy --env staging\n"))
+pin_case("a second pinned deploy line on another version", True, lambda r: edit(
+    r, RB, "npx --yes wrangler@4.74.0 deploy\n", "npx --yes wrangler@4.74.0 deploy\nnpx --yes wrangler@4.75.0 deploy\n"))
+pin_case("CI loose to a major (wrangler@4)", True, lambda r: edit(
+    r, ".github/workflows/ci.yml", "WRANGLER: npx --yes wrangler@4.74.0", "WRANGLER: npx --yes wrangler@4"))
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
