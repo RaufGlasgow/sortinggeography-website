@@ -352,17 +352,16 @@ def todo_case(name, mutate, expect_red):
         failures.append(f"todo: {name}")
 
 
-def fill_todos(r):
-    for rel in ("terms/index.html", "press/index.html"):
-        t = (r / rel).read_text()
-        t = __import__("re").sub(r'<span class="todo">.*?</span>', "Example Ltd", t, flags=__import__("re").S)
-        (r / rel).write_text(t)
-
-
-todo_case("placeholders open today: deploy refused", lambda r: None, True)
-todo_case("all placeholders filled: deploy allowed", fill_todos, False)
-todo_case("one placeholder left in terms", lambda r: (fill_todos(r), edit(
-    r, "terms/index.html", "Example Ltd", '<span class="todo">x</span>')), True)
+# Every placeholder is filled today (Empty Cup Media LLC, Nevada; Ra'uf 2026-11-19),
+# so the clean tree must pass and a placeholder put back anywhere must go red.
+TODO = '<span class="todo">to be confirmed</span>'
+todo_case("all placeholders filled today: deploy allowed", lambda r: None, False)
+todo_case("placeholder back in terms", lambda r: edit(
+    r, "terms/index.html", "Empty Cup Media LLC", TODO), True)
+todo_case("placeholder back in press", lambda r: edit(
+    r, "press/index.html", "<td>Empty Cup Media LLC</td>", "<td>" + TODO + "</td>"), True)
+todo_case("placeholder only inside an HTML comment", lambda r: edit(
+    r, "terms/index.html", "<h1>Terms</h1>", "<!-- " + TODO + " --><h1>Terms</h1>"), False)
 
 
 def facts_case(name, game_over, expect_red):
