@@ -87,7 +87,7 @@ def blocks_text(text: str) -> list[str]:
 # steps cannot honestly name iOS. The exemption covers only rule 3, only this
 # path, and only while the page says why in so many words; the other rules
 # (device names, Apple first, Apple alone) still apply to it.
-ANDROID_ONLY = {"testers/index.html": "Apple has no such step, so this test is for Android only."}
+ANDROID_ONLY = {"testers/index.html": "This test runs on Google Play, so it is for Android only."}
 
 
 def problems_in(name: str, content: str, is_html: bool) -> list[str]:

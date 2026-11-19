@@ -44,6 +44,7 @@ this public repo's CI (the game repo is private), so it is a deploy step
 """
 from __future__ import annotations
 
+import html
 import json
 import pathlib
 import re
@@ -90,19 +91,24 @@ def load_facts(root: pathlib.Path = ROOT) -> dict:
 # built and reviewed now but --game refuses the deploy until both are real.
 PACKAGE = "com.emptycupmedia.sorting_geography"     # --game checks it against main
 GROUP_PREFIX = "https://groups.google.com/g/"
+# A group name is letters, digits, dot, dash, underscore; nothing that could
+# leave the href attribute (review-share T1).
+GROUP_URL = re.compile(r"https://groups\.google\.com/g/[A-Za-z0-9._-]+")
 OPTIN_URL = f"https://play.google.com/apps/testing/{PACKAGE}"
 
 
 def load_testers(root: pathlib.Path = ROOT) -> dict:
     t = json.loads((root / "src" / "testers.json").read_text(encoding="utf-8"))
-    for k in ("group_url", "optin_url", "days", "min_testers"):
+    for k in ("group_url", "optin_url", "days"):
         if k not in t:
             raise SystemExit(f"src/testers.json: missing {k}")
-    if not (isinstance(t["days"], int) and isinstance(t["min_testers"], int)) or t["days"] < 1 or t["min_testers"] < 1:
-        raise SystemExit("src/testers.json: days and min_testers must be whole numbers above 0")
+    # bool is an int in Python: refuse it explicitly (review-share T2).
+    if type(t["days"]) is not int or t["days"] < 1:
+        raise SystemExit("src/testers.json: days must be a whole number above 0")
     g, o = t["group_url"], t["optin_url"]
-    if g is not None and not (isinstance(g, str) and g.startswith(GROUP_PREFIX) and len(g) > len(GROUP_PREFIX)):
-        raise SystemExit(f"src/testers.json: group_url must be null or a {GROUP_PREFIX}... link")
+    if g is not None and not (isinstance(g, str) and GROUP_URL.fullmatch(g)):
+        raise SystemExit(f"src/testers.json: group_url must be null or {GROUP_PREFIX}<name> "
+                         "(letters, digits, '.', '-', '_')")
     if o is not None and o != OPTIN_URL:
         raise SystemExit(f"src/testers.json: optin_url must be null or exactly {OPTIN_URL}")
     return t
@@ -320,15 +326,16 @@ def terms_purchases(f):
 def _link_or_todo(url: str | None, what: str) -> str:
     if url is None:
         return f'<span class="todo">{what}: link to come</span>'
-    return f'<a href="{url}">{url}</a>'
+    u = html.escape(url, quote=True)
+    return f'<a href="{u}">{u}</a>'
 
 
 def testers_why(f):
-    t = f["testers"]
-    return f"""<p>
-    Google Play lets a new Android game go public only after at least {t["min_testers"]} testers
-    have been in a closed test for {t["days"]} days in a row. Apple has no such step, so this
-    test is for Android only.
+    # No tester count or "before it can go public" rule: whether Google's
+    # 12-tester rule applies depends on the account type (team-lead 2026-11-20).
+    return """<p>
+    Before Sorting Geography goes public, we are testing it with real players. This test runs on
+    Google Play, so it is for Android only.
   </p>"""
 
 
@@ -347,8 +354,7 @@ def testers_join(f):
 def testers_do(f):
     t = f["testers"]
     return f"""<ul>
-    <li>Keep the game installed and stay in the test for {t["days"]} days in a row. If you leave
-      early, you no longer count towards the {t["min_testers"]} testers Google asks for.</li>
+    <li>Keep the game installed and stay in the test for at least {t["days"]} days in a row.</li>
     <li>Play a few games every day.</li>
     <li>After you have played for a while, a Daily appears at the bottom of the screen. From
       then on, play it once a day too.</li>

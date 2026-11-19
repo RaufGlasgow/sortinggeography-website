@@ -592,13 +592,13 @@ pin_case("CI loose to a major (wrangler@4)", True, lambda r: edit(
 
 # ---- 20.3b: the Google Play closed-test page ------------------------------------
 TP = "testers/index.html"
-WHY = "Apple has no such step, so this test is for Android only."
+WHY = "This test runs on Google Play, so it is for Android only."
 todo_case("tester links still open today: deploy refused", lambda r: None, True, links=False)
 platform_case("tester page names Android alone, with its reason", False)
 platform_case("the reason sentence removed from the tester page", True, lambda r: edit(
-    r, TP, "Apple has no such step", "Apple differs"))
+    r, TP, "This test runs on", "This test is on"))
 platform_case("another page copies the reason sentence and names Android alone", True, lambda r: edit(
-    r, "support/index.html", "<h1>Support</h1>", "<h1>Support</h1><p>Install it from Google Play.</p><p>Google Play asks for a test. " + WHY + "</p>"))
+    r, "support/index.html", "<h1>Support</h1>", "<h1>Support</h1><p>Install it from Google Play.</p><p>" + WHY + "</p>"))
 platform_case("Android alone on another page is still red", True, lambda r: edit(
     r, "support/index.html", "<h1>Support</h1>", "<h1>Support</h1><p>Install it from Google Play.</p>"))
 platform_case("tester page still may not say iPhone", True, lambda r: edit(
@@ -607,7 +607,7 @@ platform_case("tester page still may not name the App Store alone", True, lambda
     r, TP, "<h1>Become a tester</h1>", "<h1>Become a tester</h1><p>The App Store comes later.</p>"))
 feature_case("'14 days in a row' typed by hand on the tester page", True, lambda r: edit(
     r, TP, "<h1>Become a tester</h1>", "<h1>Become a tester</h1><p>It lasts 14 days in a row.</p>"))
-feature_case("'12 testers' typed by hand", True, lambda r: edit(
+feature_case("'12 testers' typed by hand (Google's count stays off the page)", True, lambda r: edit(
     r, TP, "<h1>Become a tester</h1>", "<h1>Become a tester</h1><p>We need 12 testers.</p>"))
 feature_case("testers.json days changed, page not rebuilt", True, lambda r: (r / "src/testers.json").write_text(
     (r / "src/testers.json").read_text().replace('"days": 14', '"days": 15')))
@@ -649,7 +649,26 @@ testers_json_case("group link with no group name", {"group_url": build_features.
 testers_json_case("opt-in link for another package", {"optin_url": "https://play.google.com/apps/testing/com.example"}, True)
 testers_json_case("opt-in link is the store page, not the test", {"optin_url": "https://play.google.com/store/apps/details?id=" + build_features.PACKAGE}, True)
 testers_json_case("days not a number", {"days": "14"}, True)
-testers_json_case("min_testers zero", {"min_testers": 0}, True)
+testers_json_case("days is true (bool is an int in Python)", {"days": True}, True)
+testers_json_case("days zero", {"days": 0}, True)
+testers_json_case("group link with a quote that leaves the href", {"group_url": build_features.GROUP_PREFIX + 'x" onmouseover="alert(1)'}, True)
+testers_json_case("group link with an empty name and slash", {"group_url": build_features.GROUP_PREFIX + "/"}, True)
+testers_json_case("group link with a path after the name", {"group_url": build_features.GROUP_PREFIX + "x/y"}, True)
+testers_json_case("group name with dots, dashes, underscores", {"group_url": build_features.GROUP_PREFIX + "sorting-geo.testers_1"}, False)
+
+
+def built_link_case(name, url, must_not, expect_red=True):
+    """The link as BUILT into the page: escaped even if a future validator slipped."""
+    out = build_features._link_or_todo(url, "x")
+    red = must_not in out
+    ok = red == (not expect_red)
+    print(f"{'ok  ' if ok else 'FAIL'} link     {'raw  ' if red else 'safe '} {name}")
+    if not ok:
+        failures.append(f"link: {name}")
+
+
+built_link_case("a quote in a link is escaped when built", 'https://g/x" onmouseover="a', '" onmouseover="')
+built_link_case("an angle bracket in a link is escaped when built", "https://g/<script>", "<script>")
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
