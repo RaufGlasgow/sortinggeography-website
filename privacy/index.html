@@ -46,7 +46,9 @@
                 if the switch does not ship, drop the sentences about it.
                 No prompt (Ra'uf 2026-11-19, relayed by team-lead).
 
-  Store declarations this page must agree with (20.7 pack section 4):
+  Store declarations this page must agree with: the table in
+  implementation-artifacts/6-12-store-declarations.md (branch story-6-12-consent,
+  one table for the stores and this page) and the 20.7 pack section 4:
     AdMob     approximate location from IP, app interactions, diagnostics,
               a device identifier that is not the advertising ID; shared with
               Google; not linked to the player; not used for tracking
@@ -82,8 +84,8 @@
 
   <h2>Your progress stays on your device</h2>
   <p>
-    The puzzles you have played, the countries you have unlocked, your scores and your
-    settings are stored on your phone or tablet, and nowhere else. If your device backs
+    The puzzles you have played, the countries you have unlocked, your scores, your
+    Daily streak and your settings are stored on your phone or tablet, and nowhere else. If your device backs
     itself up through Google or iCloud, that backup is between you and Google or Apple;
     it does not pass through us, and there is no server of ours holding it. Deleting the
     app deletes it from the device.
@@ -135,8 +137,9 @@
   <p>
     They go to PostHog, an analytics service, in its European Union region. They are
     anonymous: they carry no name, no email, no advertising ID, no location and no
-    other personal data, and PostHog is set to discard the IP address they arrive
-    from, so it is never stored. The only link between one event and the next is a
+    other personal data. PostHog is set to discard the IP address they arrive from,
+    so it is never kept, and every event also asks PostHog not to work out a location
+    from it. There is no question about this when you start the app. The only link between one event and the next is a
     random number the app makes up when it is first installed, which is not tied to
     you, your device's advertising ID or anything outside this app. We look at them
     only as totals, never at one player.
