@@ -16,6 +16,7 @@ Nothing in this repo comes from the game repo except one generated file — see 
 | `index.html` | Landing page |
 | `privacy/index.html` | Privacy policy, at `/privacy/` (the URL both store listings name). `/privacy.html` 301s here, because the app links to that name. Two sections are marked `if:unlock` / `if:analytics`: check them against the release build |
 | `support/index.html` | Support page, at `/support/` (the store listings' Support URL). Contact: support@sortinggeography.com, which needs Cloudflare Email Routing turned on for the domain |
+| `terms/index.html`, `press/index.html` | Terms of use and the press kit. Counts, data version, languages and the Portugal example come from `src/facts.json` (checked against the game by `build_features.py --game`); the developer's legal name and the governing law are `<span class="todo">` placeholders, and `--game` refuses a deploy while any remains |
 | `app-ads.txt` | The AdMob publisher line (the same account as Sorting History) |
 | `scripts/check_store_pages.py` | CI: the support and privacy pages, app-ads.txt, robots.txt and sitemap are in place. `scripts/check_live.py` is the after-deploy half: each URL answers 200 and the support address can receive mail |
 | `credits.html` | **Generated.** Data-source attribution for every measure in the game |

@@ -136,6 +136,10 @@ def regions(ms: int, stores=STORES) -> dict[str, str]:
             f'{badges(stores)}'
             '</div>'
             '</div>'),
+        "press-release": (
+            f'<span class="only-pre">{date_text(ms)}, {time_line(ms)[3:-1]}, '
+            f'on {PLATFORMS_SHORT} together</span>'
+            f'<span class="only-post">Out now{on}, since {date_text(ms)}</span>'),
         "when": (
             '<h2 class="only-pre">When?</h2><h2 class="only-post">Get the game</h2>'
             f'<p class="only-pre">Sorting Geography comes to {PLATFORMS_SHORT} on {date_text(ms)}, '

@@ -319,6 +319,104 @@ launch_case("cron commented out", True, lambda r: edit(
 launch_case("cron made weekly", True, lambda r: edit(
     r, ".github/workflows/ci.yml", "'17 6 * * *'", "'17 6 * * 1'"))
 
+# ---- 18.9 terms + press kit ---------------------------------------------------
+feature_case("'190 questions' typed by hand outside a region", True, add_para(
+    "There are 190 questions.", page="terms/index.html", anchor="<h1>Terms</h1>"))
+feature_case("'195 countries' typed by hand", True, add_para(
+    "All 195 countries.", page="press/index.html", anchor="<h1>Press kit</h1>"))
+feature_case("data version typed by hand", True, add_para(
+    "Data version v089.", page="press/index.html", anchor="<h1>Press kit</h1>"))
+feature_case("facts.json moved, pages not rebuilt", True, lambda r: (r / "src/facts.json").write_text(
+    (r / "src/facts.json").read_text().replace('"axes": 190', '"axes": 191')))
+feature_case("press facts region deleted", True, lambda r: edit(
+    r, "press/index.html", "<!-- feature:press-facts -->", "<!-- gone -->"))
+launch_case("press release line typed by hand", True, lambda r: edit(
+    r, "press/index.html", "<!-- launch:press-release -->", "10 December 2026 <!-- launch:press-release -->"))
+store_case("press page loses its contact", True, lambda r: edit(
+    r, "press/index.html", 'href="mailto:support@sortinggeography.com?subject=Press"', 'href="mailto:x@example.com"'))
+store_case("terms page deleted", True, lambda r: (r / "terms/index.html").unlink())
+store_case("sitemap drops the press page", True, lambda r: edit(
+    r, "sitemap.xml", "  <url><loc>https://sortinggeography.com/press/</loc></url>\n", ""))
+
+
+def todo_case(name, mutate, expect_red):
+    root = copy_site()
+    try:
+        mutate(root)
+        red = bool(build_features.todos(root))
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} todo     {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"todo: {name}")
+
+
+def fill_todos(r):
+    for rel in ("terms/index.html", "press/index.html"):
+        t = (r / rel).read_text()
+        t = __import__("re").sub(r'<span class="todo">.*?</span>', "Example Ltd", t, flags=__import__("re").S)
+        (r / rel).write_text(t)
+
+
+todo_case("placeholders open today: deploy refused", lambda r: None, True)
+todo_case("all placeholders filled: deploy allowed", fill_todos, False)
+todo_case("one placeholder left in terms", lambda r: (fill_todos(r), edit(
+    r, "terms/index.html", "Example Ltd", '<span class="todo">x</span>')), True)
+
+
+def facts_case(name, game_over, expect_red):
+    g = pathlib.Path(tempfile.mkdtemp(prefix="sg-game-"))
+    try:
+        (g / "app/assets/data").mkdir(parents=True)
+        (g / "packages/sort_platform/lib/src/l10n").mkdir(parents=True)
+        real = {"version": "dataset-v089-abc", "axes": {f"a{i}": {} for i in range(190)},
+                "facets": {"continent": {f"C{i}": "x" for i in range(195)}}}
+        real["axes"]["highest_point_m"] = {"PT": 2351.0}
+        del real["axes"]["a0"]
+        langs = ["en"]
+        real, langs = game_over(real, langs)
+        (g / "app/assets/data/dataset_runtime.json").write_text(json.dumps(real))
+        (g / "packages/sort_platform/lib/src/l10n/shipped_locales.gen.dart").write_text(
+            "const List<String> kShippedLocaleTags = <String>[\n" + "".join(f"  '{t}',\n" for t in langs) + "];\n")
+        for cmd in (["init", "-q", "-b", "main"], ["add", "-A"],
+                    ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
+            subprocess.run(["git", "-C", str(g), *cmd], check=True)
+        red = bool(build_features.compare_facts(build_features.load_facts(ROOT),
+                                                build_features.game_facts(g, "main")))
+    finally:
+        shutil.rmtree(g)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} facts    {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"facts: {name}")
+
+
+def axes_plus_one(d, l):
+    d["axes"]["extra"] = {}
+    return d, l
+
+
+def new_version(d, l):
+    d["version"] = "dataset-v090-x"
+    return d, l
+
+
+def german_ships(d, l):
+    return d, l + ["de"]
+
+
+def pt_changes(d, l):
+    d["axes"]["highest_point_m"]["PT"] = 2350.0
+    return d, l
+
+
+facts_case("game matches facts.json", lambda d, l: (d, l), False)
+facts_case("game gains an axis", axes_plus_one, True)
+facts_case("game moves to v090", new_version, True)
+facts_case("German ships", german_ships, True)
+facts_case("Portugal's highest point changes", pt_changes, True)
+
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
     for f in failures:
