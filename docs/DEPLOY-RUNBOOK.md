@@ -80,8 +80,17 @@ publish the list.
 
 ## Step 4 — Deploy
 
+**Before every deploy** (Story 18.9, review F3): the privacy and support pages must
+describe the game's main as it is. This reads the game repo's `origin/main` (fetch it
+first) and fails if `src/features.json` claims a feature main lacks, or misses one main
+has. It cannot run in this public repo's CI, because the game repo is private, so it is
+this step and it is not optional: no game repo, no deploy.
+
 ```sh
+git -C ../Sorting-Geography fetch origin
+python3 scripts/build_features.py --game ../Sorting-Geography
 wrangler deploy
+python3 scripts/check_live.py          # after: support, privacy, app-ads.txt answer 200
 ```
 
 `wrangler.toml` already carries both custom domains:
