@@ -427,10 +427,11 @@ def compare_facts(facts: dict, real: dict) -> list[str]:
 
 
 # A placeholder is refused in every form review-share found getting through
-# (18.9b B2, B3, comments): the class token `todo` in any quotes or next to any
-# other class, and the placeholder words themselves in case the tags are
-# stripped. The RAW text is scanned, HTML comments included, because comments
-# are served to every visitor too.
+# (18.9b B2, B3): the class token `todo` in any quotes or next to any other
+# class, and the placeholder words themselves in case the tags are stripped.
+# HTML comments are skipped: the worker strips every comment before a page is
+# sent (src/pages.js stripComments, 18.9b B5), so a comment never reaches a
+# visitor (review-share + team-lead 2026-11-19).
 TODO_CLASS = re.compile(
     r"""<[A-Za-z][^>]*?\bclass\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)""", re.S)
 TODO_TOKEN = re.compile(r"(?<![\w-])todo(?![\w-])", re.I)
@@ -440,7 +441,8 @@ TODO_WORDS = re.compile(r"to be confirmed|\[todo", re.I)
 def todos(root: pathlib.Path = ROOT) -> list[str]:
     bad = []
     for p in served_pages(root):
-        text = p.read_text(encoding="utf-8")
+        text = re.sub(r"<!--.*?-->", lambda m: re.sub(r"[^\n]", " ", m.group(0)),
+                      p.read_text(encoding="utf-8"), flags=re.S)
         rel = p.relative_to(root)
         for m in TODO_CLASS.finditer(text):
             attr = m.group(0)[m.group(0).lower().rindex("class"):]

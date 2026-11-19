@@ -354,15 +354,16 @@ def todo_case(name, mutate, expect_red):
 
 # Every placeholder is filled today (Empty Cup Media LLC, Nevada; Ra'uf 2026-11-19),
 # so the clean tree must pass and a placeholder put back in ANY form must go red
-# (review-share 18.9b B2, B3; comments are served, so a comment counts too).
+# (review-share 18.9b B2, B3). A comment is never served (the worker strips it,
+# B5), so a placeholder inside one stays green.
 TODO = '<span class="todo">x</span>'
 todo_case("all placeholders filled today: deploy allowed", lambda r: None, False)
 todo_case("placeholder back in terms", lambda r: edit(
     r, "terms/index.html", "Empty Cup Media LLC", TODO), True)
 todo_case("placeholder back in press", lambda r: edit(
     r, "press/index.html", "<td>Empty Cup Media LLC</td>", "<td>" + TODO + "</td>"), True)
-todo_case("placeholder inside an HTML comment (comments are served)", lambda r: edit(
-    r, "terms/index.html", "<h1>Terms</h1>", "<!-- " + TODO + " --><h1>Terms</h1>"), True)
+todo_case("placeholder only inside an HTML comment (never served)", lambda r: edit(
+    r, "terms/index.html", "<h1>Terms</h1>", "<!-- " + TODO + " --><h1>Terms</h1>"), False)
 todo_case("single-quoted class='todo'", lambda r: edit(
     r, "terms/index.html", "Empty Cup Media LLC", "<span class='todo'>x</span>"), True)
 todo_case("todo next to another class", lambda r: edit(
