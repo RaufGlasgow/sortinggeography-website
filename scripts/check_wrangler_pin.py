@@ -3,7 +3,8 @@
 
 CI's real-worker test (ci.yml, WRANGLER: npx --yes wrangler@X) and the deploy
 command in docs/DEPLOY-RUNBOOK.md Step 4 (npx --yes wrangler@X deploy) must name
-the same exact version, so what is tested is what deploys.
+the same exact version, so what is tested is what deploys. Every other mention
+of a wrangler deploy in README.md or docs/ must be that same pinned command.
 """
 from __future__ import annotations
 
@@ -26,12 +27,19 @@ def check(root: pathlib.Path = ROOT) -> list[str]:
         bad.append(f"ci.yml: expected one `WRANGLER: npx --yes wrangler@<x.y.z>`, found {tested}")
     if not deployed:
         bad.append("DEPLOY-RUNBOOK.md Step 4: no `npx --yes wrangler@<x.y.z> deploy` command")
-    # Every deploy COMMAND line in Step 4 (not the prose about it) must be the pinned one.
-    for line in re.findall(r"^[ \t]*(?:npx[ \t]+\S+[ \t]+)?wrangler\S*[ \t]+deploy\b.*$", step4, re.M):
-        if not re.fullmatch(r"npx --yes wrangler@" + EXACT + r" deploy\s*", line.strip() + " "):
-            bad.append(f"DEPLOY-RUNBOOK.md Step 4: unpinned deploy command: {line.strip()!r}")
-    if tested and deployed and set(deployed) != {tested[0]}:
-        bad.append(f"CI tests wrangler {tested[0]} but Step 4 deploys {sorted(set(deployed))}")
+    # Every `wrangler ... deploy` in any instructions (README.md, docs/*.md), in
+    # any form and anywhere on a line (`npx wrangler deploy`, `cd x && wrangler
+    # deploy`, prose in backticks), must be exactly the pinned command
+    # (review-share R4-W1, R4-W2).
+    for doc in [root / "README.md", *sorted((root / "docs").rglob("*.md"))]:
+        if not doc.exists():
+            continue
+        for n, line in enumerate(doc.read_text(encoding="utf-8").splitlines(), 1):
+            for m in re.finditer(r"(\S+[ \t]+)?(\S+[ \t]+)?\bwrangler(@\S+)?[ \t]+deploy\b", line):
+                pinned = re.search(r"(?:^|[\s`])npx --yes wrangler@" + EXACT + r"[ \t]+deploy\b", " " + m.group(0))
+                if not pinned or (tested and pinned.group(1) != tested[0]):
+                    bad.append(f"{doc.relative_to(root)}:{n}: not the pinned deploy: {line.strip()[:90]!r}")
+    # (Step 4's version against CI's is covered by the docs-wide rule above.)
     return bad
 
 
