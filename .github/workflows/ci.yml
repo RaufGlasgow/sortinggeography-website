@@ -160,6 +160,9 @@ jobs:
       - name: Comment marks only in real comments, never in scripts, styles or attributes (Story 18.9c)
         run: python3 scripts/check_comments.py
 
+      - name: CI tests the same wrangler version that deploys (Story 18.9c)
+        run: python3 scripts/check_wrangler_pin.py
+
       - name: Every guard goes red when broken on purpose
         run: python3 scripts/test_checks.py
 
