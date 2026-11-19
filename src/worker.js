@@ -20,6 +20,14 @@
 //     reserves gold for one in-game reward moment, and this repo's CI enforces
 //     the ban (Sorting History's equivalent page uses an orange link; copying
 //     it verbatim would fail the build, correctly).
+//
+// The release countdown (Story 18.8): every HTML page carries both launch
+// states; the worker stamps <html data-launch="pre|out"> from the one constant
+// in src/launch.js, so at the moment the SAME URL shows "Out now" with no
+// redeploy and with JavaScript off. wrangler.toml sets run_worker_first so the
+// worker sees page requests at all (otherwise static assets bypass it).
+
+import { serveAsset } from './pages.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -46,9 +54,17 @@ export default {
       return Response.redirect(`${url.origin}/`, 301);
     }
 
-    return env.ASSETS.fetch(request);
+    // 301 /privacy.html -> /privacy/ (Story 18.9). The page moved to the URL
+    // the store listings name; the app's kPrivacyUrl and any old link still
+    // point at the .html name and must keep working.
+    if (url.pathname === '/privacy.html') {
+      return Response.redirect(`${url.origin}/privacy/`, 301);
+    }
+
+    return serveAsset(request, env, Date.now());
   },
 };
+
 
 function handleCORS() {
   return new Response(null, {

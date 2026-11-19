@@ -1,7 +1,7 @@
 # sortinggeography.com
 
-The marketing website for **Sorting Geography** — a daily geography game for iPhone
-and Android. Static HTML, no build step, no framework.
+The marketing website for **Sorting Geography** — a daily geography game for Android
+and iOS. Static HTML, no build step, no framework.
 
 **This repo is PUBLIC on purpose.** Public repositories get unlimited free GitHub
 Actions minutes; private ones bill against a monthly allowance. Keeping the website
@@ -14,8 +14,16 @@ Nothing in this repo comes from the game repo except one generated file — see 
 | Path | What |
 | --- | --- |
 | `index.html` | Landing page |
-| `privacy.html` | Privacy policy (**draft** — must be finalised against the shipping build before store submission) |
+| `privacy/index.html` | Privacy policy, at `/privacy/` (the URL both store listings name). `/privacy.html` 301s here, because the app links to that name. Two sections are marked `if:unlock` / `if:analytics`: check them against the release build |
+| `support/index.html` | Support page, at `/support/` (the store listings' Support URL). Contact: support@sortinggeography.com, which needs Cloudflare Email Routing turned on for the domain |
+| `app-ads.txt` | The AdMob publisher line (the same account as Sorting History) |
+| `scripts/check_store_pages.py` | CI: the support and privacy pages, app-ads.txt, robots.txt and sitemap are in place. `scripts/check_live.py` is the after-deploy half: each URL answers 200 and the support address can receive mail |
 | `credits.html` | **Generated.** Data-source attribution for every measure in the game |
+| `src/launch.js` | **The release moment, the one constant** (Story 18.8). Change it here, then run `python3 scripts/build_launch.py` |
+| `scripts/build_launch.py` | Writes every launch date and "comes to / out now" line into the pages' `<!-- launch:... -->` regions; `--check` fails CI on a stale region or a hand-typed date or launch phrase anywhere else |
+| `countdown.js` | The timer (decoration; the date is real text). Flips an open page at the moment |
+| `src/pages.js` | Stamps `<html data-launch="pre|out">` on every page from the constant, so the same URL shows "Out now" at the moment with no redeploy |
+| `scripts/check_platform.py` | Fails any page that names one platform alone, names the two in the wrong order, or names a device instead of saying phone or tablet (Ra'uf 2026-11-18). `scripts/test_checks.py` mutation-tests both guards |
 | `style.css` | The whole stylesheet. App palette: forest green primary, ocean blue secondary, violet for rewards only |
 | `scripts/build_credits.py` | Regenerates `credits.html` from the game's dataset |
 | `src/worker.js` | The Cloudflare Worker: serves the pages, plus the launch-email API |

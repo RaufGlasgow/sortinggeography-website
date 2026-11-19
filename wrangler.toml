@@ -24,6 +24,11 @@ custom_domain = true
 [assets]
 directory = "./"
 binding = "ASSETS"
+# Story 18.8: the worker must see page requests to stamp the launch state
+# (src/pages.js). Without this, a request that matches a file is answered by the
+# asset layer directly and the worker never runs, so the countdown would never
+# flip to "Out now" without a redeploy.
+run_worker_first = true
 
 # Launch-email signups. Same binding name as the Sorting History site so the
 # worker code reads identically across the family.

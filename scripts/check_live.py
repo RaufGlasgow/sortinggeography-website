@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+"""After a deploy: the URLs the stores and AdMob read answer 200 (Story 18.9).
+
+    python3 scripts/check_live.py                       # https://sortinggeography.com
+    python3 scripts/check_live.py https://example.dev   # a preview
+
+Fails when:
+  - /support/, /privacy/ or /app-ads.txt answers anything but 200 (redirects
+    are NOT followed for these: a store or AdMob crawler must get the page
+    itself at the URL in the listing);
+  - /app-ads.txt does not carry the publisher line, or is served as HTML;
+  - /privacy.html does not 301 to /privacy/ (the app's own link);
+  - the support address's domain has no MX record, so mail to it would bounce.
+    Fix: Cloudflare dashboard, sortinggeography.com, Email > Email Routing,
+    add support@ (the same way sortinghistory.com is set up).
+
+Not run in CI: it needs the deployed site and the network.
+"""
+from __future__ import annotations
+
+import http.client
+import pathlib
+import subprocess
+import sys
+import urllib.parse
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from check_store_pages import APP_ADS_LINE, SUPPORT_EMAIL  # noqa: E402
+
+UA = "sortinggeography-site-check/1.0"
+
+
+def get(base: str, path: str) -> tuple[int, dict, str]:
+    u = urllib.parse.urlsplit(base)
+    conn = (http.client.HTTPSConnection if u.scheme == "https" else http.client.HTTPConnection)(u.netloc, timeout=20)
+    conn.request("GET", path, headers={"User-Agent": UA, "Accept": "*/*"})
+    r = conn.getresponse()
+    body = r.read().decode("utf-8", "replace")
+    headers = {k.lower(): v for k, v in r.getheaders()}
+    conn.close()
+    return r.status, headers, body
+
+
+def main(base: str) -> int:
+    bad = []
+    for path in ("/support/", "/privacy/", "/app-ads.txt"):
+        try:
+            status, headers, body = get(base, path)
+        except OSError as e:
+            bad.append(f"{path}: no answer ({e})")
+            continue
+        if status != 200:
+            bad.append(f"{path}: HTTP {status}, expected 200")
+            continue
+        if path == "/app-ads.txt":
+            if "text/html" in headers.get("content-type", ""):
+                bad.append("/app-ads.txt is served as HTML")
+            if APP_ADS_LINE not in body:
+                bad.append("/app-ads.txt does not carry the publisher line")
+        print(f"ok   {path} 200")
+    try:
+        status, headers, _ = get(base, "/privacy.html")
+        loc = headers.get("location", "")
+        if status != 301 or not loc.endswith("/privacy/"):
+            bad.append(f"/privacy.html: HTTP {status} to {loc!r}, expected 301 to /privacy/")
+        else:
+            print("ok   /privacy.html 301 -> /privacy/")
+    except OSError as e:
+        bad.append(f"/privacy.html: no answer ({e})")
+
+    domain = SUPPORT_EMAIL.split("@", 1)[1]
+    mx = subprocess.run(["dig", "+short", "MX", domain], capture_output=True, text=True).stdout.strip()
+    if not mx:
+        bad.append(f"{domain} has no MX record: mail to {SUPPORT_EMAIL} would bounce (turn on Email Routing)")
+    else:
+        print(f"ok   {domain} MX: {mx.splitlines()[0]}")
+
+    if bad:
+        print("live check FAILED (Story 18.9):")
+        for b in bad:
+            print("  " + b)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "https://sortinggeography.com"))

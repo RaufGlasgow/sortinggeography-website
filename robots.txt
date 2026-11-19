@@ -1,4 +1,12 @@
 User-agent: *
 Allow: /
 
+# AdMob reads /app-ads.txt with these crawlers. Nothing above blocks them; they
+# are named so a later rule cannot shut them out by accident (Story 18.9).
+User-agent: Google-adstxt
+Allow: /
+
+User-agent: Mediapartners-Google
+Allow: /
+
 Sitemap: https://sortinggeography.com/sitemap.xml

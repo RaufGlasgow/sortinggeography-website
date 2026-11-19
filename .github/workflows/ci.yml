@@ -8,6 +8,11 @@ on:
   push:
     branches: [main]
   pull_request: {}
+  # Daily, so the date-driven checks fire with nobody pushing (review F1): the
+  # store-link deadline goes red on its own from 7 days before the release.
+  # Free: this repo is public and the job is ubuntu-only, seconds per run.
+  schedule:
+    - cron: '17 6 * * *'
 
 # One run per branch. A burst of commits supersedes itself instead of stacking
 # a burst of runs and a burst of notification emails.
@@ -140,9 +145,31 @@ jobs:
           print("ok   palette clean")
           PY
 
+      - name: Every launch date and phrase comes from src/launch.js (Story 18.8)
+        run: python3 scripts/build_launch.py --check
+
+      - name: Android and iOS together, never Apple first (Ra'uf 2026-11-18)
+        run: python3 scripts/check_platform.py
+
+      - name: Privacy and support describe the game as it is today (Story 18.9, F3)
+        run: python3 scripts/build_features.py --check
+
+      - name: Support, privacy, app-ads.txt and robots.txt in place (Story 18.9)
+        run: python3 scripts/check_store_pages.py
+
+      - name: Every guard goes red when broken on purpose
+        run: python3 scripts/test_checks.py
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: The worker parses
-        run: node --check src/worker.js
+      - name: The worker and the countdown parse
+        run: |
+          node --check src/worker.js
+          node --check src/pages.js
+          node --check src/launch.js
+          node --check countdown.js
+
+      - name: The launch flips before, at and after the moment
+        run: node --test scripts/test_launch.mjs
