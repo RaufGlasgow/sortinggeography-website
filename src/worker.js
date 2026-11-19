@@ -54,6 +54,13 @@ export default {
       return Response.redirect(`${url.origin}/`, 301);
     }
 
+    // 301 /privacy.html -> /privacy/ (Story 18.9). The page moved to the URL
+    // the store listings name; the app's kPrivacyUrl and any old link still
+    // point at the .html name and must keep working.
+    if (url.pathname === '/privacy.html') {
+      return Response.redirect(`${url.origin}/privacy/`, 301);
+    }
+
     return serveAsset(request, env, Date.now());
   },
 };

@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy — Sorting Geography</title>
+<meta name="description" content="What Sorting Geography and sortinggeography.com collect, what they do not, and why.">
+<link rel="canonical" href="https://sortinggeography.com/privacy/">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="bar">
+  <a class="wordmark" href="../">Sorting&nbsp;Geography</a>
+  <nav><a href="../support/">Support</a> <a href="../credits.html">Data sources</a></nav>
+</header>
+
+<!--
+  Story 18.9. Every statement here must be true of the build that ships, and
+  must match the store declarations (Play Data safety, App Store privacy
+  labels): see the table at the foot of this comment.
+
+  Sources, read 2026-11-19 on the game repo's main:
+    ads       packages/sort_platform/lib/src/ads/google_ad_gateway.dart
+              (AgeRestrictedTreatment.child, MaxAdContentRating.g, iOS
+              same-app key off); packages/sort_core/lib/src/ads/ad_policy.dart
+              (Endless only, never the Daily); AD_ID and the three
+              ACCESS_ADSERVICES permissions removed (6.13)
+    unlock    app/lib/shell/paid_unlock_seam.dart (on-device flag, no server)
+    analytics app/lib/shell/analytics_seam.dart (PostHog EU, anonymous
+              install id, consent before the first event); Data safety draft
+              17-5 (Discard client IP data ON)
+    storage   shared_preferences only; no allowBackup="false" in the Android
+              manifest, so Android's own backup applies
+    no crash reporting: no Firebase, Crashlytics or Sentry in pubspec.lock
+
+  TWO SECTIONS ARE CONDITIONAL. Before this page is deployed for the store
+  submission, check each against the release build:
+    if:unlock   the paid unlock (6.3, kPaidUnlockEnabled). Remove the section
+                and the line in the summary if it is off on release.
+    if:analytics the PostHog sink (20.10) and its consent screen (6.12).
+                Remove the section and the summary line if the sink does not
+                ship; if it ships, match the consent wording to the screen.
+
+  Store declarations this page must agree with (20.7 pack section 4):
+    AdMob     approximate location from IP, app interactions, diagnostics,
+              a device identifier that is not the advertising ID; shared with
+              Google; not linked to the player; not used for tracking
+    PostHog   app interactions + an anonymous install id; not shared; no IP
+    purchases not collected by us (the store handles payment)
+-->
+
+<main class="prose">
+  <h1>Privacy</h1>
+  <p class="lede">
+    Sorting Geography is a game about countries. It is not interested in you.
+  </p>
+  <p class="muted">Last updated 19 November 2026.</p>
+
+  <h2>The short version</h2>
+  <ul>
+    <li>No account, no sign-in, and the game never asks for your name, email or phone number.</li>
+    <li>Your progress stays on your phone or tablet.</li>
+    <li>Ads appear only in Endless play, never in the Daily. Every player is treated as possibly a child, so ads are never personalised and nothing tracks you across other apps.</li>
+    <!-- if:analytics -->
+    <li>If you agree, the app sends anonymous usage events so we can see which questions are too hard. They carry nothing that identifies you.</li>
+    <!-- /if:analytics -->
+    <!-- if:unlock -->
+    <li>If you buy the unlock that removes ads, Google Play or the App Store takes the payment. We never see your payment details.</li>
+    <!-- /if:unlock -->
+  </ul>
+
+  <h2>No account, no sign-in</h2>
+  <p>
+    There is no account to create and no way to sign in. The game does not ask for your
+    name, your email address or your phone number, because it has no use for any of them.
+  </p>
+
+  <h2>Your progress stays on your device</h2>
+  <p>
+    The puzzles you have played, the countries you have unlocked, your scores and your
+    settings are stored on your phone or tablet, and nowhere else. If your device backs
+    itself up through Google or iCloud, that backup is between you and Google or Apple;
+    it does not pass through us, and there is no server of ours holding it. Deleting the
+    app deletes it from the device.
+  </p>
+
+  <h2>Playing needs no connection</h2>
+  <p>
+    All the country data ships inside the app. Playing a puzzle sends nothing anywhere.
+    The app uses the internet only to show ads<!-- if:analytics -->, to send the
+    anonymous usage events described below<!-- /if:analytics --><!-- if:unlock -->, and to
+    check a purchase with the store<!-- /if:unlock -->.
+  </p>
+
+  <h2>Advertising</h2>
+  <p>
+    Endless play shows an occasional full-screen ad between puzzles. The Daily never
+    shows an ad, and neither does the first guided puzzle. Ads are served by Google's
+    AdMob.
+  </p>
+  <p>
+    <strong>Every player is treated as possibly a child.</strong> The app does not ask
+    your age. Instead, every ad request tells Google to treat the player as a child,
+    and to show only ads suitable for all ages. That means:
+  </p>
+  <ul>
+    <li>ads are never personalised, and nothing builds a profile of you for advertising;</li>
+    <li>the app does not use your device's advertising ID. On Android the permission to read it is removed from the app; on iOS the app never asks to track you;</li>
+    <li>nothing links what you do in this game to what you do in other apps.</li>
+  </ul>
+  <p>
+    To show an ad, count it and stop fraud, Google's software still receives some
+    information automatically: your IP address (from which a rough location can be
+    estimated), how you interact with the ad, basic performance information about the
+    app, and a device identifier that is not the advertising ID. That goes to Google,
+    not to us, and Google handles it under its own policy: see
+    <a href="https://policies.google.com/technologies/partner-sites">how Google uses information from apps that use its services</a>
+    and the <a href="https://policies.google.com/privacy">Google Privacy Policy</a>.
+  </p>
+
+  <!-- if:analytics -->
+  <h2>Anonymous usage statistics</h2>
+  <p>
+    To understand which questions are too hard and where people give up, the app can
+    send anonymous events: for example that a puzzle was finished, on which question,
+    at which difficulty and with what score, and whether an ad was shown. Each event
+    also carries the app's version, the version of its country data, and whether the
+    device runs Android or iOS.
+  </p>
+  <p>
+    The app asks before it sends any, and sends nothing if you say no. The events go to
+    PostHog, an analytics service, in its European Union region. They are tied only to
+    a random number the app makes up when it is first installed. They carry no name, no
+    email, no advertising ID and no location, and PostHog is set to discard the IP
+    address they arrive from. We look at them only in aggregate, never at one player.
+  </p>
+  <!-- /if:analytics -->
+
+  <!-- if:unlock -->
+  <h2>Buying the unlock</h2>
+  <p>
+    Every question, every country and the Daily are free. A purchase removes the ads,
+    and does nothing else. The payment is handled entirely by Google Play or the App
+    Store, under your account there; we never see your card, your name or your store
+    account. The app keeps only a note on your device that the unlock is owned, and
+    asks the store to confirm it.
+  </p>
+  <!-- /if:unlock -->
+
+  <h2>Sharing a result</h2>
+  <p>
+    When you share a result, the app opens your device's own share sheet with a short
+    text, and you choose where it goes. The app does not see who you send it to.
+  </p>
+
+  <h2>No crash reporting</h2>
+  <p>
+    The app contains no crash-reporting service. If something goes wrong, Google Play
+    and the App Store may pass the developer an anonymous crash report, under the
+    settings you chose on your device.
+  </p>
+
+  <h2>This website</h2>
+  <p>
+    The website has no analytics and no ads, and sets no cookies of its own. It is served
+    through Cloudflare, which handles the connection and therefore sees your IP
+    address, as any web host does.
+  </p>
+  <p>
+    The home page has a box where you can leave an email address to be told when the
+    game ships. It is optional, and it is the only thing the site ever asks for. If you
+    leave an address, we store the address, the date you left it and which page you left
+    it on, and nothing else. You get a note straight away confirming it, then a message
+    when the game ships and when new ways to sort are added. Nothing else, and we never
+    sell or share it. The mail is sent through <a href="https://resend.com">Resend</a>,
+    which handles delivery on our behalf and therefore also sees the address. Every
+    message carries an unsubscribe link, and using it <strong>deletes</strong> the
+    address rather than marking it inactive. You can also unsubscribe at any time by
+    visiting <code>/api/unsubscribe?email=</code> followed by your address.
+  </p>
+
+  <h2>Children</h2>
+  <p>
+    The game is suitable for children and is built for them as well as for adults: no
+    chat, no content from other players, no social features, nothing that asks for
+    personal information, and the ad settings described above for every player.
+  </p>
+
+  <h2>Changes</h2>
+  <p>
+    If what the app or the site collects changes, this page changes with it before the
+    new version is released, and the date at the top moves.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Questions about any of this are welcome:
+    <a href="mailto:support@sortinggeography.com">support@sortinggeography.com</a>.
+    More help is on the <a href="../support/">support page</a>.
+  </p>
+</main>
+
+<footer class="bar foot">
+  <span>Sorting Geography</span>
+  <nav><a href="../support/">Support</a> <a href="../privacy/">Privacy</a> <a href="../credits.html">Data sources</a></nav>
+</footer>
+</body>
+</html>

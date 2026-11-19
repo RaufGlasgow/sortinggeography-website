@@ -74,8 +74,8 @@ TEMPLATE = """<!doctype html>
 </head>
 <body>
 <header class="bar">
-  <a class="wordmark" href="index.html">Sorting&nbsp;Geography</a>
-  <nav><a href="index.html">Home</a> <a href="privacy.html">Privacy</a></nav>
+  <a class="wordmark" href="./">Sorting&nbsp;Geography</a>
+  <nav><a href="./">Home</a> <a href="support/">Support</a> <a href="privacy/">Privacy</a></nav>
 </header>
 
 <main class="prose">
@@ -130,7 +130,7 @@ TEMPLATE = """<!doctype html>
 
 <footer class="bar foot">
   <span>Sorting Geography</span>
-  <nav><a href="privacy.html">Privacy</a> <a href="credits.html">Data sources</a></nav>
+  <nav><a href="support/">Support</a> <a href="privacy/">Privacy</a> <a href="credits.html">Data sources</a></nav>
 </footer>
 </body>
 </html>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mutation tests for the site's two guards (Story 18.8).
+"""Mutation tests for the site's guards (Stories 18.8 and 18.9).
 
 A check that cannot fail is not a check. Each case copies the site to a temp
 directory, breaks one thing on purpose, and asserts the guard goes RED; the
@@ -21,6 +21,7 @@ sys.path.insert(0, str(HERE))
 
 import build_launch  # noqa: E402
 import check_platform  # noqa: E402
+import check_store_pages  # noqa: E402
 
 RELEASE = build_launch.release_ms(ROOT)
 EARLY = RELEASE - 30 * build_launch.DAY_MS        # a month before: store-link rule asleep
@@ -79,7 +80,7 @@ HERO = "<h1>Put the world in order</h1>"
 PRIV_H1 = "<h1>Privacy</h1>"
 
 
-def add_para(text: str, page: str = "privacy.html", anchor: str = PRIV_H1):
+def add_para(text: str, page: str = "privacy/index.html", anchor: str = PRIV_H1):
     return lambda r: edit(r, page, anchor, anchor + f"\n  <p>{text}</p>")
 
 
@@ -108,7 +109,7 @@ launch_case("store link missing 6 days before release", True,
 launch_case("store link missing at the moment itself", True, now_ms=RELEASE)
 launch_case("look-alike: '10 decimals' is not the date", False, add_para("Shown to 10 decimals."))
 launch_case("look-alike: a date in a comment", False, lambda r: edit(
-    r, "privacy.html", PRIV_H1, PRIV_H1 + "\n  <!-- out now on 10 December -->"))
+    r, "privacy/index.html", PRIV_H1, PRIV_H1 + "\n  <!-- out now on 10 December -->"))
 
 # ---- the platform guard -----------------------------------------------------
 platform_case("the site as committed", False)
@@ -131,6 +132,49 @@ platform_case("robots.txt comment names Apple alone", True, lambda r: edit(
 platform_case("look-alike: '-apple-system' font in a style attribute", False, add_para(
     '<span style="font-family:-apple-system">Plain text</span>'))
 platform_case("look-alike: 'Android and iOS' in order", False, add_para("For Android and iOS."))
+
+
+# ---- the store-pages guard (18.9) -------------------------------------------
+def store_case(name: str, expect_red: bool, mutate=None) -> None:
+    root = copy_site()
+    try:
+        if mutate:
+            mutate(root)
+        red = bool(check_store_pages.check(root))
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} store    {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"store: {name}")
+
+
+def write(rel: str, text: str):
+    return lambda r: (r / rel).write_text(text, encoding="utf-8")
+
+
+store_case("the site as committed", False)
+store_case("support page deleted", True, lambda r: (r / "support/index.html").unlink())
+store_case("privacy page deleted", True, lambda r: (r / "privacy/index.html").unlink())
+store_case("support page loses its contact address", True, lambda r: edit(
+    r, "support/index.html", 'href="mailto:support@sortinggeography.com"', 'href="mailto:someone@example.com"'))
+store_case("privacy.html put back at the root", True, write("privacy.html", "<html></html>"))
+store_case("worker loses the /privacy.html redirect", True, lambda r: edit(
+    r, "src/worker.js", "if (url.pathname === '/privacy.html') {", "if (url.pathname === '/old.html') {"))
+store_case("app-ads.txt deleted", True, lambda r: (r / "app-ads.txt").unlink())
+store_case("app-ads.txt with a wrong publisher id", True, write(
+    "app-ads.txt", "google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0\n"))
+store_case("app-ads.txt with a malformed extra line", True, lambda r: (r / "app-ads.txt").write_text(
+    (r / "app-ads.txt").read_text() + "google.com pub-8713191393304948 DIRECT\n"))
+store_case("robots.txt blocks everyone", True, write("robots.txt", "User-agent: *\nDisallow: /\n"))
+store_case("robots.txt blocks only the AdMob crawler", True, lambda r: (r / "robots.txt").write_text(
+    (r / "robots.txt").read_text().replace("User-agent: Google-adstxt\nAllow: /", "User-agent: Google-adstxt\nDisallow: /")))
+store_case("robots.txt blocks app-ads.txt by path", True, lambda r: (r / "robots.txt").write_text(
+    "User-agent: *\nDisallow: /app-ads.txt\n"))
+store_case("sitemap drops the support page", True, lambda r: edit(
+    r, "sitemap.xml", "  <url><loc>https://sortinggeography.com/support/</loc></url>\n", ""))
+store_case("look-alike: a comment line in app-ads.txt", False, lambda r: (r / "app-ads.txt").write_text(
+    "# Sorting Geography\n" + (r / "app-ads.txt").read_text()))
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")

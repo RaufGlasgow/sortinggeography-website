@@ -146,7 +146,10 @@ jobs:
       - name: Android and iOS together, never Apple first (Ra'uf 2026-11-18)
         run: python3 scripts/check_platform.py
 
-      - name: Both guards go red when broken on purpose
+      - name: Support, privacy, app-ads.txt and robots.txt in place (Story 18.9)
+        run: python3 scripts/check_store_pages.py
+
+      - name: Every guard goes red when broken on purpose
         run: python3 scripts/test_checks.py
 
       - uses: actions/setup-node@v4
