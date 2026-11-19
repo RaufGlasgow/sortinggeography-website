@@ -252,13 +252,14 @@ def press_description(f):
     There are {x["axes"]} questions across {x["countries"]} countries. Every value comes
     from one named primary source, such as the World Bank, the United Nations, FAO, Natural
     Earth or the CIA World Factbook archive, with its year. Where a source has no figure for
-    a country, the game says so instead of guessing.
+    a country, the country is left out of that question rather than given a guess.
   </p>
   <p>
     One new Daily puzzle a day: the same five countries and the same question for every
-    player, shared without giving the answer away. There is no streak to lose, and the Daily
-    never shows an ad. Players start with countries most people know and unlock the rest as
-    they play, across five levels from Beginner to Expert, moving up when they choose.
+    player, shared without giving the answer away. The Daily never shows an ad. Players start
+    with countries most people know and unlock the rest as they play, across five levels from
+    Beginner to Expert: the game moves a new player from Beginner to Easy once, and after
+    that they choose when to move up.
   </p>
   <p>
     No account and no sign-in. It plays offline: the countries, flags and numbers are all in
