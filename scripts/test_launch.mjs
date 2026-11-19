@@ -110,6 +110,17 @@ for (const page of servedPages()) {
     delete globalThis.HTMLRewriter;
     const sent = await res.text();
     assert.equal(sent.includes('<!--'), false, `${page}: a comment is served: ${sent.slice(sent.indexOf('<!--'), sent.indexOf('<!--') + 80)}`);
+    // The expected page, built WITHOUT the worker's regex (18.9b B6): split on
+    // every '<!--', drop each piece up to its own '-->'. A strip that eats more
+    // than one comment (greedy) or less (only the first) cannot equal this.
+    const [head, ...rest] = source.split('<!--');
+    const expected = head + rest.map((piece) => {
+      const end = piece.indexOf('-->');
+      assert.notEqual(end, -1, `${page}: a '<!--' is never closed`);
+      return piece.slice(end + 3);
+    }).join('');
+    assert.equal(sent, expected, `${page}: the served page is not the source minus its comments`);
+    assert.ok(sent.includes('<h1'), `${page}: no <h1> left`);
     assert.ok(sent.includes('</body>') && sent.includes('</html>'), `${page}: page cut short`);
     assert.equal(res.headers.get('Content-Length'), null);
   });

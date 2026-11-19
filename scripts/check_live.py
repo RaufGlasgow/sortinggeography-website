@@ -78,6 +78,8 @@ def main(base: str) -> int:
             continue
         if "<!--" in body:
             bad.append(f"{path}: serves an HTML comment: {body[body.index('<!--'):][:80]!r}")
+        elif "<h1" not in body or "</main>" not in body:
+            bad.append(f"{path}: page served without its <h1> or </main>: too much stripped?")
         else:
             print(f"ok   {path} carries no HTML comment")
 
