@@ -37,13 +37,13 @@ CRAWLERS = ["*", "Googlebot", "Google-adstxt", "Mediapartners-Google", "AdsBot-G
 def check(root: pathlib.Path = ROOT) -> list[str]:
     bad: list[str] = []
 
-    for page in ("support/index.html", "privacy/index.html"):
+    for page in ("support/index.html", "privacy/index.html", "terms/index.html", "press/index.html"):
         p = root / page
         if not p.is_file():
             bad.append(f"{page} is missing")
             continue
         text = p.read_text(encoding="utf-8")
-        if f'href="mailto:{SUPPORT_EMAIL}"' not in text:
+        if not re.search(rf'href="mailto:{re.escape(SUPPORT_EMAIL)}(?:\?[^"]*)?"', text):
             bad.append(f"{page}: no mailto link to {SUPPORT_EMAIL}")
         if "<title>" not in text:
             bad.append(f"{page}: no <title>")
@@ -75,7 +75,8 @@ def check(root: pathlib.Path = ROOT) -> list[str]:
                 bad.append(f"robots.txt blocks {agent} from {path}")
 
     sitemap = (root / "sitemap.xml").read_text(encoding="utf-8")
-    for loc in ("https://sortinggeography.com/support/", "https://sortinggeography.com/privacy/"):
+    for loc in ("https://sortinggeography.com/support/", "https://sortinggeography.com/privacy/",
+                "https://sortinggeography.com/terms/", "https://sortinggeography.com/press/"):
         if f"<loc>{loc}</loc>" not in sitemap:
             bad.append(f"sitemap.xml does not list {loc}")
     return bad

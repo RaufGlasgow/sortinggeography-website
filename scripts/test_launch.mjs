@@ -4,7 +4,7 @@
 // no Cloudflare account.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import vm from 'node:vm';
 
 import { RELEASE_UTC_MS, launchState } from '../src/launch.js';
@@ -80,6 +80,51 @@ test('serveAsset passes images and styles straight through', async () => {
   const res = await serveAsset(req, env, AFTER);
   assert.equal(res, original);
 });
+
+// ---- 18.9b B5: no served page carries an HTML comment ---------------------
+// Every page the site serves goes through the real serveAsset with a fake
+// asset store holding the real file; what comes out is what a visitor gets.
+const SITE = new URL('../', import.meta.url);
+const NOT_SERVED = new Set(['docs', 'src', 'scripts', 'node_modules', '.git', '.github', '.wrangler']);
+function servedPages(dir = '') {
+  return readdirSync(new URL(dir || '.', SITE), { withFileTypes: true }).flatMap((e) => {
+    const rel = dir + e.name;
+    if (e.isDirectory()) return NOT_SERVED.has(e.name) ? [] : servedPages(rel + '/');
+    return e.name.endsWith('.html') ? [rel] : [];
+  });
+}
+
+test('the site has pages to check', () => {
+  assert.ok(servedPages().length >= 6, servedPages().join(', '));
+});
+
+for (const page of servedPages()) {
+  test(`${page} is served with no HTML comment and its content intact`, async () => {
+    const source = readFileSync(new URL(page, SITE), 'utf8');
+    globalThis.HTMLRewriter = fakeRewriter({});
+    const env = { ASSETS: { fetch: async () => new Response(source, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': String(source.length) } }) } };
+    const path = '/' + page.replace(/index\.html$/, '');
+    const res = await serveAsset(new Request('https://sortinggeography.com' + path,
+      { headers: { Accept: 'text/html' } }), env, AFTER);
+    delete globalThis.HTMLRewriter;
+    const sent = await res.text();
+    assert.equal(sent.includes('<!--'), false, `${page}: a comment is served: ${sent.slice(sent.indexOf('<!--'), sent.indexOf('<!--') + 80)}`);
+    // The expected page, built WITHOUT the worker's regex (18.9b B6): split on
+    // every '<!--', drop each piece up to its own '-->'. A strip that eats more
+    // than one comment (greedy) or less (only the first) cannot equal this.
+    const [head, ...rest] = source.split('<!--');
+    const expected = head + rest.map((piece) => {
+      const end = piece.indexOf('-->');
+      assert.notEqual(end, -1, `${page}: a '<!--' is never closed`);
+      return piece.slice(end + 3);
+    }).join('');
+    assert.equal(sent, expected, `${page}: the served page is not the source minus its comments`);
+    assert.ok(sent.includes('<h1'), `${page}: no <h1> left`);
+    assert.ok(sent.includes('</body>') && sent.includes('</html>'), `${page}: page cut short`);
+    assert.equal(res.headers.get('Content-Length'), null);
+  });
+}
 
 // ---- countdown.js, in a fake page -----------------------------------------
 function runCountdown({ clientNow, serverNow, stamped }) {

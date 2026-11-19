@@ -23,7 +23,18 @@ export async function serveAsset(request, env, nowMs) {
   headers.delete('If-Modified-Since');
   const response = await env.ASSETS.fetch(new Request(request, { headers }));
   if (!(response.headers.get('Content-Type') || '').includes('text/html')) return response;
-  return stampLaunch(response, nowMs);
+  const clean = new Response(stripComments(await response.text()), response);
+  clean.headers.delete('Content-Length');
+  return stampLaunch(clean, nowMs);
+}
+
+// No served page carries an HTML comment (18.9b B5). The source pages keep
+// theirs: they hold the build markers (`<!-- launch:NAME -->`,
+// `<!-- feature:NAME -->`) and the notes for whoever edits the page, none of
+// which is for a visitor. scripts/test_launch.mjs sends every page through
+// serveAsset and fails on any `<!--` left.
+export function stripComments(html) {
+  return html.replace(/<!--[\s\S]*?-->/g, '');
 }
 
 export function stampLaunch(response, nowMs, Rewriter = globalThis.HTMLRewriter) {

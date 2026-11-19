@@ -68,6 +68,21 @@ def main(base: str) -> int:
     except OSError as e:
         bad.append(f"/privacy.html: no answer ({e})")
 
+    # 18.9b B5: the worker strips every HTML comment, so a live page never
+    # carries the internal notes the source pages hold.
+    for path in ("/", "/privacy/", "/support/", "/terms/", "/press/"):
+        try:
+            status, _, body = get(base, path)
+        except OSError as e:
+            bad.append(f"{path}: no answer ({e})")
+            continue
+        if "<!--" in body:
+            bad.append(f"{path}: serves an HTML comment: {body[body.index('<!--'):][:80]!r}")
+        elif "<h1" not in body or "</main>" not in body:
+            bad.append(f"{path}: page served without its <h1> or </main>: too much stripped?")
+        else:
+            print(f"ok   {path} carries no HTML comment")
+
     domain = SUPPORT_EMAIL.split("@", 1)[1]
     mx = subprocess.run(["dig", "+short", "MX", domain], capture_output=True, text=True).stdout.strip()
     if not mx:

@@ -146,3 +146,9 @@ html[data-launch="out"] .only-pre { display: none; }
 .badge-google img { display: block; height: calc(48px * 250 / 168); width: auto; margin: calc(-48px * 41 / 168) 0 0 calc(-48px * 41 / 168); }
 .badge-late .badge-art { opacity: .55; }
 .badge small { font-size: .8rem; }
+
+/* ---- Placeholders (Story 18.9) ---------------------------------------------
+   Something only Ra'uf can supply. Visible on purpose, so a review sees it;
+   scripts/build_features.py --game refuses a deploy while any remains. */
+.todo { padding: 0 .3em; border: 1px dashed var(--ocean); border-radius: 4px; color: var(--ocean); }
+table.facts th { width: 9rem; text-transform: none; letter-spacing: 0; font-size: .95rem; color: var(--ink); }

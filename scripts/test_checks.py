@@ -319,6 +319,163 @@ launch_case("cron commented out", True, lambda r: edit(
 launch_case("cron made weekly", True, lambda r: edit(
     r, ".github/workflows/ci.yml", "'17 6 * * *'", "'17 6 * * 1'"))
 
+# ---- 18.9 terms + press kit ---------------------------------------------------
+feature_case("'190 questions' typed by hand outside a region", True, add_para(
+    "There are 190 questions.", page="terms/index.html", anchor="<h1>Terms</h1>"))
+feature_case("'195 countries' typed by hand", True, add_para(
+    "All 195 countries.", page="press/index.html", anchor="<h1>Press kit</h1>"))
+feature_case("data version typed by hand", True, add_para(
+    "Data version v089.", page="press/index.html", anchor="<h1>Press kit</h1>"))
+feature_case("facts.json moved, pages not rebuilt", True, lambda r: (r / "src/facts.json").write_text(
+    (r / "src/facts.json").read_text().replace('"axes": 190', '"axes": 191')))
+feature_case("press facts region deleted", True, lambda r: edit(
+    r, "press/index.html", "<!-- feature:press-facts -->", "<!-- gone -->"))
+launch_case("press release line typed by hand", True, lambda r: edit(
+    r, "press/index.html", "<!-- launch:press-release -->", "10 December 2026 <!-- launch:press-release -->"))
+store_case("press page loses its contact", True, lambda r: edit(
+    r, "press/index.html", 'href="mailto:support@sortinggeography.com?subject=Press"', 'href="mailto:x@example.com"'))
+store_case("terms page deleted", True, lambda r: (r / "terms/index.html").unlink())
+store_case("sitemap drops the press page", True, lambda r: edit(
+    r, "sitemap.xml", "  <url><loc>https://sortinggeography.com/press/</loc></url>\n", ""))
+
+
+def todo_case(name, mutate, expect_red):
+    root = copy_site()
+    try:
+        mutate(root)
+        red = bool(build_features.todos(root))
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} todo     {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"todo: {name}")
+
+
+# Every placeholder is filled today (Empty Cup Media LLC, Nevada; Ra'uf 2026-11-19),
+# so the clean tree must pass and a placeholder put back in ANY form must go red
+# (review-share 18.9b B2, B3, and upper case). Comments are never served (the
+# worker strips them, B5; test_launch.mjs proves it), so they are not scanned.
+TODO = '<span class="todo">x</span>'
+todo_case("all placeholders filled today: deploy allowed", lambda r: None, False)
+todo_case("placeholder back in terms", lambda r: edit(
+    r, "terms/index.html", "Empty Cup Media LLC", TODO), True)
+todo_case("placeholder back in press", lambda r: edit(
+    r, "press/index.html", "<td>Empty Cup Media LLC</td>", "<td>" + TODO + "</td>"), True)
+todo_case("uppercase <SPAN CLASS=\"TODO\">", lambda r: edit(
+    r, "terms/index.html", "Empty Cup Media LLC", '<SPAN CLASS="TODO">x</SPAN>'), True)
+todo_case("single-quoted class='todo'", lambda r: edit(
+    r, "terms/index.html", "Empty Cup Media LLC", "<span class='todo'>x</span>"), True)
+todo_case("todo next to another class", lambda r: edit(
+    r, "terms/index.html", "Empty Cup Media LLC", '<span class="todo note">x</span>'), True)
+todo_case("todo as an unquoted class", lambda r: edit(
+    r, "press/index.html", "<td>Empty Cup Media LLC</td>", "<td><span class=todo>x</span></td>"), True)
+todo_case("todo class on a div, not a span", lambda r: edit(
+    r, "terms/index.html", "<h1>Terms</h1>", '<h1>Terms</h1><div class="x todo">x</div>'), True)
+todo_case("span tags stripped, 'to be confirmed' left as plain text", lambda r: edit(
+    r, "terms/index.html", "Empty Cup Media LLC", "Empty Cup Media LLC or Inc., to be confirmed by Ra'uf"), True)
+todo_case("'[todo' left as plain text", lambda r: edit(
+    r, "press/index.html", "<td>Empty Cup Media LLC</td>", "<td>[todo: suffix]</td>"), True)
+todo_case("a class merely containing 'todo' (todo-list) is not a placeholder", lambda r: edit(
+    r, "terms/index.html", "<h1>Terms</h1>", '<h1>Terms</h1><div class="todo-list">x</div>'), False)
+
+
+# B1: the REAL deploy path. Run the copied site's own `build_features.py --game`
+# against a fake game that matches the site, so the only possible red is the
+# placeholder. Deleting `+ todos()` from the --game list must turn the second
+# case green and fail this suite.
+def matching_game() -> pathlib.Path:
+    g = fake_game(False, False, False)
+    (g / "app/assets/data").mkdir(parents=True)
+    (g / "packages/sort_platform/lib/src/l10n").mkdir(parents=True)
+    facts = build_features.load_facts(ROOT)
+    axes = {f"a{i}": {} for i in range(facts["axes"] - 1)}
+    axes["highest_point_m"] = {"PT": float(facts["pt_highest_point_m"])}
+    d = {"version": f"dataset-{facts['dataset_version']}-x", "axes": axes,
+         "facets": {"continent": {f"C{i}": "x" for i in range(facts["countries"])}}}
+    (g / "app/assets/data/dataset_runtime.json").write_text(json.dumps(d))
+    (g / "packages/sort_platform/lib/src/l10n/shipped_locales.gen.dart").write_text(
+        "const List<String> kShippedLocaleTags = <String>[\n"
+        + "".join(f"  '{t}',\n" for t in facts["languages"]) + "];\n")
+    for cmd in (["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "facts"]):
+        subprocess.run(["git", "-C", str(g), *cmd], check=True)
+    return g
+
+
+def deploy_case(name, mutate, expect_red):
+    root, g = copy_site(), matching_game()
+    try:
+        mutate(root)
+        r = subprocess.run([sys.executable, str(root / "scripts/build_features.py"),
+                            "--game", str(g), "--ref", "main"], capture_output=True, text=True)
+        red = r.returncode != 0
+    finally:
+        shutil.rmtree(root)
+        shutil.rmtree(g)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} deploy   {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"deploy: {name}")
+        print("     " + (r.stdout + r.stderr).strip().replace("\n", "\n     ")[:600])
+
+
+deploy_case("--game on today's site against a matching game", lambda r: None, False)
+deploy_case("--game with a placeholder open in terms", lambda r: edit(
+    r, "terms/index.html", "Empty Cup Media LLC", TODO), True)
+
+
+def facts_case(name, game_over, expect_red):
+    g = pathlib.Path(tempfile.mkdtemp(prefix="sg-game-"))
+    try:
+        (g / "app/assets/data").mkdir(parents=True)
+        (g / "packages/sort_platform/lib/src/l10n").mkdir(parents=True)
+        real = {"version": "dataset-v089-abc", "axes": {f"a{i}": {} for i in range(190)},
+                "facets": {"continent": {f"C{i}": "x" for i in range(195)}}}
+        real["axes"]["highest_point_m"] = {"PT": 2351.0}
+        del real["axes"]["a0"]
+        langs = ["en"]
+        real, langs = game_over(real, langs)
+        (g / "app/assets/data/dataset_runtime.json").write_text(json.dumps(real))
+        (g / "packages/sort_platform/lib/src/l10n/shipped_locales.gen.dart").write_text(
+            "const List<String> kShippedLocaleTags = <String>[\n" + "".join(f"  '{t}',\n" for t in langs) + "];\n")
+        for cmd in (["init", "-q", "-b", "main"], ["add", "-A"],
+                    ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
+            subprocess.run(["git", "-C", str(g), *cmd], check=True)
+        red = bool(build_features.compare_facts(build_features.load_facts(ROOT),
+                                                build_features.game_facts(g, "main")))
+    finally:
+        shutil.rmtree(g)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} facts    {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"facts: {name}")
+
+
+def axes_plus_one(d, l):
+    d["axes"]["extra"] = {}
+    return d, l
+
+
+def new_version(d, l):
+    d["version"] = "dataset-v090-x"
+    return d, l
+
+
+def german_ships(d, l):
+    return d, l + ["de"]
+
+
+def pt_changes(d, l):
+    d["axes"]["highest_point_m"]["PT"] = 2350.0
+    return d, l
+
+
+facts_case("game matches facts.json", lambda d, l: (d, l), False)
+facts_case("game gains an axis", axes_plus_one, True)
+facts_case("game moves to v090", new_version, True)
+facts_case("German ships", german_ships, True)
+facts_case("Portugal's highest point changes", pt_changes, True)
+
 # Ra'uf 2026-11-19: no streak claim either way.
 feature_case("'no streak to lose' typed into the home page", True, lambda r: edit(
     r, "index.html", "<h1>Put the world in order</h1>", "<h1>Put the world in order</h1>\n  <p>No streak to lose.</p>"))
