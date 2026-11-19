@@ -40,10 +40,11 @@
   submission, check each against the release build:
     if:unlock   the paid unlock (6.3, kPaidUnlockEnabled). Remove the section
                 and the line in the summary if it is off on release.
-    if:analytics the PostHog sink (20.10).
-                Remove the section and the summary line if the sink does not
-                ship. It sends without a prompt (Ra'uf 2026-11-19); if a
-                prompt or a Settings switch is ever added, say so here.
+    if:analytics the PostHog sink (20.10) and the Settings switch "Share
+                anonymous usage numbers" (dev-paid is building it). Remove
+                the section and the summary line if the sink does not ship;
+                if the switch does not ship, drop the sentences about it.
+                No prompt (Ra'uf 2026-11-19, relayed by team-lead).
 
   Store declarations this page must agree with (20.7 pack section 4):
     AdMob     approximate location from IP, app interactions, diagnostics,
@@ -66,7 +67,7 @@
     <li>Your progress stays on your phone or tablet.</li>
     <li>Ads appear only in Endless play, never in the Daily. Every player is treated as possibly a child, so ads are never personalised and nothing tracks you across other apps.</li>
     <!-- if:analytics -->
-    <li>The app sends anonymous usage numbers so we can see which questions are too hard. Never your IP address, no advertising ID, nothing that identifies you.</li>
+    <li>The app sends anonymous usage numbers so we can see which questions are too hard. Never your IP address, no advertising ID, nothing that identifies you. You can switch them off in Settings.</li>
     <!-- /if:analytics -->
     <!-- if:unlock -->
     <li>If you buy the unlock that removes ads, Google Play or the App Store takes the payment. We never see your payment details.</li>
@@ -137,9 +138,12 @@
     other personal data, and PostHog is set to discard the IP address they arrive
     from, so it is never stored. The only link between one event and the next is a
     random number the app makes up when it is first installed, which is not tied to
-    you, your device's advertising ID or anything outside this app. Because nothing
-    in them identifies anyone, the app does not ask a question about them first. We
-    look at them only as totals, never at one player.
+    you, your device's advertising ID or anything outside this app. We look at them
+    only as totals, never at one player.
+  </p>
+  <p>
+    They are on unless you switch them off: in Settings, turn off
+    <strong>Share anonymous usage numbers</strong>, and the app sends none from then on.
   </p>
   <!-- /if:analytics -->
 

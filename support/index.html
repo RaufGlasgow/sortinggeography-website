@@ -16,7 +16,9 @@
 
 <!--
   Story 18.9. The Support URL for both store listings. Answers must be true of
-  the release build. The if:unlock blocks describe the paid unlock (6.3,
+  the release build. The if:analytics block needs the PostHog sink (20.10) and
+  the Settings switch "Share anonymous usage numbers"; remove it if either is
+  missing on release. The if:unlock blocks describe the paid unlock (6.3,
   kPaidUnlockEnabled): remove them if it is off on release, and remove the
   subscription answer if the yearly subscription is not sold on either store.
 -->
@@ -105,6 +107,15 @@
     Very little, and nothing that identifies you. The <a href="../privacy/">privacy page</a>
     says exactly what, including what Google's ad service receives.
   </p>
+
+  <!-- if:analytics -->
+  <h3>Can I stop the app sending usage numbers?</h3>
+  <p>
+    Yes. The app sends anonymous usage numbers so we can see which questions are too
+    hard: never your IP address, no advertising ID, nothing that identifies you. To
+    stop them, open Settings and turn off <strong>Share anonymous usage numbers</strong>.
+  </p>
+  <!-- /if:analytics -->
 
   <h3>How do I delete my data?</h3>
   <p>
