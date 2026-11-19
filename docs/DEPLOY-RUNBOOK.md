@@ -95,6 +95,7 @@ different versions; change both together.
 ```sh
 git -C ../Sorting-Geography fetch origin
 python3 scripts/build_features.py --game ../Sorting-Geography
+python3 scripts/check_sheet_links.py --game ../Sorting-Geography   # the app links only to sheets the site has (20.9)
 npx --yes wrangler@4.74.0 deploy
 python3 scripts/check_live.py          # after: pages 200, no HTML comment served, MX
 ```

@@ -22,6 +22,7 @@ sys.path.insert(0, str(HERE))
 import build_launch  # noqa: E402
 import check_platform  # noqa: E402
 import check_store_pages  # noqa: E402
+import check_sheet_links  # noqa: E402
 import build_features  # noqa: E402
 import check_comments  # noqa: E402
 import check_wrangler_pin  # noqa: E402
@@ -569,6 +570,65 @@ pin_case("a bare deploy in prose elsewhere in the runbook", True, lambda r: edit
 pin_case("a new doc in docs/ with 'npx -y wrangler@3 deploy'", True, lambda r: (r / "docs/NOTE.md").write_text("Run `npx -y wrangler@3 deploy`.\n"))
 pin_case("CI loose to a major (wrangler@4)", True, lambda r: edit(
     r, ".github/workflows/ci.yml", "WRANGLER: npx --yes wrangler@4.74.0", "WRANGLER: npx --yes wrangler@4"))
+
+# ---- 20.9: the game links only to sheets the site has ------------------------------
+def sheet_game(files: dict[str, str]) -> pathlib.Path:
+    g = pathlib.Path(tempfile.mkdtemp(prefix="sg-game-"))
+    roster = {"_meta": {}, "countries": {iso: {} for iso in ("AD", "AE", "FR")}}
+    files = {"pipeline/roster/countries.json": json.dumps(roster), "app/lib/main.dart": "void main() {}\n", **files}
+    for rel, text in files.items():
+        (g / rel).parent.mkdir(parents=True, exist_ok=True)
+        (g / rel).write_text(text)
+    for cmd in (["init", "-q", "-b", "main"], ["add", "-A"],
+                ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
+        subprocess.run(["git", "-C", str(g), *cmd], check=True)
+    return g
+
+
+def sheets(root, langs):
+    for lang in langs:
+        for iso in ("ad", "ae", "fr"):
+            p = root / check_sheet_links.sheet_path(lang, iso)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("<!doctype html><html><body><h1>x</h1></body></html>")
+
+
+def sheet_case(name, dart, expect_red, have=(), extra=None):
+    files = {} if dart is None else {check_sheet_links.SHEET_URL_DART: dart}
+    files.update(extra or {})
+    g, root = sheet_game(files), copy_site()
+    try:
+        sheets(root, have)
+        red = bool(check_sheet_links.check(g, "main", root))
+    finally:
+        shutil.rmtree(g)
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} sheets   {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"sheets: {name}")
+
+
+def const(body):
+    return f"const Set<String> kCountrySheetLanguages = <String>{{{body}}};\n"
+
+
+URL_LINE = "const kSheetBase = 'https://sortinggeography.com/countries/';\n"
+sheet_case("no sheet file on main, nothing links: no link yet", None, False)
+sheet_case("the set empty: no link", URL_LINE + const(""), False)
+sheet_case("en linked, every en sheet on the site", URL_LINE + const("'en'"), False, have=["en"])
+sheet_case("en linked, no sheets on the site", URL_LINE + const("'en'"), True)
+sheet_case("en linked, one sheet missing", URL_LINE + const("'en'"), True, have=["en"],
+           extra={"pipeline/roster/countries.json": json.dumps({"countries": {"AD": {}, "AE": {}, "FR": {}, "ZW": {}}})})
+sheet_case("de linked, only en sheets on the site", URL_LINE + const("'en', 'de'"), True, have=["en"])
+sheet_case("en and pt-pt linked, both on the site", URL_LINE + const("'en', 'pt-pt'"), False, have=["en", "pt-pt"])
+sheet_case("a tag in upper case", URL_LINE + const("'pt-PT'"), True, have=["pt-PT"])
+sheet_case("a double-quoted tag", URL_LINE + const('"en"'), True, have=["en"])
+sheet_case("a tag twice", URL_LINE + const("'en', 'en'"), True, have=["en"])
+sheet_case("the constant written another way", URL_LINE + "final kCountrySheetLanguages = {'en'};\n", True, have=["en"])
+sheet_case("the constant twice", URL_LINE + const("") + const("'en'"), True, have=["en"])
+sheet_case("a sheet link built in another file", None, True,
+           extra={"app/lib/play/elsewhere.dart": "const u = 'https://sortinggeography.com/de/countries/';\n"})
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
