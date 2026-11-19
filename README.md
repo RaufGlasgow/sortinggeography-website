@@ -1,7 +1,7 @@
 # sortinggeography.com
 
-The marketing website for **Sorting Geography** — a daily geography game for iPhone
-and Android. Static HTML, no build step, no framework.
+The marketing website for **Sorting Geography** — a daily geography game for Android
+and iOS. Static HTML, no build step, no framework.
 
 **This repo is PUBLIC on purpose.** Public repositories get unlimited free GitHub
 Actions minutes; private ones bill against a monthly allowance. Keeping the website
@@ -16,6 +16,11 @@ Nothing in this repo comes from the game repo except one generated file — see 
 | `index.html` | Landing page |
 | `privacy.html` | Privacy policy (**draft** — must be finalised against the shipping build before store submission) |
 | `credits.html` | **Generated.** Data-source attribution for every measure in the game |
+| `src/launch.js` | **The release moment, the one constant** (Story 18.8). Change it here, then run `python3 scripts/build_launch.py` |
+| `scripts/build_launch.py` | Writes every launch date and "comes to / out now" line into the pages' `<!-- launch:... -->` regions; `--check` fails CI on a stale region or a hand-typed date or launch phrase anywhere else |
+| `countdown.js` | The timer (decoration; the date is real text). Flips an open page at the moment |
+| `src/pages.js` | Stamps `<html data-launch="pre|out">` on every page from the constant, so the same URL shows "Out now" at the moment with no redeploy |
+| `scripts/check_platform.py` | Fails any page that names one platform alone, names the two in the wrong order, or names a device instead of saying phone or tablet (Ra'uf 2026-11-18). `scripts/test_checks.py` mutation-tests both guards |
 | `style.css` | The whole stylesheet. App palette: forest green primary, ocean blue secondary, violet for rewards only |
 | `scripts/build_credits.py` | Regenerates `credits.html` from the game's dataset |
 | `src/worker.js` | The Cloudflare Worker: serves the pages, plus the launch-email API |

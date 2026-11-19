@@ -113,3 +113,36 @@ code { background: var(--card); border: 1px solid var(--rule); border-radius: 6p
 .notify-msg.ok { color: var(--green); font-weight: 600; }
 .notify-msg.bad { color: var(--ocean); font-weight: 600; }
 .notify-fine { margin-top: .35rem; font-size: .9rem; }
+
+/* ---- Release countdown (Story 18.8) ---------------------------------------
+   Every page carries both launch states. The worker stamps <html data-launch>
+   from src/launch.js; countdown.js flips an open page at the moment. Without
+   either, the page shows the pre-launch state, which carries the date as text.
+   Palette only: no gold, no orange. The redesign (18.3) restyles this. */
+html:not([data-launch="out"]) .only-post { display: none; }
+html[data-launch="out"] .only-pre { display: none; }
+
+.launch { margin: 1.8rem auto 0; max-width: 34rem; }
+.launch-date { font-weight: 600; font-size: clamp(1.05rem, 2.4vw, 1.2rem); margin: 0; }
+.hero .launch-time { font-size: .95rem; opacity: .85; margin: .3rem auto 0; }
+.countdown { display: flex; justify-content: center; gap: .6rem; margin-top: 1.2rem; }
+.countdown[hidden] { display: none; }
+.cd-unit {
+  display: flex; flex-direction: column; align-items: center; min-width: 4.4rem;
+  padding: .6rem .5rem; border: 1px solid rgba(245,241,230,.45);
+  border-radius: calc(var(--radius) / 2);
+}
+.cd-unit b { font-size: clamp(1.5rem, 5vw, 2rem); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cd-unit span { font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; opacity: .85; }
+
+/* Store badges: both always, Google Play then App Store, the SAME height.
+   Google's artwork carries transparent clear space (41 px of its 250 px height
+   on every side), so it is cropped by its frame, not by editing the file. */
+.badges { display: flex; flex-wrap: wrap; justify-content: center; gap: .8rem; margin-top: 1.2rem; }
+.badge { display: inline-flex; flex-direction: column; align-items: center; gap: .3rem; text-decoration: none; }
+.badge-art { display: block; height: 48px; overflow: hidden; }
+.badge-apple img { display: block; height: 48px; width: auto; }
+.badge-google { width: calc(48px * 564 / 168); }
+.badge-google img { display: block; height: calc(48px * 250 / 168); width: auto; margin: calc(-48px * 41 / 168) 0 0 calc(-48px * 41 / 168); }
+.badge-late .badge-art { opacity: .55; }
+.badge small { font-size: .8rem; }

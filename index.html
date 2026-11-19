@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sorting Geography — put the world in order</title>
-<meta name="description" content="A daily geography game. Five countries, one question, one right order. Every figure is real and shows you where it came from.">
+<meta name="description" content="A daily geography game for Android and iOS. Five countries, one question, one right order. Every figure is real and shows you where it came from.">
 <meta property="og:title" content="Sorting Geography">
 <meta property="og:description" content="Five countries, one question, one right order. A daily geography game built on real, sourced figures.">
 <meta property="og:type" content="website">
 <link rel="stylesheet" href="style.css">
+<script src="countdown.js" defer></script>
 </head>
 <body>
 <header class="bar">
@@ -17,9 +18,10 @@
 </header>
 
 <section class="hero">
-  <span class="tag">In development</span>
+  <!-- launch:hero-chip --><span class="tag only-pre">Out 10 December</span><span class="tag only-post">Out now</span><!-- /launch:hero-chip -->
   <h1>Put the world in order</h1>
   <p>Five countries. One question. One right order. A daily geography game built entirely on real figures — each one showing you exactly where it came from.</p>
+  <!-- launch:hero-countdown --><div class="launch"><div class="only-pre"><p class="launch-date">Sorting Geography comes to Android and iOS on 10 December 2026.</p><p class="launch-time">At 09:00 in Lisbon, which is 09:00 UTC.</p><div class="countdown" data-release="1796893200000" hidden aria-hidden="true"><span class="cd-unit"><b data-u="d">0</b><span>days</span></span><span class="cd-unit"><b data-u="h">0</b><span>hours</span></span><span class="cd-unit"><b data-u="m">0</b><span>minutes</span></span><span class="cd-unit"><b data-u="s">0</b><span>seconds</span></span></div></div><div class="only-post"><p class="launch-date">Out now on Android and iOS.</p><div class="badges"><a class="badge" href="https://play.google.com/store/apps/details?id=com.emptycupmedia.sorting_geography" rel="noopener"><span class="badge-art badge-google"><img src="images/google-play-badge.png" alt="Get it on Google Play" width="646" height="250"></span></a><span class="badge badge-late"><span class="badge-art badge-apple"><img src="images/app-store-badge.svg" alt="Download on the App Store" width="120" height="40"></span><small>Coming soon</small></span></div></div></div><!-- /launch:hero-countdown -->
 </section>
 
 <main>
@@ -79,11 +81,8 @@
       carries.
     </p>
 
-    <h2>When?</h2>
-    <p>
-      In development, for iPhone and Android. No release date yet — it ships when the
-      questions are good and the data is right.
-    </p>
+    <!-- launch:when --><h2 class="only-pre">When?</h2><h2 class="only-post">Get the game</h2><p class="only-pre">Sorting Geography comes to Android and iOS on 10 December 2026, on phones and tablets, the same game on both on the same day.</p><p class="only-post">Out now on Android and iOS, on phones and tablets.</p><!-- /launch:when -->
+    <div class="only-pre">
     <form class="notify" id="notify" method="post" action="/api/subscribe">
       <label for="email">Leave an address and we will tell you when it ships.</label>
       <div class="notify-row">
@@ -124,6 +123,7 @@
         });
       })();
     </script>
+    </div>
   </div>
 </main>
 
