@@ -97,7 +97,7 @@ launch_case("'coming soon' wrapped across two lines", True, add_para("The game i
 launch_case("'In development' tag put back", True, lambda r: edit(
     r, "index.html", HERO, '<span class="tag">In development</span>\n  ' + HERO))
 launch_case("a generated region edited by hand", True, lambda r: edit(
-    r, "index.html", "Out now on Android and iOS.</p>", "Out now on Android and iOS!</p>"))
+    r, "index.html", '<p class="launch-date">Out now.</p>', '<p class="launch-date">Out now!</p>'))
 launch_case("the constant moved, pages not rebuilt", True, lambda r: edit(
     r, "src/launch.js", f"RELEASE_UTC_MS = {RELEASE};",
     f"RELEASE_UTC_MS = {RELEASE + build_launch.DAY_MS};"))
@@ -131,6 +131,36 @@ platform_case("robots.txt comment names Apple alone", True, lambda r: edit(
 platform_case("look-alike: '-apple-system' font in a style attribute", False, add_para(
     '<span style="font-family:-apple-system">Plain text</span>'))
 platform_case("look-alike: 'Android and iOS' in order", False, add_para("For Android and iOS."))
+
+# ---- review round 1 ----------------------------------------------------------
+# F2: the worker wiring that makes the flip happen at all.
+launch_case("W6: worker falls through to env.ASSETS.fetch", True, lambda r: edit(
+    r, "src/worker.js", "return serveAsset(request, env, Date.now());", "return env.ASSETS.fetch(request);"))
+launch_case("W7: run_worker_first = false", True, lambda r: edit(
+    r, "wrangler.toml", "run_worker_first = true", "run_worker_first = false"))
+launch_case("W7b: run_worker_first line deleted", True, lambda r: edit(
+    r, "wrangler.toml", "run_worker_first = true", ""))
+launch_case("W6b: serveAsset import dropped", True, lambda r: edit(
+    r, "src/worker.js", "import { serveAsset } from './pages.js';", ""))
+
+
+# F1: the out sentence never names a store that has no link.
+def out_case(name, stores, must_name):
+    gen = build_launch.regions(RELEASE, stores)
+    names = "on Android and iOS" in gen["hero-countdown"].split('class="only-post"')[1]
+    ok = names == must_name
+    print(f"{'ok  ' if ok else 'FAIL'} out      {name}")
+    if not ok:
+        failures.append(f"out: {name}")
+
+
+G = ("google", "Google Play", "https://play.google.com/x")
+A = ("apple", "App Store", "https://apps.apple.com/x")
+out_case("both links: 'Out now on Android and iOS'", [G, A], True)
+out_case("App Store link missing: just 'Out now'", [G, ("apple", "App Store", None)], False)
+out_case("Google Play link missing: just 'Out now'", [("google", "Google Play", None), A], False)
+launch_case("out sentence hand-edited to name both stores", True, lambda r: edit(
+    r, "index.html", '<p class="launch-date">Out now.</p>', '<p class="launch-date">Out now on Android and iOS.</p>'))
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")

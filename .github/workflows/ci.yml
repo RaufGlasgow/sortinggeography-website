@@ -8,6 +8,11 @@ on:
   push:
     branches: [main]
   pull_request: {}
+  # Daily, so the date-driven checks fire with nobody pushing (review F1): the
+  # store-link deadline goes red on its own from 7 days before the release.
+  # Free: this repo is public and the job is ubuntu-only, seconds per run.
+  schedule:
+    - cron: '17 6 * * *'
 
 # One run per branch. A burst of commits supersedes itself instead of stacking
 # a burst of runs and a burst of notification emails.

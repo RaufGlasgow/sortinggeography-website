@@ -105,8 +105,17 @@ def badges(stores=STORES) -> str:
     return '<div class="badges">' + "".join(out) + "</div>"
 
 
-def regions(ms: int) -> dict[str, str]:
+def out_platforms(stores=STORES) -> str:
+    """Review F1: the "out" sentence names the platforms only when EVERY store
+    has a link. Until then it says just "Out now" (Ra'uf 2026-11-18: one
+    headline for both; a late store's own badge carries "Coming soon"), so the
+    page can never claim a store that has no listing to link to."""
+    return f" on {PLATFORMS_SHORT}" if all(url for _k, _n, url in stores) else ""
+
+
+def regions(ms: int, stores=STORES) -> dict[str, str]:
     """name -> generated HTML. Every launch word on the site comes from here."""
+    on = out_platforms(stores)
     units = [("d", "days"), ("h", "hours"), ("m", "minutes"), ("s", "seconds")]
     tiles = "".join(f'<span class="cd-unit"><b data-u="{k}">0</b><span>{n}</span></span>'
                     for k, n in units)
@@ -123,15 +132,15 @@ def regions(ms: int) -> dict[str, str]:
             f'<div class="countdown" data-release="{ms}" hidden aria-hidden="true">{tiles}</div>'
             '</div>'
             '<div class="only-post">'
-            f'<p class="launch-date">Out now on {PLATFORMS_SHORT}.</p>'
-            f'{badges()}'
+            f'<p class="launch-date">Out now{on}.</p>'
+            f'{badges(stores)}'
             '</div>'
             '</div>'),
         "when": (
             '<h2 class="only-pre">When?</h2><h2 class="only-post">Get the game</h2>'
             f'<p class="only-pre">Sorting Geography comes to {PLATFORMS_SHORT} on {date_text(ms)}, '
             'on phones and tablets, the same game on both on the same day.</p>'
-            f'<p class="only-post">Out now on {PLATFORMS_SHORT}, on phones and tablets.</p>'),
+            f'<p class="only-post">Out now{on}, on phones and tablets.</p>'),
     }
 
 
@@ -215,11 +224,36 @@ def check(root: pathlib.Path = ROOT, now_ms: int | None = None) -> list[str]:
     if "hero-countdown" not in seen:
         bad.append("no page carries the hero-countdown region")
     now_ms = int(time.time() * 1000) if now_ms is None else now_ms
+    bad += worker_wiring(root)
     if now_ms >= ms - STORE_LINK_DEADLINE_DAYS * DAY_MS:
         for _key, name, url in STORES:
             if not url:
                 bad.append(f"{name}: no store link, {STORE_LINK_DEADLINE_DAYS} days or less before "
                            "the release; its badge would say 'Coming soon' at launch")
+    return bad
+
+
+def worker_wiring(root: pathlib.Path = ROOT) -> list[str]:
+    """Review F2: the two lines that make the flip happen at all. Without them
+    the worker never stamps data-launch, every no-JavaScript visitor and crawler
+    keeps the countdown after the moment, and a browser test (countdown.js
+    flips the page) hides it."""
+    import tomllib
+    bad = []
+    worker = (root / "src" / "worker.js").read_text(encoding="utf-8")
+    code = re.sub(r"//[^\n]*", "", worker)
+    if not re.search(r"\breturn\s+serveAsset\(\s*request\s*,\s*env\s*,\s*Date\.now\(\)\s*\)\s*;\s*\}\s*,\s*\};", code):
+        bad.append("src/worker.js: the fall-through no longer ends in `return serveAsset(request, env, Date.now());`")
+    if re.search(r"\bASSETS\.fetch\(", code):
+        bad.append("src/worker.js: calls env.ASSETS.fetch directly; pages must go through serveAsset (src/pages.js)")
+    if not re.search(r"^import\s*\{[^}]*\bserveAsset\b[^}]*\}\s*from\s*'\./pages\.js';", worker, re.M):
+        bad.append("src/worker.js: does not import serveAsset from ./pages.js")
+    try:
+        cfg = tomllib.loads((root / "wrangler.toml").read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as e:
+        return bad + [f"wrangler.toml unreadable: {e}"]
+    if cfg.get("assets", {}).get("run_worker_first") is not True:
+        bad.append("wrangler.toml: [assets] run_worker_first is not true, so the worker never sees page requests")
     return bad
 
 
