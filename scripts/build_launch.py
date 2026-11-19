@@ -225,6 +225,7 @@ def check(root: pathlib.Path = ROOT, now_ms: int | None = None) -> list[str]:
         bad.append("no page carries the hero-countdown region")
     now_ms = int(time.time() * 1000) if now_ms is None else now_ms
     bad += worker_wiring(root)
+    bad += ci_schedule(root)
     if now_ms >= ms - STORE_LINK_DEADLINE_DAYS * DAY_MS:
         for _key, name, url in STORES:
             if not url:
@@ -255,6 +256,23 @@ def worker_wiring(root: pathlib.Path = ROOT) -> list[str]:
     if cfg.get("assets", {}).get("run_worker_first") is not True:
         bad.append("wrangler.toml: [assets] run_worker_first is not true, so the worker never sees page requests")
     return bad
+
+
+def ci_schedule(root: pathlib.Path = ROOT) -> list[str]:
+    """Review round 2 follow-up: the daily run IS the F1 fix. Without a
+    schedule nothing re-runs the store-link deadline before the moment."""
+    ci = root / ".github" / "workflows" / "ci.yml"
+    try:
+        text = ci.read_text(encoding="utf-8")
+    except OSError:
+        return [".github/workflows/ci.yml is missing"]
+    text = re.sub(r"(?m)^\s*#.*$", "", text)
+    m = re.search(r"(?m)^on:\s*\n((?:[ \t]+.*\n|\s*\n)+)", text)
+    on_block = m.group(1) if m else ""
+    if not re.search(r"(?m)^[ \t]+schedule:\s*\n[ \t]+-[ \t]*cron:[ \t]*['\"]?[0-9*/,\- ]+ [0-9*/,\- ]+ \*[ \t]+\*[ \t]+\*['\"]?[ \t]*$", on_block):
+        return [".github/workflows/ci.yml: no daily `schedule: - cron:` under `on:`; the store-link "
+                "deadline would never re-run on its own (review F1)"]
+    return []
 
 
 def build(root: pathlib.Path = ROOT) -> None:
