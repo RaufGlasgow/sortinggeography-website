@@ -65,12 +65,19 @@ Then **read `wrangler.toml` and confirm both `id` and `preview_id` are real ids*
 placeholder. If `--update-config` did not write them (it is newer than some wrangler builds),
 paste them in by hand — the command prints them.
 
-## Step 3 — Set the two secrets
+## Step 3 — Set the three secrets
 
 ```sh
-wrangler secret put EXPORT_SECRET      # paste a long random string; this guards the CSV export
-wrangler secret put RESEND_API_KEY     # from resend.com — the same account Sorting History uses
+wrangler secret put EXPORT_SECRET        # paste a long random string; this guards the CSV export
+wrangler secret put UNSUBSCRIBE_SECRET   # another long random string; signs every unsubscribe link
+wrangler secret put RESEND_API_KEY       # from resend.com — the same account Sorting History uses
 ```
+
+`UNSUBSCRIBE_SECRET` (Story 18.5): each email's unsubscribe link carries a signature of the
+address made with it, so nobody can remove someone else's address. Without it the worker
+sends no email at all (there would be no honest unsubscribe link). **Never change it once mail
+has gone out**: every link already sent would stop working (those people can still write to
+support@, and the privacy page says so).
 
 Each prompts for the value on stdin and stores it encrypted; neither is ever written to the repo.
 
@@ -185,9 +192,16 @@ wrangler kv key list --binding LAUNCH_EMAILS | head
 curl -sI 'https://sortinggeography.com/api/export-emails?key=wrong' | head -1   # expect 401
 curl -s  "https://sortinggeography.com/api/export-emails?key=$EXPORT_SECRET" | head -3
 
-# unsubscribing DELETES the address rather than flagging it
-curl -s 'https://sortinggeography.com/api/unsubscribe?email=rauf+launchtest@example.com' \
-  | grep -o 'Unsubscribed'
+# a link without the right signature is refused, and deletes nothing
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  'https://sortinggeography.com/api/unsubscribe?email=rauf+launchtest@example.com&t=wrong'   # expect 403
+```
+
+Then open the welcome email at the real inbox, tap **Unsubscribe**, and press the button on
+the page (opening the link alone deletes nothing, so mail scanners cannot unsubscribe anyone).
+Unsubscribing DELETES the address rather than flagging it:
+
+```sh
 wrangler kv key list --binding LAUNCH_EMAILS | grep -c launchtest   # expect 0
 ```
 

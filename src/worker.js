@@ -32,22 +32,24 @@ import { serveAsset } from './pages.js';
 // export of this main module as an entrypoint, so this file exports only the
 // handler (scripts/test_served.mjs caught a constant export breaking start-up).
 import { sendWelcomeEmail, handleWelcomeBacklog } from './mail.js';
+import { tokenValid } from './token.js';
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (url.pathname === '/api/subscribe') {
-      if (request.method === 'OPTIONS') return handleCORS();
       if (request.method === 'POST') return handleSubscribe(request, env, ctx);
       return new Response('Method not allowed', { status: 405 });
     }
 
     if (url.pathname === '/api/unsubscribe') {
-      if (request.method === 'GET') return handleUnsubscribe(request, env);
-      // One-click unsubscribe from the mail client's own button (RFC 8058,
-      // the List-Unsubscribe-Post header in src/email.js).
-      if (request.method === 'POST') return handleOneClickUnsubscribe(request, env);
+      // GET only shows a confirm button: link scanners that open every URL in
+      // a message must not unsubscribe anyone (18.5 review E2). POST deletes:
+      // the button, and the mail client's own one-click (RFC 8058, the
+      // List-Unsubscribe-Post header in src/email.js). Both need the token.
+      if (request.method === 'GET') return handleUnsubscribe(request, env, false);
+      if (request.method === 'POST') return handleUnsubscribe(request, env, true);
       return new Response('Method not allowed', { status: 405 });
     }
 
@@ -78,38 +80,55 @@ export default {
 };
 
 
-function handleCORS() {
-  return new Response(null, {
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
-}
+// The signup (18.5 review E1). Before the Resend key goes in, the route must
+// not let anyone use hello@ to mail an inbox over and over:
+//   - a cross-site Origin is refused (our form posts from our own pages);
+//   - SUBSCRIBE_LIMIT (wrangler.toml [[ratelimits]]) caps signups per IP;
+//     without the binding the route refuses, rather than running unguarded;
+//   - an address already on the list keeps its record and is sent nothing.
+// The answer is the same whether the address was new or not.
+const OWN_ORIGINS = new Set(['https://sortinggeography.com', 'https://www.sortinggeography.com']);
+const JSON_HEADERS = { 'Content-Type': 'application/json' };
+const ON_LIST = JSON.stringify({ success: true, message: 'You are on the list. Check your email.' });
 
 async function handleSubscribe(request, env, ctx) {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-  };
+  const origin = request.headers.get('Origin');
+  if (origin && !OWN_ORIGINS.has(origin)) {
+    return new Response(JSON.stringify({ success: false, error: 'Not allowed.' }), { status: 403, headers: JSON_HEADERS });
+  }
+  if (!env.SUBSCRIBE_LIMIT) {
+    return new Response(JSON.stringify({ success: false, error: 'Signups are not open right now.' }),
+      { status: 503, headers: JSON_HEADERS });
+  }
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const { success: allowed } = await env.SUBSCRIBE_LIMIT.limit({ key: ip });
+  if (!allowed) {
+    return new Response(JSON.stringify({ success: false, error: 'Too many tries. Please wait a minute.' }),
+      { status: 429, headers: JSON_HEADERS });
+  }
 
   try {
     const formData = await request.formData();
     const email = formData.get('email')?.toLowerCase().trim();
+
+    if (!email || !isValidEmail(email)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'That does not look like an email address.' }),
+        { status: 400, headers: JSON_HEADERS },
+      );
+    }
     // The page's language (a hidden field; /de/ pages will send "de"). Kept as
     // given, so a signup made before its language's email template exists is
     // still known; src/email.js falls back to English until then.
     const rawLang = String(formData.get('lang') || 'en');
     const lang = /^[a-z]{2}(?:-[A-Za-z0-9]{2,4})?$/.test(rawLang) ? rawLang : 'en';
 
-    if (!email || !isValidEmail(email)) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'That does not look like an email address.' }),
-        { status: 400, headers },
-      );
+    if (await env.LAUNCH_EMAILS.get(email)) {
+      return new Response(ON_LIST, { status: 200, headers: JSON_HEADERS });
     }
 
+    // Exactly what privacy/index.html says is kept (18.5 review E3); the
+    // welcome's date or failed tries are added by src/mail.js.
     await env.LAUNCH_EMAILS.put(
       email,
       JSON.stringify({
@@ -117,64 +136,48 @@ async function handleSubscribe(request, env, ctx) {
         lang,
         timestamp: new Date().toISOString(),
         source: request.headers.get('Referer') || 'direct',
-        userAgent: request.headers.get('User-Agent') || 'unknown',
       }),
     );
 
     // Fire-and-forget: a mail failure must never fail a signup that was stored.
     ctx.waitUntil(sendWelcomeEmail(email, lang, env));
 
-    return new Response(
-      JSON.stringify({ success: true, message: 'You are on the list. Check your email.' }),
-      { status: 200, headers },
-    );
+    return new Response(ON_LIST, { status: 200, headers: JSON_HEADERS });
   } catch (error) {
     return new Response(
       JSON.stringify({ success: false, error: 'Something went wrong. Please try again.' }),
-      { status: 500, headers },
+      { status: 500, headers: JSON_HEADERS },
     );
   }
 }
 
-async function handleOneClickUnsubscribe(request, env) {
-  const email = new URL(request.url).searchParams.get('email')?.toLowerCase().trim();
-  if (!email) return new Response('No email address was given.', { status: 400 });
-  try {
-    await env.LAUNCH_EMAILS.delete(email);
-    return new Response('Unsubscribed.', { status: 200 });
-  } catch (error) {
-    return new Response('Something went wrong.', { status: 500 });
-  }
-}
+const HTML = { 'Content-Type': 'text/html; charset=utf-8' };
+const NOT_VALID = 'This link is not valid. To be removed, email support@sortinggeography.com.';
 
-async function handleUnsubscribe(request, env) {
+async function handleUnsubscribe(request, env, remove) {
   const url = new URL(request.url);
   const email = url.searchParams.get('email')?.toLowerCase().trim();
-
-  if (!email) {
-    return new Response(unsubscribePage('No email address was given.', false), {
-      status: 400,
-      headers: { 'Content-Type': 'text/html' },
-    });
+  const token = url.searchParams.get('t') || '';
+  if (!(await tokenValid(email, token, env.UNSUBSCRIBE_SECRET))) {
+    return new Response(unsubscribePage(NOT_VALID, false), { status: 403, headers: HTML });
   }
-
+  if (!remove) {
+    return new Response(unsubscribePage('Remove this address from the list?', false, url.pathname + url.search),
+      { status: 200, headers: HTML });
+  }
   try {
     await env.LAUNCH_EMAILS.delete(email);
-    return new Response(
-      unsubscribePage('You are unsubscribed. We will not write to you again.', true),
-      { status: 200, headers: { 'Content-Type': 'text/html' } },
-    );
+    return new Response(unsubscribePage('You are unsubscribed. We will not write to you again.', true),
+      { status: 200, headers: HTML });
   } catch (error) {
-    return new Response(unsubscribePage('Something went wrong. Please try again later.', false), {
-      status: 500,
-      headers: { 'Content-Type': 'text/html' },
-    });
+    return new Response(unsubscribePage('Something went wrong. Please try again later.', false),
+      { status: 500, headers: HTML });
   }
 }
 
 // The app palette, light and dark, and nothing else: forest green, ocean blue,
 // parchment, violet. No gold, no orange (CI enforces it).
-function unsubscribePage(message, success) {
+function unsubscribePage(message, success, confirmAction = null) {
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -194,11 +197,14 @@ function unsubscribePage(message, success) {
   h1 { font-size: 1.25rem; margin: 0 0 1rem; color: ${success ? 'var(--green)' : 'var(--ocean)'}; }
   p { margin: 0 0 .75rem; }
   a { color: var(--ocean); }
+  button { font: inherit; padding: .6rem 1.4rem; border: 0; border-radius: 999px;
+           background: var(--green); color: #fff; cursor: pointer; margin: 0 0 .75rem; }
 </style>
 </head><body>
 <div class="card">
-  <h1>${success ? 'Unsubscribed' : 'Not done'}</h1>
+  <h1>${success ? 'Unsubscribed' : confirmAction ? 'Unsubscribe' : 'Not done'}</h1>
   <p>${message}</p>
+  ${confirmAction ? `<form method="post" action="${confirmAction.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"><button type="submit">Unsubscribe</button></form>` : ''}
   <p><a href="/">Back to Sorting Geography</a></p>
 </div>
 </body></html>`;

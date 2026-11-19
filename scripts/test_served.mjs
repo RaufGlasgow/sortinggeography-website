@@ -110,19 +110,29 @@ for (const page of servedPages()) {
   });
 }
 
-// Story 18.5: the signup and the one-click unsubscribe in the real runtime
-// (local KV only; no RESEND_API_KEY here, so nothing is sent).
-test('a signup is stored by the real worker, and one-click unsubscribe answers 200', async () => {
-  const body = new FormData();
-  body.set('email', 'served-test@example.com');
-  body.set('lang', 'en');
-  const res = await fetch(base + '/api/subscribe', { method: 'POST', body, signal: AbortSignal.timeout(15000) });
-  assert.equal(res.status, 200);
-  assert.equal((await res.json()).success, true);
-  const un = await fetch(base + '/api/unsubscribe?email=served-test%40example.com', {
-    method: 'POST', body: 'List-Unsubscribe=One-Click',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: AbortSignal.timeout(15000) });
-  assert.equal(un.status, 200);
-  const bl = await fetch(base + '/api/send-welcome-backlog', { method: 'POST', body: new FormData(), signal: AbortSignal.timeout(15000) });
-  assert.equal(bl.status, 401, 'no EXPORT_SECRET in dev: the backlog refuses');
+// Story 18.5: the signup guards in the real runtime (local KV and the real
+// rate-limit binding; no RESEND_API_KEY or UNSUBSCRIBE_SECRET here, so
+// nothing is sent and no unsubscribe can verify).
+async function post(path, body, headers = {}) {
+  return fetch(base + path, { method: 'POST', body, headers, signal: AbortSignal.timeout(15000) });
+}
+function form(fields) {
+  const f = new FormData();
+  for (const [k, v] of Object.entries(fields)) f.set(k, v);
+  return f;
+}
+
+test('signup: stored by the real worker; cross-site refused; the rate limit bites; unsigned unsubscribe refused', async () => {
+  const first = await post('/api/subscribe', form({ email: 'served-test@example.com', lang: 'en' }));
+  assert.equal(first.status, 200);
+  assert.equal((await first.json()).success, true);
+  assert.equal(first.headers.get('Access-Control-Allow-Origin'), null);
+  assert.equal((await post('/api/subscribe', form({ email: 'x@example.com' }), { Origin: 'https://evil.example' })).status, 403);
+  const un = await post('/api/unsubscribe?email=served-test%40example.com', 'List-Unsubscribe=One-Click',
+    { 'Content-Type': 'application/x-www-form-urlencoded' });
+  assert.equal(un.status, 403, 'no valid token: nothing deleted');
+  const codes = [];
+  for (let i = 0; i < 8; i += 1) codes.push((await post('/api/subscribe', form({ email: `burst${i}@example.com` }))).status);
+  assert.ok(codes.includes(429), `the SUBSCRIBE_LIMIT binding refuses a burst: ${codes}`);
+  assert.equal((await post('/api/send-welcome-backlog', new FormData())).status, 401, 'no EXPORT_SECRET in dev');
 });

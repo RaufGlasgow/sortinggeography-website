@@ -16,8 +16,9 @@ import { FACTS } from './facts.gen.js';
 export const SITE = 'https://sortinggeography.com';
 export const FROM = 'Sorting Geography <hello@sortinggeography.com>';
 
-export function unsubscribeUrl(email) {
-  return `${SITE}/api/unsubscribe?email=${encodeURIComponent(email)}`;
+// The token (src/token.js) proves the link came from a real email of ours.
+export function unsubscribeUrl(email, token) {
+  return `${SITE}/api/unsubscribe?email=${encodeURIComponent(email)}&t=${encodeURIComponent(token)}`;
 }
 
 // Every word a translation supplies goes through esc(), so a '<' or '&' in a
@@ -34,11 +35,14 @@ const TEXT = {
     paragraphs: [
       'Thank you for signing up for Sorting Geography.',
       `It is a daily geography game: five countries, one question, put them in order. Tallest mountain, longest coastline, most rainfall: ${f.axes} ways to sort the world, all of it from named public sources with the date and the link shown.`,
-      'I am building it for my family, and I hope you enjoy it as much as we do.',
+      // Ra'uf's own sentence, word for word, from the Sorting History welcome
+      // email (sortinghistory-website-deploy/src/worker.js:266, his commit
+      // 9dade19, 2026-02-11). Never reworded: it is his voice about his family.
+      "I developed this game for my wife and family, and I hope you'll enjoy it as much as we do.",
       'We will write when it ships, and when new ways to sort arrive. Nothing else.',
     ],
     unsubscribe: 'Unsubscribe',
-    unsubscribeNote: 'one click, and the address is deleted.',
+    unsubscribeNote: 'the address is deleted, not kept.',
   }),
 };
 
@@ -48,10 +52,11 @@ export function pickLang(requested) {
   return LANGS.includes(requested) ? requested : 'en';
 }
 
-export function welcomeEmail(email, lang = 'en') {
+export function welcomeEmail(email, lang, token) {
+  if (!token) throw new Error('welcomeEmail needs the unsubscribe token');
   const code = pickLang(lang);
   const t = TEXT[code](FACTS);
-  const unsub = unsubscribeUrl(email);
+  const unsub = unsubscribeUrl(email, token);
   const html = `<!doctype html>
 <html lang="${code}"><head><meta charset="utf-8"></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#f5f1e6;color:#16150f;margin:0;padding:2rem;">
