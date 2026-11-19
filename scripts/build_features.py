@@ -433,7 +433,7 @@ def compare_facts(facts: dict, real: dict) -> list[str]:
 # sent (src/pages.js stripComments, 18.9b B5), so a comment never reaches a
 # visitor (review-share + team-lead 2026-11-19).
 TODO_CLASS = re.compile(
-    r"""<[A-Za-z][^>]*?\bclass\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)""", re.S)
+    r"""<[A-Za-z][^>]*?\bclass\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)""", re.S | re.I)
 TODO_TOKEN = re.compile(r"(?<![\w-])todo(?![\w-])", re.I)
 TODO_WORDS = re.compile(r"to be confirmed|\[todo", re.I)
 
@@ -445,7 +445,7 @@ def todos(root: pathlib.Path = ROOT) -> list[str]:
                       p.read_text(encoding="utf-8"), flags=re.S)
         rel = p.relative_to(root)
         for m in TODO_CLASS.finditer(text):
-            attr = m.group(0)[m.group(0).lower().rindex("class"):]
+            attr = m.group(0)[m.group(0).lower().rindex("class"):]  # case-insensitive, like HTML
             if TODO_TOKEN.search(attr.split("=", 1)[1]):
                 line = text.count("\n", 0, m.start()) + 1
                 bad.append(f"{rel}:{line}: placeholder still open: {text[m.start():m.start() + 80]!r}")
