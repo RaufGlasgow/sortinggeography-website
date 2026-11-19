@@ -82,9 +82,13 @@ def require_ref(game: pathlib.Path, ref: str) -> None:
 def sheet_link_files(game: pathlib.Path, ref: str) -> list[str]:
     """Every file in the app at ref with sortinggeography.com and countries on one line,
     in any order and any form: a literal, an interpolated '$lang/countries/$iso/', or
-    Uri.https('sortinggeography.com', '/countries/...') (review S2)."""
+    Uri.https('sortinggeography.com', '/countries/...') (review S2); and any "/countries/"
+    path, wherever the host comes from (review S3)."""
     r = subprocess.run(["git", "-C", str(game), "grep", "-l", "-i", "-E",
-                        r"sortinggeography\.com.*countries|countries.*sortinggeography\.com",
+                        # ...or a "/countries/" path at all, so a host constant on one
+                        # line and '$kHost/countries/$iso/' on the next is caught too
+                        # (review S3): in the app such a path only means a sheet.
+                        r"sortinggeography\.com.*countries|countries.*sortinggeography\.com|/countries/",
                         ref, "--", "app/lib", "packages"], capture_output=True, text=True)
     if r.returncode not in (0, 1):      # 1 = no match; anything else is git failing
         raise GitFailed(f"git grep failed at {ref}: {r.stderr.strip()[:200]}")

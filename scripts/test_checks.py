@@ -633,6 +633,12 @@ sheet_case("Uri.https('sortinggeography.com', '/countries/...') in another file"
            extra={"app/lib/play/other.dart": "final u = Uri.https('sortinggeography.com', '/countries/$iso/');\n"})
 sheet_case("countries before the host on the line", None, True,
            extra={"packages/x/lib/y.dart": "const p = '/countries/'; const h = 'SortingGeography.com';\n"})
+sheet_case("host in a constant, '$kHost/countries/$iso/' on the next line", None, True,
+           extra={"app/lib/play/other.dart": "const kHost = 'https://sortinggeography.com';\nString u(i) =>\n    '$kHost/countries/$i/';\n"})
+sheet_case("host + '/countries/' concatenated across lines", None, True,
+           extra={"app/lib/play/other.dart": "final u = kSiteOrigin +\n    '/countries/' + iso;\n"})
+sheet_case("'countries/axes' in a comment is not a path", None, False,
+           extra={"app/lib/shell/t.dart": "// draws only unlocked countries/axes\n"})
 sheet_case("the privacy link alone is not a sheet link", None, False,
            extra={"app/lib/shell/seam.dart": "const u = 'https://sortinggeography.com/privacy.html';\n"})
 sheet_case("a sheet link built in another file", None, True,
