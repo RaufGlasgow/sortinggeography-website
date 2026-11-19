@@ -417,6 +417,14 @@ facts_case("game moves to v090", new_version, True)
 facts_case("German ships", german_ships, True)
 facts_case("Portugal's highest point changes", pt_changes, True)
 
+# Ra'uf 2026-11-19: no streak claim either way.
+feature_case("'no streak to lose' typed into the home page", True, lambda r: edit(
+    r, "index.html", "<h1>Put the world in order</h1>", "<h1>Put the world in order</h1>\n  <p>No streak to lose.</p>"))
+feature_case("'Daily streak' put back into privacy", True, lambda r: edit(
+    r, "privacy/index.html", "your scores and your", "your scores, your Daily streak and your"))
+feature_case("a streak line inside a generated region", True, lambda r: edit(
+    r, "privacy/index.html", "<!-- feature:privacy-summary -->", "<!-- feature:privacy-summary --><li>Keep your streak.</li>"))
+
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
     for f in failures:
