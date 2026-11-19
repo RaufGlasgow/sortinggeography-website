@@ -27,7 +27,10 @@
               ACCESS_ADSERVICES permissions removed (6.13)
     unlock    app/lib/shell/paid_unlock_seam.dart (on-device flag, no server)
     analytics app/lib/shell/analytics_seam.dart (PostHog EU, anonymous
-              install id, consent before the first event); Data safety draft
+              install id); NO consent prompt (Ra'uf ruling relayed by
+              team-lead 2026-11-19: as Sorting History does, anonymous
+              numbers, never the IP, no advertising ID, no personal data);
+              Data safety draft
               17-5 (Discard client IP data ON)
     storage   shared_preferences only; no allowBackup="false" in the Android
               manifest, so Android's own backup applies
@@ -37,9 +40,10 @@
   submission, check each against the release build:
     if:unlock   the paid unlock (6.3, kPaidUnlockEnabled). Remove the section
                 and the line in the summary if it is off on release.
-    if:analytics the PostHog sink (20.10) and its consent screen (6.12).
+    if:analytics the PostHog sink (20.10).
                 Remove the section and the summary line if the sink does not
-                ship; if it ships, match the consent wording to the screen.
+                ship. It sends without a prompt (Ra'uf 2026-11-19); if a
+                prompt or a Settings switch is ever added, say so here.
 
   Store declarations this page must agree with (20.7 pack section 4):
     AdMob     approximate location from IP, app interactions, diagnostics,
@@ -62,7 +66,7 @@
     <li>Your progress stays on your phone or tablet.</li>
     <li>Ads appear only in Endless play, never in the Daily. Every player is treated as possibly a child, so ads are never personalised and nothing tracks you across other apps.</li>
     <!-- if:analytics -->
-    <li>If you agree, the app sends anonymous usage events so we can see which questions are too hard. They carry nothing that identifies you.</li>
+    <li>The app sends anonymous usage numbers so we can see which questions are too hard. Never your IP address, no advertising ID, nothing that identifies you.</li>
     <!-- /if:analytics -->
     <!-- if:unlock -->
     <li>If you buy the unlock that removes ads, Google Play or the App Store takes the payment. We never see your payment details.</li>
@@ -121,18 +125,21 @@
   <!-- if:analytics -->
   <h2>Anonymous usage statistics</h2>
   <p>
-    To understand which questions are too hard and where people give up, the app can
-    send anonymous events: for example that a puzzle was finished, on which question,
+    To understand which questions are too hard and where people give up, the app
+    sends anonymous usage numbers: for example that a puzzle was finished, on which question,
     at which difficulty and with what score, and whether an ad was shown. Each event
     also carries the app's version, the version of its country data, and whether the
     device runs Android or iOS.
   </p>
   <p>
-    The app asks before it sends any, and sends nothing if you say no. The events go to
-    PostHog, an analytics service, in its European Union region. They are tied only to
-    a random number the app makes up when it is first installed. They carry no name, no
-    email, no advertising ID and no location, and PostHog is set to discard the IP
-    address they arrive from. We look at them only in aggregate, never at one player.
+    They go to PostHog, an analytics service, in its European Union region. They are
+    anonymous: they carry no name, no email, no advertising ID, no location and no
+    other personal data, and PostHog is set to discard the IP address they arrive
+    from, so it is never stored. The only link between one event and the next is a
+    random number the app makes up when it is first installed, which is not tied to
+    you, your device's advertising ID or anything outside this app. Because nothing
+    in them identifies anyone, the app does not ask a question about them first. We
+    look at them only as totals, never at one player.
   </p>
   <!-- /if:analytics -->
 
