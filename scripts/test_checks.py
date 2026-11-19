@@ -311,6 +311,13 @@ game_case("main turned the unlock on, pages say nothing", (True, False, False), 
 game_case("main ships PostHog, pages say no numbers are sent", (False, True, False), OFF, True)
 game_case("everything on both sides", (True, True, True), ALL_ON, False)
 
+# Round 2 follow-up: the daily CI run is F1's whole fix.
+launch_case("schedule trigger removed from ci.yml", True, lambda r: edit(
+    r, ".github/workflows/ci.yml", "  schedule:\n    - cron: '17 6 * * *'\n", ""))
+launch_case("cron commented out", True, lambda r: edit(
+    r, ".github/workflows/ci.yml", "    - cron: '17 6 * * *'", "    # - cron: '17 6 * * *'"))
+launch_case("cron made weekly", True, lambda r: edit(
+    r, ".github/workflows/ci.yml", "'17 6 * * *'", "'17 6 * * 1'"))
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
