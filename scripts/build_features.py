@@ -190,6 +190,10 @@ FRAGMENTS = {
 # Words that may appear in a served page ONLY inside a generated region, and
 # only while their feature is on. Outside a region they are a hand-typed claim.
 CLAIMS = {
+    # Ra'uf 2026-11-19: no streaks at launch ("only if customers request it").
+    # The site makes no streak claim either way, so the word is banned on
+    # every served page, generated or not: no region may produce it.
+    "no-streaks": [r"\bstreaks?\b"],
     "analytics": [r"\bPostHog\b", r"\busage numbers\b", r"\bdiscard(?:ed|s)?\b[^.]{0,40}\bIP\b"],
     "analytics_switch": [re.escape(SWITCH_LABEL)],
     "unlock": [r"\bRestore purchases\b", r"\bsubscription\b", r"\bthe unlock\b",
@@ -223,6 +227,9 @@ def check(root: pathlib.Path = ROOT, flags: dict | None = None) -> list[str]:
         if render(text, flags, str(rel)) != text:
             bad.append(f"{rel}: a feature region is stale or hand-edited; run scripts/build_features.py")
         seen.update(m.group(2) for m in REGION.finditer(text))
+        for m in re.finditer(r"\bstreaks?\b", re.sub(r"<!--.*?-->", " ", text, flags=re.S), re.I):
+            if REGION.search(text) and any(r.start() <= m.start() < r.end() for r in REGION.finditer(text)):
+                bad.append(f"{rel}: '{m.group(0)}' inside a generated region (no streak claims, Ra'uf 2026-11-19)")
         rest = REGION.sub(" ", text)
         rest = re.sub(r"<!--.*?-->", " ", rest, flags=re.S)
         for feature, pats in CLAIMS.items():
