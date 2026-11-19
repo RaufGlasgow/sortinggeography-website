@@ -162,6 +162,14 @@ out_case("Google Play link missing: just 'Out now'", [("google", "Google Play", 
 launch_case("out sentence hand-edited to name both stores", True, lambda r: edit(
     r, "index.html", '<p class="launch-date">Out now.</p>', '<p class="launch-date">Out now on Android and iOS.</p>'))
 
+# Round 2 follow-up: the daily CI run is F1's whole fix.
+launch_case("schedule trigger removed from ci.yml", True, lambda r: edit(
+    r, ".github/workflows/ci.yml", "  schedule:\n    - cron: '17 6 * * *'\n", ""))
+launch_case("cron commented out", True, lambda r: edit(
+    r, ".github/workflows/ci.yml", "    - cron: '17 6 * * *'", "    # - cron: '17 6 * * *'"))
+launch_case("cron made weekly", True, lambda r: edit(
+    r, ".github/workflows/ci.yml", "'17 6 * * *'", "'17 6 * * 1'"))
+
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
     for f in failures:
