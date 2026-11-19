@@ -426,12 +426,30 @@ def compare_facts(facts: dict, real: dict) -> list[str]:
             for k in FACT_KEYS if facts[k] != real[k]]
 
 
+# A placeholder is refused in every form review-share found getting through
+# (18.9b B2, B3, comments): the class token `todo` in any quotes or next to any
+# other class, and the placeholder words themselves in case the tags are
+# stripped. The RAW text is scanned, HTML comments included, because comments
+# are served to every visitor too.
+TODO_CLASS = re.compile(
+    r"""<[A-Za-z][^>]*?\bclass\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)""", re.S)
+TODO_TOKEN = re.compile(r"(?<![\w-])todo(?![\w-])", re.I)
+TODO_WORDS = re.compile(r"to be confirmed|\[todo", re.I)
+
+
 def todos(root: pathlib.Path = ROOT) -> list[str]:
     bad = []
     for p in served_pages(root):
-        text = re.sub(r"<!--.*?-->", " ", p.read_text(encoding="utf-8"), flags=re.S)
-        for m in re.finditer(r'<span class="todo">(.*?)</span>', text, re.S):
-            bad.append(f"{p.relative_to(root)}: placeholder still open: {m.group(1).strip()[:80]}")
+        text = p.read_text(encoding="utf-8")
+        rel = p.relative_to(root)
+        for m in TODO_CLASS.finditer(text):
+            attr = m.group(0)[m.group(0).lower().rindex("class"):]
+            if TODO_TOKEN.search(attr.split("=", 1)[1]):
+                line = text.count("\n", 0, m.start()) + 1
+                bad.append(f"{rel}:{line}: placeholder still open: {text[m.start():m.start() + 80]!r}")
+        for m in TODO_WORDS.finditer(text):
+            line = text.count("\n", 0, m.start()) + 1
+            bad.append(f"{rel}:{line}: placeholder words still served: {m.group(0)!r}")
     return bad
 
 

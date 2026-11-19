@@ -353,15 +353,74 @@ def todo_case(name, mutate, expect_red):
 
 
 # Every placeholder is filled today (Empty Cup Media LLC, Nevada; Ra'uf 2026-11-19),
-# so the clean tree must pass and a placeholder put back anywhere must go red.
-TODO = '<span class="todo">to be confirmed</span>'
+# so the clean tree must pass and a placeholder put back in ANY form must go red
+# (review-share 18.9b B2, B3; comments are served, so a comment counts too).
+TODO = '<span class="todo">x</span>'
 todo_case("all placeholders filled today: deploy allowed", lambda r: None, False)
 todo_case("placeholder back in terms", lambda r: edit(
     r, "terms/index.html", "Empty Cup Media LLC", TODO), True)
 todo_case("placeholder back in press", lambda r: edit(
     r, "press/index.html", "<td>Empty Cup Media LLC</td>", "<td>" + TODO + "</td>"), True)
-todo_case("placeholder only inside an HTML comment", lambda r: edit(
-    r, "terms/index.html", "<h1>Terms</h1>", "<!-- " + TODO + " --><h1>Terms</h1>"), False)
+todo_case("placeholder inside an HTML comment (comments are served)", lambda r: edit(
+    r, "terms/index.html", "<h1>Terms</h1>", "<!-- " + TODO + " --><h1>Terms</h1>"), True)
+todo_case("single-quoted class='todo'", lambda r: edit(
+    r, "terms/index.html", "Empty Cup Media LLC", "<span class='todo'>x</span>"), True)
+todo_case("todo next to another class", lambda r: edit(
+    r, "terms/index.html", "Empty Cup Media LLC", '<span class="todo note">x</span>'), True)
+todo_case("todo as an unquoted class", lambda r: edit(
+    r, "press/index.html", "<td>Empty Cup Media LLC</td>", "<td><span class=todo>x</span></td>"), True)
+todo_case("todo class on a div, not a span", lambda r: edit(
+    r, "terms/index.html", "<h1>Terms</h1>", '<h1>Terms</h1><div class="x todo">x</div>'), True)
+todo_case("span tags stripped, 'to be confirmed' left as plain text", lambda r: edit(
+    r, "terms/index.html", "Empty Cup Media LLC", "Empty Cup Media LLC or Inc., to be confirmed by Ra'uf"), True)
+todo_case("'[todo' left as plain text", lambda r: edit(
+    r, "press/index.html", "<td>Empty Cup Media LLC</td>", "<td>[todo: suffix]</td>"), True)
+todo_case("a class merely containing 'todo' (todo-list) is not a placeholder", lambda r: edit(
+    r, "terms/index.html", "<h1>Terms</h1>", '<h1>Terms</h1><div class="todo-list">x</div>'), False)
+
+
+# B1: the REAL deploy path. Run the copied site's own `build_features.py --game`
+# against a fake game that matches the site, so the only possible red is the
+# placeholder. Deleting `+ todos()` from the --game list must turn the second
+# case green and fail this suite.
+def matching_game() -> pathlib.Path:
+    g = fake_game(False, False, False)
+    (g / "app/assets/data").mkdir(parents=True)
+    (g / "packages/sort_platform/lib/src/l10n").mkdir(parents=True)
+    facts = build_features.load_facts(ROOT)
+    axes = {f"a{i}": {} for i in range(facts["axes"] - 1)}
+    axes["highest_point_m"] = {"PT": float(facts["pt_highest_point_m"])}
+    d = {"version": f"dataset-{facts['dataset_version']}-x", "axes": axes,
+         "facets": {"continent": {f"C{i}": "x" for i in range(facts["countries"])}}}
+    (g / "app/assets/data/dataset_runtime.json").write_text(json.dumps(d))
+    (g / "packages/sort_platform/lib/src/l10n/shipped_locales.gen.dart").write_text(
+        "const List<String> kShippedLocaleTags = <String>[\n"
+        + "".join(f"  '{t}',\n" for t in facts["languages"]) + "];\n")
+    for cmd in (["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "facts"]):
+        subprocess.run(["git", "-C", str(g), *cmd], check=True)
+    return g
+
+
+def deploy_case(name, mutate, expect_red):
+    root, g = copy_site(), matching_game()
+    try:
+        mutate(root)
+        r = subprocess.run([sys.executable, str(root / "scripts/build_features.py"),
+                            "--game", str(g), "--ref", "main"], capture_output=True, text=True)
+        red = r.returncode != 0
+    finally:
+        shutil.rmtree(root)
+        shutil.rmtree(g)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} deploy   {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"deploy: {name}")
+        print("     " + (r.stdout + r.stderr).strip().replace("\n", "\n     ")[:600])
+
+
+deploy_case("--game on today's site against a matching game", lambda r: None, False)
+deploy_case("--game with a placeholder open in terms", lambda r: edit(
+    r, "terms/index.html", "Empty Cup Media LLC", TODO), True)
 
 
 def facts_case(name, game_over, expect_red):
