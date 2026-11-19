@@ -627,8 +627,73 @@ sheet_case("a double-quoted tag", URL_LINE + const('"en"'), True, have=["en"])
 sheet_case("a tag twice", URL_LINE + const("'en', 'en'"), True, have=["en"])
 sheet_case("the constant written another way", URL_LINE + "final kCountrySheetLanguages = {'en'};\n", True, have=["en"])
 sheet_case("the constant twice", URL_LINE + const("") + const("'en'"), True, have=["en"])
+sheet_case("an interpolated $lang/countries link in another file", None, True,
+           extra={"app/lib/play/other.dart": "String u(l, i) => 'https://sortinggeography.com/$l/countries/$i/';\n"})
+sheet_case("Uri.https('sortinggeography.com', '/countries/...') in another file", None, True,
+           extra={"app/lib/play/other.dart": "final u = Uri.https('sortinggeography.com', '/countries/$iso/');\n"})
+sheet_case("countries before the host on the line", None, True,
+           extra={"packages/x/lib/y.dart": "const p = '/countries/'; const h = 'SortingGeography.com';\n"})
+sheet_case("the privacy link alone is not a sheet link", None, False,
+           extra={"app/lib/shell/seam.dart": "const u = 'https://sortinggeography.com/privacy.html';\n"})
 sheet_case("a sheet link built in another file", None, True,
            extra={"app/lib/play/elsewhere.dart": "const u = 'https://sortinggeography.com/de/countries/';\n"})
+
+
+def sheet_git_case(name, game_for, ref, expect_red):
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="sg-bad-"))
+    root = copy_site()
+    try:
+        red = bool(check_sheet_links.check(game_for(tmp), ref, root))
+    finally:
+        shutil.rmtree(tmp)
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} sheets   {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"sheets: {name}")
+
+
+def real_game(tmp):
+    g = sheet_game({})
+    shutil.rmtree(tmp)
+    shutil.move(str(g), str(tmp))
+    return tmp
+
+
+def not_the_game(tmp):
+    (tmp / "README").write_text("x")
+    for cmd in (["init", "-q", "-b", "main"], ["add", "-A"],
+                ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
+        subprocess.run(["git", "-C", str(tmp), *cmd], check=True)
+    return tmp
+
+
+# review S1: any git failure must fail, never read as "no sheet link yet".
+sheet_git_case("the real game at a real ref", real_game, "main", False)
+sheet_git_case("--game path that does not exist", lambda tmp: tmp / "nope", "main", True)
+sheet_git_case("--game folder that is not a git repo", lambda tmp: tmp, "main", True)
+sheet_git_case("--ref that does not exist (origin/mian)", real_game, "origin/mian", True)
+sheet_git_case("a git repo that is not the game (no roster)", not_the_game, "main", True)
+
+
+def raises_case(name, fn):
+    """Each git guard on its own: the two overlap in check(), so each needs its own red."""
+    g = sheet_game({})
+    try:
+        try:
+            fn(g)
+            red = False
+        except check_sheet_links.GitFailed:
+            red = True
+    finally:
+        shutil.rmtree(g)
+    print(f"{'ok  ' if red else 'FAIL'} sheets   {'red  ' if red else 'green'} {name}")
+    if not red:
+        failures.append(f"sheets: {name}")
+
+
+raises_case("require_ref refuses a ref that does not exist", lambda g: check_sheet_links.require_ref(g, "origin/mian"))
+raises_case("sheet_link_files refuses when git grep fails", lambda g: check_sheet_links.sheet_link_files(g, "origin/mian"))
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
