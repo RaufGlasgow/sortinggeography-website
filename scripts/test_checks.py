@@ -556,6 +556,17 @@ pin_case("an unpinned deploy line beside the pinned one", True, lambda r: edit(
     r, RB, "npx --yes wrangler@4.74.0 deploy\n", "npx --yes wrangler@4.74.0 deploy\nwrangler deploy --env staging\n"))
 pin_case("a second pinned deploy line on another version", True, lambda r: edit(
     r, RB, "npx --yes wrangler@4.74.0 deploy\n", "npx --yes wrangler@4.74.0 deploy\nnpx --yes wrangler@4.75.0 deploy\n"))
+pin_case("'npx wrangler deploy' added to Step 4 (no flag, no version)", True, lambda r: edit(
+    r, RB, "npx --yes wrangler@4.74.0 deploy\n", "npx --yes wrangler@4.74.0 deploy\nnpx wrangler deploy\n"))
+pin_case("'cd . && wrangler deploy' added to Step 4", True, lambda r: edit(
+    r, RB, "npx --yes wrangler@4.74.0 deploy\n", "npx --yes wrangler@4.74.0 deploy\ncd . && wrangler deploy\n"))
+pin_case("README back to a bare wrangler deploy", True, lambda r: edit(
+    r, "README.md", "npx --yes wrangler@4.74.0 deploy ", "wrangler deploy "))
+pin_case("README on another version", True, lambda r: edit(
+    r, "README.md", "npx --yes wrangler@4.74.0 deploy ", "npx --yes wrangler@4.75.0 deploy "))
+pin_case("a bare deploy in prose elsewhere in the runbook", True, lambda r: edit(
+    r, RB, "`npx --yes wrangler@4.74.0 deploy --dry-run`", "`wrangler deploy --dry-run`"))
+pin_case("a new doc in docs/ with 'npx -y wrangler@3 deploy'", True, lambda r: (r / "docs/NOTE.md").write_text("Run `npx -y wrangler@3 deploy`.\n"))
 pin_case("CI loose to a major (wrangler@4)", True, lambda r: edit(
     r, ".github/workflows/ci.yml", "WRANGLER: npx --yes wrangler@4.74.0", "WRANGLER: npx --yes wrangler@4"))
 

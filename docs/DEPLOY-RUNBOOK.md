@@ -31,7 +31,7 @@ Ra'uf asked whether there was a saved process from Sorting History. **There is**
   nameservers are `magdalena.ns.cloudflare.com` and `ram.ns.cloudflare.com`, the same pair as
   `sortinghistory.com`, so it is in the same account. It currently has **no A record**: nothing
   is served. Verified with `dig` on 2026-09-12.
-- `wrangler deploy --dry-run` already passes in this repo: config valid, both bindings resolve,
+- `npx --yes wrangler@4.74.0 deploy --dry-run` already passes in this repo: config valid, both bindings resolve,
   8.10 KiB upload. So only the account steps remain.
 
 ---

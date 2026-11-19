@@ -83,7 +83,7 @@ wrangler kv namespace create LAUNCH_EMAILS       # copy the id into wrangler.tom
 wrangler kv namespace create LAUNCH_EMAILS --preview
 wrangler secret put EXPORT_SECRET                # any long random string
 wrangler secret put RESEND_API_KEY               # from resend.com, same account as Sorting History
-wrangler deploy
+npx --yes wrangler@4.74.0 deploy                 # pinned; run docs/DEPLOY-RUNBOOK.md Step 4's checks first
 ```
 
 Then bind the domain. `sortinggeography.com` is already delegated to Cloudflare (same
