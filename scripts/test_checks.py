@@ -570,6 +570,11 @@ pin_case("a new doc in docs/ with 'npx -y wrangler@3 deploy'", True, lambda r: (
 pin_case("CI loose to a major (wrangler@4)", True, lambda r: edit(
     r, ".github/workflows/ci.yml", "WRANGLER: npx --yes wrangler@4.74.0", "WRANGLER: npx --yes wrangler@4"))
 
+# 18.5: the welcome email reads the facts through a generated module.
+feature_case("src/facts.gen.js hand-edited", True, lambda r: (r / "src/facts.gen.js").write_text(
+    (r / "src/facts.gen.js").read_text().replace('"axes": 190', '"axes": 200')))
+feature_case("src/facts.gen.js deleted", True, lambda r: (r / "src/facts.gen.js").unlink())
+
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
     for f in failures:

@@ -28,6 +28,10 @@
 // worker sees page requests at all (otherwise static assets bypass it).
 
 import { serveAsset } from './pages.js';
+// Mail (welcome, backlog) lives in src/mail.js: workerd treats every named
+// export of this main module as an entrypoint, so this file exports only the
+// handler (scripts/test_served.mjs caught a constant export breaking start-up).
+import { sendWelcomeEmail, handleWelcomeBacklog } from './mail.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -41,6 +45,14 @@ export default {
 
     if (url.pathname === '/api/unsubscribe') {
       if (request.method === 'GET') return handleUnsubscribe(request, env);
+      // One-click unsubscribe from the mail client's own button (RFC 8058,
+      // the List-Unsubscribe-Post header in src/email.js).
+      if (request.method === 'POST') return handleOneClickUnsubscribe(request, env);
+      return new Response('Method not allowed', { status: 405 });
+    }
+
+    if (url.pathname === '/api/send-welcome-backlog') {
+      if (request.method === 'POST') return handleWelcomeBacklog(request, env);
       return new Response('Method not allowed', { status: 405 });
     }
 
@@ -85,6 +97,11 @@ async function handleSubscribe(request, env, ctx) {
   try {
     const formData = await request.formData();
     const email = formData.get('email')?.toLowerCase().trim();
+    // The page's language (a hidden field; /de/ pages will send "de"). Kept as
+    // given, so a signup made before its language's email template exists is
+    // still known; src/email.js falls back to English until then.
+    const rawLang = String(formData.get('lang') || 'en');
+    const lang = /^[a-z]{2}(?:-[A-Za-z0-9]{2,4})?$/.test(rawLang) ? rawLang : 'en';
 
     if (!email || !isValidEmail(email)) {
       return new Response(
@@ -97,6 +114,7 @@ async function handleSubscribe(request, env, ctx) {
       email,
       JSON.stringify({
         email,
+        lang,
         timestamp: new Date().toISOString(),
         source: request.headers.get('Referer') || 'direct',
         userAgent: request.headers.get('User-Agent') || 'unknown',
@@ -104,7 +122,7 @@ async function handleSubscribe(request, env, ctx) {
     );
 
     // Fire-and-forget: a mail failure must never fail a signup that was stored.
-    ctx.waitUntil(sendWelcomeEmail(email, env));
+    ctx.waitUntil(sendWelcomeEmail(email, lang, env));
 
     return new Response(
       JSON.stringify({ success: true, message: 'You are on the list. Check your email.' }),
@@ -118,45 +136,14 @@ async function handleSubscribe(request, env, ctx) {
   }
 }
 
-// Resend, same as the Sorting History site. The palette is this app's, though:
-// that site's email heads in #e07850, an orange, which the identity bans
-// everywhere outside the in-game reward burst.
-async function sendWelcomeEmail(email, env) {
-  if (!env.RESEND_API_KEY) return; // not configured yet - store the signup, send nothing
-
-  const unsubscribeUrl =
-    `https://sortinggeography.com/api/unsubscribe?email=${encodeURIComponent(email)}`;
-
-  const html = `<!doctype html>
-<html><head><meta charset="utf-8"></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#f5f1e6;color:#16150f;margin:0;padding:2rem;">
-  <div style="max-width:32rem;margin:0 auto;background:#fffdf7;border:1px solid #d9d2bf;border-radius:20px;padding:2rem;">
-    <h1 style="color:#103A22;font-size:1.35rem;margin-top:0;">You are on the list</h1>
-    <p style="line-height:1.6;">Thank you for signing up for Sorting Geography.</p>
-    <p style="line-height:1.6;">It is a daily geography game: five countries, one question, put them in order. Tallest mountain, longest coastline, most rainfall &mdash; nearly two hundred ways to sort the world, all of it from named public sources with the date and the link shown.</p>
-    <p style="line-height:1.6;">I am building it for my family, and I hope you enjoy it as much as we do.</p>
-    <p style="line-height:1.6;">We will write when it ships, and when new ways to sort arrive. Nothing else.</p>
-    <hr style="border:none;border-top:1px solid #d9d2bf;margin:1.5rem 0;">
-    <p style="font-size:.85rem;color:#4a473c;"><a href="${unsubscribeUrl}" style="color:#1c4f6b;">Unsubscribe</a> &mdash; one click, and the address is deleted.</p>
-  </div>
-</body></html>`;
-
+async function handleOneClickUnsubscribe(request, env) {
+  const email = new URL(request.url).searchParams.get('email')?.toLowerCase().trim();
+  if (!email) return new Response('No email address was given.', { status: 400 });
   try {
-    await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'Sorting Geography <hello@sortinggeography.com>',
-        to: [email],
-        subject: 'You are on the list',
-        html,
-      }),
-    });
-  } catch (e) {
-    // Fire-and-forget: never fail a stored subscription because mail failed.
+    await env.LAUNCH_EMAILS.delete(email);
+    return new Response('Unsubscribed.', { status: 200 });
+  } catch (error) {
+    return new Response('Something went wrong.', { status: 500 });
   }
 }
 

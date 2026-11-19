@@ -109,3 +109,20 @@ for (const page of servedPages()) {
     assert.ok(sent.includes('</main>') && sent.includes('</html>'), `${path}: page cut short`);
   });
 }
+
+// Story 18.5: the signup and the one-click unsubscribe in the real runtime
+// (local KV only; no RESEND_API_KEY here, so nothing is sent).
+test('a signup is stored by the real worker, and one-click unsubscribe answers 200', async () => {
+  const body = new FormData();
+  body.set('email', 'served-test@example.com');
+  body.set('lang', 'en');
+  const res = await fetch(base + '/api/subscribe', { method: 'POST', body, signal: AbortSignal.timeout(15000) });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).success, true);
+  const un = await fetch(base + '/api/unsubscribe?email=served-test%40example.com', {
+    method: 'POST', body: 'List-Unsubscribe=One-Click',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: AbortSignal.timeout(15000) });
+  assert.equal(un.status, 200);
+  const bl = await fetch(base + '/api/send-welcome-backlog', { method: 'POST', body: new FormData(), signal: AbortSignal.timeout(15000) });
+  assert.equal(bl.status, 401, 'no EXPORT_SECRET in dev: the backlog refuses');
+});

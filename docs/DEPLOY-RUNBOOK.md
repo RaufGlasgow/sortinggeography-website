@@ -157,6 +157,20 @@ The sender is `hello@sortinggeography.com`, matching `hello@sortinghistory.com`.
 Resend recommends a subdomain sender (`updates.example.com`) to isolate sending reputation.
 **Not adopted**, to match Sorting History — noted so the choice is visible rather than assumed.
 
+### Then: the welcome for everyone who signed up before the key (Story 18.5)
+
+Signups made before `RESEND_API_KEY` existed are stored but were never welcomed. Once
+Resend shows the domain **Verified** and Step 6 has proved one real welcome arrives, send
+the rest. Dry run first (counts, sends nothing), then send; each call sends at most 40, so
+repeat until `remaining` is 0. The key goes in the POST body, never the URL (URLs land in
+logs). A failed send stays waiting and is retried by the next call; nobody gets it twice.
+
+```sh
+read -rs SECRET   # paste EXPORT_SECRET, then Enter
+curl -s -X POST https://sortinggeography.com/api/send-welcome-backlog -F key="$SECRET"            # {"dryRun":true,"waiting":N}
+curl -s -X POST https://sortinggeography.com/api/send-welcome-backlog -F key="$SECRET" -F send=1  # {"sent":..,"failed":..,"remaining":..}
+```
+
 ## Step 6 — Prove the whole path end to end
 
 ```sh

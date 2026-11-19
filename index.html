@@ -87,6 +87,7 @@
     <form class="notify" id="notify" method="post" action="/api/subscribe">
       <label for="email">Leave an address and we will tell you when it ships.</label>
       <div class="notify-row">
+        <input type="hidden" name="lang" value="en">
         <input id="email" name="email" type="email" required autocomplete="email"
                inputmode="email" placeholder="you@example.com">
         <button type="submit">Tell me at launch</button>
