@@ -23,6 +23,7 @@ import build_launch  # noqa: E402
 import check_platform  # noqa: E402
 import check_store_pages  # noqa: E402
 import build_features  # noqa: E402
+import check_comments  # noqa: E402
 import json  # noqa: E402
 import subprocess  # noqa: E402
 
@@ -483,6 +484,45 @@ feature_case("'Daily streak' put back into privacy", True, lambda r: edit(
     r, "privacy/index.html", "your scores and your", "your scores, your Daily streak and your"))
 feature_case("a streak line inside a generated region", True, lambda r: edit(
     r, "privacy/index.html", "<!-- feature:privacy-summary -->", "<!-- feature:privacy-summary --><li>Keep your streak.</li>"))
+
+# 18.9c: '<!--' and '-->' only inside real comments, so the worker's
+# HTMLRewriter strip and test_served.mjs's split agree on every page.
+def comment_case(name: str, expect_red: bool, mutate=None) -> None:
+    root = copy_site()
+    try:
+        if mutate:
+            mutate(root)
+        red = bool(check_comments.check(root))
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} comment  {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"comment: {name}")
+
+
+H1 = "<h1>Terms</h1>"
+comment_case("today's pages", False)
+comment_case("an ordinary comment added to the body", False, lambda r: edit(
+    r, "terms/index.html", H1, H1 + "<!-- a note -->"))
+comment_case("'<!--' inside an inline script", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + '<script>var a = "<!-- x";</script>'))
+comment_case("'-->' inside an inline script", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + '<script>if (a-->0) {}</script>'))
+comment_case("'<!--' inside a style", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + '<style>p::after { content: "<!--"; }</style>'))
+comment_case("'-->' inside an attribute", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + '<p title="a-->b">x</p>'))
+comment_case("'<!--' inside a single-quoted attribute", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + "<p data-x='<!--'>x</p>"))
+comment_case("a stray '-->' in page text", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + "<p>a --> b</p>"))
+comment_case("a comment never closed", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + "<!-- open"))
+comment_case("a comment that opens another inside it", True, lambda r: edit(
+    r, "terms/index.html", H1, H1 + "<!-- a <!-- b -->"))
+comment_case("an escaped &lt;!-- in text is fine", False, lambda r: edit(
+    r, "terms/index.html", H1, H1 + "<p>&lt;!-- shown as text</p>"))
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
