@@ -319,6 +319,14 @@ launch_case("cron commented out", True, lambda r: edit(
 launch_case("cron made weekly", True, lambda r: edit(
     r, ".github/workflows/ci.yml", "'17 6 * * *'", "'17 6 * * 1'"))
 
+# Ra'uf 2026-11-19: no streak claim either way.
+feature_case("'no streak to lose' typed into the home page", True, lambda r: edit(
+    r, "index.html", "<h1>Put the world in order</h1>", "<h1>Put the world in order</h1>\n  <p>No streak to lose.</p>"))
+feature_case("'Daily streak' put back into privacy", True, lambda r: edit(
+    r, "privacy/index.html", "your scores and your", "your scores, your Daily streak and your"))
+feature_case("a streak line inside a generated region", True, lambda r: edit(
+    r, "privacy/index.html", "<!-- feature:privacy-summary -->", "<!-- feature:privacy-summary --><li>Keep your streak.</li>"))
+
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
     for f in failures:
