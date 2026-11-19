@@ -211,6 +211,8 @@ SAME_DAY = [
     ("'same day'", re.compile(r"\bsame\s+day\b", re.I)),
     ("'on both on'", re.compile(r"\bon\s+both\s+on\b", re.I)),
     ("'together' (both platforms at once)", re.compile(r"\btogether\b", re.I)),
+    ("'at the same time'", re.compile(r"\bat\s+the\s+same\s+time\b", re.I)),
+    ("'simultaneous(ly)'", re.compile(r"\bsimultaneous(?:ly)?\b", re.I)),
     ("a platform tied to a date", re.compile(
         r"\b(?:Android|iOS)\b[^<.]{0,40}?\bon\s+\d{1,2}\s+[A-Z][a-z]+\s+\d{4}\b")),
 ]

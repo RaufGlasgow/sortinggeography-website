@@ -577,6 +577,9 @@ for name, para in [
     ("'on both on' typed into the home page", "<p>The same game on both on launch.</p>"),
     ("'together' typed into the home page", "<p>Android and iOS together.</p>"),
     ("a platform tied to another date", "<p>Coming to Android and iOS on 3 March 2027.</p>"),
+    ("'at the same time' typed into the home page", "<p>On Android and iOS at the same time.</p>"),
+    ("'simultaneously' typed into the home page", "<p>Android and iOS launch simultaneously.</p>"),
+    ("'simultaneous' typed into the home page", "<p>A simultaneous launch on Android and iOS.</p>"),
 ]:
     launch_case(name, True, lambda r, para=para: edit(r, "index.html", HERO_P, HERO_P + "\n  " + para))
 launch_case("'same day' only inside a comment", False, lambda r: edit(
