@@ -19,10 +19,13 @@ import { fileURLToPath } from 'node:url';
 
 const SITE = new URL('../', import.meta.url);
 const NOT_SERVED = new Set(['docs', 'src', 'scripts', 'node_modules', '.git', '.github', '.wrangler', 'functions']);
+// Story 20.3c: what .assetsignore lists is never uploaded, so it must 404.
+const IGNORED = new Set(readFileSync(new URL('.assetsignore', SITE), 'utf8').split('\n')
+  .map((l) => l.trim().replace(/^\/|\/$/g, '')).filter((l) => l && !l.startsWith('#')));
 function servedPages(dir = '') {
   return readdirSync(new URL(dir || '.', SITE), { withFileTypes: true }).flatMap((e) => {
     const rel = dir + e.name;
-    if (e.isDirectory()) return NOT_SERVED.has(e.name) || e.name.startsWith('.') ? [] : servedPages(rel + '/');
+    if (e.isDirectory()) return NOT_SERVED.has(e.name) || IGNORED.has(e.name) || e.name.startsWith('.') ? [] : servedPages(rel + '/');
     return e.name.endsWith('.html') ? [rel] : [];
   });
 }
@@ -109,3 +112,46 @@ for (const page of servedPages()) {
     assert.ok(sent.includes('</main>') && sent.includes('</html>'), `${path}: page cut short`);
   });
 }
+
+// Story 20.3c: a page dir in .assetsignore (the tester page until both of its
+// links exist) is not served by the real worker: 404, not the page.
+const UNSERVED_PAGES = readdirSync(SITE, { withFileTypes: true })
+  .filter((e) => e.isDirectory() && IGNORED.has(e.name) && !NOT_SERVED.has(e.name))
+  .map((e) => e.name);
+for (const dir of UNSERVED_PAGES) {
+  test(`/${dir}/ is listed in .assetsignore, so the real worker does not serve it`, async () => {
+    for (const path of [`/${dir}/`, `/${dir}/index.html`, `/${dir}`]) {
+      const res = await fetch(base + path, { headers: { Accept: 'text/html' }, redirect: 'manual', signal: AbortSignal.timeout(15000) });
+      const body = await res.text();
+      assert.notEqual(res.status, 200, `${path}: HTTP ${res.status}`);
+      assert.equal(body.includes('Become a tester'), false, `${path}: the page itself came back`);
+    }
+  });
+}
+
+// Story 18.5: the signup guards in the real runtime (local KV and the real
+// rate-limit binding; no RESEND_API_KEY or UNSUBSCRIBE_SECRET here, so
+// nothing is sent and no unsubscribe can verify).
+async function post(path, body, headers = {}) {
+  return fetch(base + path, { method: 'POST', body, headers, signal: AbortSignal.timeout(15000) });
+}
+function form(fields) {
+  const f = new FormData();
+  for (const [k, v] of Object.entries(fields)) f.set(k, v);
+  return f;
+}
+
+test('signup: stored by the real worker; cross-site refused; the rate limit bites; unsigned unsubscribe refused', async () => {
+  const first = await post('/api/subscribe', form({ email: 'served-test@example.com', lang: 'en' }));
+  assert.equal(first.status, 200);
+  assert.equal((await first.json()).success, true);
+  assert.equal(first.headers.get('Access-Control-Allow-Origin'), null);
+  assert.equal((await post('/api/subscribe', form({ email: 'x@example.com' }), { Origin: 'https://evil.example' })).status, 403);
+  const un = await post('/api/unsubscribe?email=served-test%40example.com', 'List-Unsubscribe=One-Click',
+    { 'Content-Type': 'application/x-www-form-urlencoded' });
+  assert.equal(un.status, 403, 'no valid token: nothing deleted');
+  const codes = [];
+  for (let i = 0; i < 8; i += 1) codes.push((await post('/api/subscribe', form({ email: `burst${i}@example.com` }))).status);
+  assert.ok(codes.includes(429), `the SUBSCRIBE_LIMIT binding refuses a burst: ${codes}`);
+  assert.equal((await post('/api/send-welcome-backlog', new FormData())).status, 401, 'no EXPORT_SECRET in dev');
+});

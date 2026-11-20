@@ -22,6 +22,7 @@ sys.path.insert(0, str(HERE))
 import build_launch  # noqa: E402
 import check_platform  # noqa: E402
 import check_store_pages  # noqa: E402
+import check_sheet_links  # noqa: E402
 import build_features  # noqa: E402
 import check_comments  # noqa: E402
 import check_wrangler_pin  # noqa: E402
@@ -51,6 +52,14 @@ def fill_tester_links(root: pathlib.Path) -> None:
     t = json.loads(p.read_text())
     t["group_url"] = build_features.GROUP_PREFIX + "sorting-geography-testers"
     t["optin_url"] = build_features.OPTIN_URL
+    p.write_text(json.dumps(t))
+    build_features.build(root)
+
+
+def set_one_link(root: pathlib.Path) -> None:
+    p = root / "src/testers.json"
+    t = json.loads(p.read_text())
+    t["group_url"] = build_features.GROUP_PREFIX + "sorting-geography-testers"
     p.write_text(json.dumps(t))
     build_features.build(root)
 
@@ -442,7 +451,12 @@ deploy_case("--game on today's site against a matching game", lambda r: None, Fa
 deploy_case("--game with a placeholder open in terms", lambda r: edit(
     r, "terms/index.html", "Empty Cup Media LLC", TODO), True)
 # 20.3b: the tester page's links are todo spans until Ra'uf has them.
-deploy_case("--game with today's tester links still open", lambda r: None, True, links=False)
+# 20.3c: open tester links -> the page is not served -> --game passes; once the
+# links are set the page is served and checked like any other.
+deploy_case("--game with today's tester links still open (page not served)", lambda r: None, False, links=False)
+deploy_case("--game with one tester link set, the other still open", lambda r: set_one_link(r), False, links=False)
+deploy_case("--game with both links set and a placeholder put back in the page", lambda r: edit(
+    r, "testers/index.html", "Become a tester</h1>", "Become a tester</h1><p><span class=\"todo\">x</span></p>"), True)
 deploy_case("--game when the game's applicationId differs", lambda r: None, True, package="com.example.other")
 
 
@@ -590,10 +604,218 @@ pin_case("a new doc in docs/ with 'npx -y wrangler@3 deploy'", True, lambda r: (
 pin_case("CI loose to a major (wrangler@4)", True, lambda r: edit(
     r, ".github/workflows/ci.yml", "WRANGLER: npx --yes wrangler@4.74.0", "WRANGLER: npx --yes wrangler@4"))
 
+# 18.5: the welcome email reads the facts through a generated module.
+feature_case("src/facts.gen.js hand-edited", True, lambda r: (r / "src/facts.gen.js").write_text(
+    (r / "src/facts.gen.js").read_text().replace('"axes": 190', '"axes": 200')))
+feature_case("src/facts.gen.js deleted", True, lambda r: (r / "src/facts.gen.js").unlink())
+
+# ---- 20.9: the game links only to sheets the site has ------------------------------
+def sheet_game(files: dict[str, str]) -> pathlib.Path:
+    g = pathlib.Path(tempfile.mkdtemp(prefix="sg-game-"))
+    roster = {"_meta": {}, "countries": {iso: {} for iso in ("AD", "AE", "FR")}}
+    files = {"pipeline/roster/countries.json": json.dumps(roster), "app/lib/main.dart": "void main() {}\n", **files}
+    for rel, text in files.items():
+        (g / rel).parent.mkdir(parents=True, exist_ok=True)
+        (g / rel).write_text(text)
+    for cmd in (["init", "-q", "-b", "main"], ["add", "-A"],
+                ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
+        subprocess.run(["git", "-C", str(g), *cmd], check=True)
+    return g
+
+
+def sheets(root, langs):
+    for lang in langs:
+        for iso in ("ad", "ae", "fr"):
+            p = root / check_sheet_links.sheet_path(lang, iso)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("<!doctype html><html><body><h1>x</h1></body></html>")
+
+
+def sheet_case(name, dart, expect_red, have=(), extra=None):
+    files = {} if dart is None else {check_sheet_links.SHEET_URL_DART: dart}
+    files.update(extra or {})
+    g, root = sheet_game(files), copy_site()
+    try:
+        sheets(root, have)
+        red = bool(check_sheet_links.check(g, "main", root))
+    finally:
+        shutil.rmtree(g)
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} sheets   {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"sheets: {name}")
+
+
+def const(body):
+    return f"const Set<String> kCountrySheetLanguages = <String>{{{body}}};\n"
+
+
+URL_LINE = "const kSheetBase = 'https://sortinggeography.com/countries/';\n"
+sheet_case("no sheet file on main, nothing links: no link yet", None, False)
+sheet_case("the set empty: no link", URL_LINE + const(""), False)
+sheet_case("en linked, every en sheet on the site", URL_LINE + const("'en'"), False, have=["en"])
+sheet_case("en linked, no sheets on the site", URL_LINE + const("'en'"), True)
+sheet_case("en linked, one sheet missing", URL_LINE + const("'en'"), True, have=["en"],
+           extra={"pipeline/roster/countries.json": json.dumps({"countries": {"AD": {}, "AE": {}, "FR": {}, "ZW": {}}})})
+sheet_case("de linked, only en sheets on the site", URL_LINE + const("'en', 'de'"), True, have=["en"])
+sheet_case("en and pt-pt linked, both on the site", URL_LINE + const("'en', 'pt-pt'"), False, have=["en", "pt-pt"])
+sheet_case("a tag in upper case", URL_LINE + const("'pt-PT'"), True, have=["pt-PT"])
+sheet_case("a double-quoted tag", URL_LINE + const('"en"'), True, have=["en"])
+sheet_case("a tag twice", URL_LINE + const("'en', 'en'"), True, have=["en"])
+sheet_case("the constant written another way", URL_LINE + "final kCountrySheetLanguages = {'en'};\n", True, have=["en"])
+sheet_case("the constant twice", URL_LINE + const("") + const("'en'"), True, have=["en"])
+sheet_case("an interpolated $lang/countries link in another file", None, True,
+           extra={"app/lib/play/other.dart": "String u(l, i) => 'https://sortinggeography.com/$l/countries/$i/';\n"})
+sheet_case("Uri.https('sortinggeography.com', '/countries/...') in another file", None, True,
+           extra={"app/lib/play/other.dart": "final u = Uri.https('sortinggeography.com', '/countries/$iso/');\n"})
+sheet_case("countries before the host on the line", None, True,
+           extra={"packages/x/lib/y.dart": "const p = '/countries/'; const h = 'SortingGeography.com';\n"})
+sheet_case("host in a constant, '$kHost/countries/$iso/' on the next line", None, True,
+           extra={"app/lib/play/other.dart": "const kHost = 'https://sortinggeography.com';\nString u(i) =>\n    '$kHost/countries/$i/';\n"})
+sheet_case("host + '/countries/' concatenated across lines", None, True,
+           extra={"app/lib/play/other.dart": "final u = kSiteOrigin +\n    '/countries/' + iso;\n"})
+sheet_case("'countries/axes' in a comment is not a path", None, False,
+           extra={"app/lib/shell/t.dart": "// draws only unlocked countries/axes\n"})
+sheet_case("the privacy link alone is not a sheet link", None, False,
+           extra={"app/lib/shell/seam.dart": "const u = 'https://sortinggeography.com/privacy.html';\n"})
+sheet_case("a sheet link built in another file", None, True,
+           extra={"app/lib/play/elsewhere.dart": "const u = 'https://sortinggeography.com/de/countries/';\n"})
+
+
+def sheet_git_case(name, game_for, ref, expect_red):
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="sg-bad-"))
+    root = copy_site()
+    try:
+        red = bool(check_sheet_links.check(game_for(tmp), ref, root))
+    finally:
+        shutil.rmtree(tmp)
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} sheets   {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"sheets: {name}")
+
+
+def real_game(tmp):
+    g = sheet_game({})
+    shutil.rmtree(tmp)
+    shutil.move(str(g), str(tmp))
+    return tmp
+
+
+def not_the_game(tmp):
+    (tmp / "README").write_text("x")
+    for cmd in (["init", "-q", "-b", "main"], ["add", "-A"],
+                ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
+        subprocess.run(["git", "-C", str(tmp), *cmd], check=True)
+    return tmp
+
+
+# review S1: any git failure must fail, never read as "no sheet link yet".
+sheet_git_case("the real game at a real ref", real_game, "main", False)
+sheet_git_case("--game path that does not exist", lambda tmp: tmp / "nope", "main", True)
+sheet_git_case("--game folder that is not a git repo", lambda tmp: tmp, "main", True)
+sheet_git_case("--ref that does not exist (origin/mian)", real_game, "origin/mian", True)
+sheet_git_case("a git repo that is not the game (no roster)", not_the_game, "main", True)
+
+
+def raises_case(name, fn):
+    """Each git guard on its own: the two overlap in check(), so each needs its own red."""
+    g = sheet_game({})
+    try:
+        try:
+            fn(g)
+            red = False
+        except check_sheet_links.GitFailed:
+            red = True
+    finally:
+        shutil.rmtree(g)
+    print(f"{'ok  ' if red else 'FAIL'} sheets   {'red  ' if red else 'green'} {name}")
+    if not red:
+        failures.append(f"sheets: {name}")
+
+
+raises_case("require_ref refuses a ref that does not exist", lambda g: check_sheet_links.require_ref(g, "origin/mian"))
+raises_case("sheet_link_files refuses when git grep fails", lambda g: check_sheet_links.sheet_link_files(g, "origin/mian"))
+
+# 18.8b: no same-day promise in launch copy (team-lead 2026-11-20, fallback A).
+HERO_P = "<h1>Put the world in order</h1>"
+for name, para in [
+    ("'same day' typed into the home page", "<p>On both platforms the same day.</p>"),
+    ("'on both on' typed into the home page", "<p>The same game on both on launch.</p>"),
+    ("'together' typed into the home page", "<p>Android and iOS together.</p>"),
+    ("a platform tied to another date", "<p>Coming to Android and iOS on 3 March 2027.</p>"),
+    ("'at the same time' typed into the home page", "<p>On Android and iOS at the same time.</p>"),
+    ("'simultaneously' typed into the home page", "<p>Android and iOS launch simultaneously.</p>"),
+    ("'simultaneous' typed into the home page", "<p>A simultaneous launch on Android and iOS.</p>"),
+]:
+    launch_case(name, True, lambda r, para=para: edit(r, "index.html", HERO_P, HERO_P + "\n  " + para))
+launch_case("'same day' only inside a comment", False, lambda r: edit(
+    r, "index.html", HERO_P, HERO_P + "\n  <!-- never promise the same day -->"))
+launch_case("'same day' inside a comment that holds a '>'", False, lambda r: edit(
+    r, "index.html", HERO_P, HERO_P + "\n  <!-- launch copy -> never promise the same day -->"))
+launch_case("the platforms named without a date", False, lambda r: edit(
+    r, "index.html", HERO_P, HERO_P + "\n  <p>For Android and iOS.</p>"))
+
+
+def generator_case(name, extra, region, expect_red):
+    real = build_launch.regions
+    def patched(ms, stores=build_launch.STORES):
+        out = real(ms, stores)
+        out[region] = out[region] + extra
+        return out
+    build_launch.regions = patched
+    root = copy_site()
+    try:
+        # Pages NOT rebuilt: only the scan of the generated text itself can say 'no same-day promise'.
+        red = any("no same-day promise" in b for b in build_launch.check(root, now_ms=EARLY))
+    finally:
+        build_launch.regions = real
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} launch   {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"launch: {name}")
+
+
+generator_case("the generator itself writes 'same day'", "<p>Both on the same day.</p>", "when", True)
+generator_case("the generator writes 'together' in the press line", " on Android and iOS together", "press-release", True)
+generator_case("the generator adds a harmless sentence", "<p>Sort the world.</p>", "when", False)
+
 # ---- 20.3b: the Google Play closed-test page ------------------------------------
 TP = "testers/index.html"
 WHY = "This test runs on Google Play, so it is for Android only."
-todo_case("tester links still open today: deploy refused", lambda r: None, True, links=False)
+todo_case("tester links still open today: the unserved page's placeholders do not count", lambda r: None, False, links=False)
+todo_case("a placeholder on a SERVED page still counts while the tester page is unserved", lambda r: edit(
+    r, "terms/index.html", "Empty Cup Media LLC", TODO), True, links=False)
+
+
+def served_case(name, mutate, expect_red, links=False):
+    root = copy_site()
+    try:
+        if links:
+            fill_tester_links(root)
+        mutate(root)
+        red = bool(build_features.check(root))
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} served   {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"served: {name}")
+
+
+AI = ".assetsignore"
+served_case("links open, testers listed in .assetsignore (today)", lambda r: None, False)
+served_case("links open, testers line removed from .assetsignore", lambda r: edit(r, AI, "testers\n", ""), True)
+served_case("links set, page rebuilt: testers line gone", lambda r: None, False, links=True)
+served_case("links set but the testers line left in .assetsignore", lambda r: (r / AI).write_text(
+    (r / AI).read_text() + "testers\n"), True, links=True)
+served_case("links open and the home page links to /testers/", lambda r: edit(
+    r, "index.html", "<h1>Put the world in order</h1>", '<h1>Put the world in order</h1><p><a href="/testers/">Test it</a></p>'), True)
+served_case("links set and the home page links to /testers/", lambda r: (fill_tester_links(r), edit(
+    r, "index.html", "<h1>Put the world in order</h1>", '<h1>Put the world in order</h1><p><a href="/testers/">Test it</a></p>')), False)
 platform_case("tester page names Android alone, with its reason", False)
 platform_case("the reason sentence removed from the tester page", True, lambda r: edit(
     r, TP, "This test runs on", "This test is on"))
@@ -669,6 +891,16 @@ def built_link_case(name, url, must_not, expect_red=True):
 
 built_link_case("a quote in a link is escaped when built", 'https://g/x" onmouseover="a', '" onmouseover="')
 built_link_case("an angle bracket in a link is escaped when built", "https://g/<script>", "<script>")
+
+
+# Ra'uf's pick 2026-11-20 ("Platforms first"), word for word in the When? line.
+RAUF_WHEN = "The same game for Android and iOS, on phones and tablets. It launches on 10 December 2026."
+when_text = build_launch.regions(RELEASE)["when"]
+ok = RAUF_WHEN in when_text and build_launch.regions(RELEASE)["hero-countdown"].find(
+    "The same game for Android and iOS. It launches on 10 December 2026.") != -1
+print(f"{'ok  ' if ok else 'FAIL'} launch   {'green' if ok else 'red  '} Ra'uf's platforms-first wording, word for word")
+if not ok:
+    failures.append("launch: Ra'uf's platforms-first wording")
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")

@@ -82,6 +82,7 @@ wrangler login                                   # once, interactive
 wrangler kv namespace create LAUNCH_EMAILS       # copy the id into wrangler.toml
 wrangler kv namespace create LAUNCH_EMAILS --preview
 wrangler secret put EXPORT_SECRET                # any long random string
+wrangler secret put UNSUBSCRIBE_SECRET           # another long random string (signs unsubscribe links)
 wrangler secret put RESEND_API_KEY               # from resend.com, same account as Sorting History
 npx --yes wrangler@4.74.0 deploy                 # pinned; run docs/DEPLOY-RUNBOOK.md Step 4's checks first
 ```

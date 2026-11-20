@@ -22,6 +22,7 @@ import http.client
 import pathlib
 import subprocess
 import sys
+import json
 import urllib.parse
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -70,7 +71,20 @@ def main(base: str) -> int:
 
     # 18.9b B5: the worker strips every HTML comment, so a live page never
     # carries the internal notes the source pages hold.
-    for path in ("/", "/privacy/", "/support/", "/terms/", "/press/", "/testers/"):
+    # 20.3c: /testers/ is live only once both of its links exist; until then
+    # it must be a 404 (it is in .assetsignore).
+    tj = json.loads((pathlib.Path(__file__).resolve().parent.parent / "src/testers.json").read_text())
+    testers_live = tj.get("group_url") is not None and tj.get("optin_url") is not None
+    if not testers_live:
+        try:
+            status, _, _ = get(base, "/testers/")
+            if status != 404:
+                bad.append(f"/testers/: HTTP {status}, expected 404 until both tester links exist")
+            else:
+                print("ok   /testers/ 404 (not served until its links exist)")
+        except OSError as e:
+            bad.append(f"/testers/: no answer ({e})")
+    for path in ("/", "/privacy/", "/support/", "/terms/", "/press/") + (("/testers/",) if testers_live else ()):
         try:
             status, _, body = get(base, path)
         except OSError as e:

@@ -65,12 +65,19 @@ Then **read `wrangler.toml` and confirm both `id` and `preview_id` are real ids*
 placeholder. If `--update-config` did not write them (it is newer than some wrangler builds),
 paste them in by hand — the command prints them.
 
-## Step 3 — Set the two secrets
+## Step 3 — Set the three secrets
 
 ```sh
-wrangler secret put EXPORT_SECRET      # paste a long random string; this guards the CSV export
-wrangler secret put RESEND_API_KEY     # from resend.com — the same account Sorting History uses
+wrangler secret put EXPORT_SECRET        # paste a long random string; this guards the CSV export
+wrangler secret put UNSUBSCRIBE_SECRET   # another long random string; signs every unsubscribe link
+wrangler secret put RESEND_API_KEY       # from resend.com — the same account Sorting History uses
 ```
+
+`UNSUBSCRIBE_SECRET` (Story 18.5): each email's unsubscribe link carries a signature of the
+address made with it, so nobody can remove someone else's address. Without it the worker
+sends no email at all (there would be no honest unsubscribe link). **Never change it once mail
+has gone out**: every link already sent would stop working (those people can still write to
+support@, and the privacy page says so).
 
 Each prompts for the value on stdin and stores it encrypted; neither is ever written to the repo.
 
@@ -95,6 +102,7 @@ different versions; change both together.
 ```sh
 git -C ../Sorting-Geography fetch origin
 python3 scripts/build_features.py --game ../Sorting-Geography
+python3 scripts/check_sheet_links.py --game ../Sorting-Geography   # the app links only to sheets the site has (20.9)
 npx --yes wrangler@4.74.0 deploy
 python3 scripts/check_live.py          # after: pages 200, no HTML comment served, MX
 ```
@@ -157,6 +165,24 @@ The sender is `hello@sortinggeography.com`, matching `hello@sortinghistory.com`.
 Resend recommends a subdomain sender (`updates.example.com`) to isolate sending reputation.
 **Not adopted**, to match Sorting History — noted so the choice is visible rather than assumed.
 
+### Then: the welcome for everyone who signed up before the key (Story 18.5)
+
+Signups made before `RESEND_API_KEY` existed are stored but were never welcomed. Once
+Resend shows the domain **Verified** and Step 6 has proved one real welcome arrives, send
+the rest. Dry run first (counts, sends nothing), then send; each call sends at most 40, so
+repeat until `remaining` is 0. The key goes in the POST body, never the URL (URLs land in
+logs). A failed send stays waiting and is retried by the next call; nobody gets it twice.
+No more than `DAILY_SEND_CAP` welcomes go out per UTC day, signups and backlog together
+(`wrangler.toml` `[vars]`, 90, under Resend's free plan, "limited to 100 emails per day", 3,000 a month;
+any later launch-day mailing must send through `sendViaResend` in `src/mail.js` and shares the same total; raise the cap only with a paid plan).
+When the answer says `"capReached": true`, the rest are not failures: run it again tomorrow.
+
+```sh
+read -rs SECRET   # paste EXPORT_SECRET, then Enter
+curl -s -X POST https://sortinggeography.com/api/send-welcome-backlog -F key="$SECRET"            # {"dryRun":true,"waiting":N}
+curl -s -X POST https://sortinggeography.com/api/send-welcome-backlog -F key="$SECRET" -F send=1  # {"sent":..,"failed":..,"remaining":..}
+```
+
 ## Step 6 — Prove the whole path end to end
 
 ```sh
@@ -171,9 +197,16 @@ wrangler kv key list --binding LAUNCH_EMAILS | head
 curl -sI 'https://sortinggeography.com/api/export-emails?key=wrong' | head -1   # expect 401
 curl -s  "https://sortinggeography.com/api/export-emails?key=$EXPORT_SECRET" | head -3
 
-# unsubscribing DELETES the address rather than flagging it
-curl -s 'https://sortinggeography.com/api/unsubscribe?email=rauf+launchtest@example.com' \
-  | grep -o 'Unsubscribed'
+# a link without the right signature is refused, and deletes nothing
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  'https://sortinggeography.com/api/unsubscribe?email=rauf+launchtest@example.com&t=wrong'   # expect 403
+```
+
+Then open the welcome email at the real inbox, tap **Unsubscribe**, and press the button on
+the page (opening the link alone deletes nothing, so mail scanners cannot unsubscribe anyone).
+Unsubscribing DELETES the address rather than flagging it:
+
+```sh
 wrangler kv key list --binding LAUNCH_EMAILS | grep -c launchtest   # expect 0
 ```
 
