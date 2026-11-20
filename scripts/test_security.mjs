@@ -221,22 +221,36 @@ test('stripping stays fast on a worst-case body (no regex blow-up)', () => {
 // to Google. Fonts live under /fonts/<family>/, each family with its OFL text.
 const THIRD_PARTY_FONTS = /fonts\.googleapis\.com|fonts\.gstatic\.com|use\.typekit\.net|fonts\.bunny\.net/i;
 
-for (const file of [...served('.html'), ...served('.css'), ...served('.js')]) {
+function servedFiles(dir = '') {
+  return readdirSync(new URL(dir || '.', SITE), { withFileTypes: true }).flatMap((e) => {
+    const rel = dir + e.name;
+    if (e.isDirectory()) {
+      return NOT_SERVED.has(e.name) || IGNORED.has(e.name) || e.name.startsWith('.') ? [] : servedFiles(rel + '/');
+    }
+    return IGNORED.has(e.name) ? [] : [rel];
+  });
+}
+const FONT_FILE = /\.(woff2?|ttf|otf|eot)$/i;
+
+for (const file of servedFiles().filter((f) => /\.(html|css|js|mjs|svg)$/i.test(f))) {
   test(`${file}: no third-party font service`, () => {
     const t = readFileSync(new URL(file, SITE), 'utf8');
     assert.doesNotMatch(t, THIRD_PARTY_FONTS, `${file} loads fonts from a third party`);
   });
 }
 
-test('every font file we serve sits beside its family\'s OFL licence', () => {
-  let dirs = [];
-  try { dirs = readdirSync(new URL('fonts/', SITE), { withFileTypes: true }).filter((e) => e.isDirectory()); } catch { dirs = []; }
-  for (const d of dirs) {
-    const files = readdirSync(new URL(`fonts/${d.name}/`, SITE));
-    if (files.some((f) => /\.(woff2?|ttf|otf)$/i.test(f))) {
-      assert.ok(files.includes('OFL.txt'), `fonts/${d.name}/ has font files but no OFL.txt`);
-      const lic = readFileSync(new URL(`fonts/${d.name}/OFL.txt`, SITE), 'utf8');
-      assert.match(lic, /SIL Open Font License, Version 1\.1/, `fonts/${d.name}/OFL.txt is not the OFL`);
+// review-share F1: every font file anywhere on the site (loose, nested, in images/) must sit under fonts/,
+// with the SIL OFL 1.1 text in its own folder or an ancestor folder below fonts/.
+test('every font file we serve is under fonts/ beside its OFL licence', () => {
+  for (const f of servedFiles().filter((x) => FONT_FILE.test(x))) {
+    assert.ok(f.startsWith('fonts/') && f.split('/').length >= 3, `${f}: font files belong in fonts/<family>/`);
+    const parts = f.split('/').slice(0, -1);
+    let lic = null;
+    for (let i = parts.length; i >= 2; i -= 1) {            // fonts/<family>[/...]; never fonts/ itself
+      const cand = parts.slice(0, i).join('/') + '/OFL.txt';
+      try { lic = readFileSync(new URL(cand, SITE), 'utf8'); break; } catch { /* look higher */ }
     }
+    assert.ok(lic !== null, `${f}: no OFL.txt in its folder or above it below fonts/`);
+    assert.match(lic, /SIL Open Font License, Version 1\.1/, `${f}: its OFL.txt is not the OFL`);
   }
 });
