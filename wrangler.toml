@@ -39,9 +39,11 @@ name = "SUBSCRIBE_LIMIT"
 namespace_id = "1001"
 simple = { limit = 5, period = 60 }
 
-# Welcomes sent per UTC day, across everyone (18.5 review E6). Past it a
-# welcome waits for the next day's backlog send. 90 stays under Resend's free
-# plan of 100 a day [R, prior knowledge, not re-checked]; raise it with the plan.
+# Everything sent through Resend per UTC day, welcomes, backlog and any launch
+# mailing together (18.5 E6; team-lead 2026-11-20). Resend's free plan is
+# "limited to 100 emails per day", 3,000 a month (resend.com/pricing, read by
+# team-lead 2026-11-20); 90 leaves 10 of margin. Past it, sends wait for the
+# next day. Raise only with a paid plan (scripts/test_email.mjs pins <= 90).
 [vars]
 DAILY_SEND_CAP = "90"
 

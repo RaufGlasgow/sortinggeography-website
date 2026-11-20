@@ -7,7 +7,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import worker from '../src/worker.js';
-import { sendWelcomeEmail, BACKLOG_BATCH, MAX_FAILURES, DEFAULT_DAILY_SEND_CAP, dailyCap } from '../src/mail.js';
+import { sendWelcomeEmail, sendViaResend, sentToday, BACKLOG_BATCH, MAX_FAILURES, DEFAULT_DAILY_SEND_CAP, dailyCap } from '../src/mail.js';
+import { readdirSync } from 'node:fs';
 import { welcomeEmail, LANGS, pickLang, unsubscribeUrl, esc } from '../src/email.js';
 import { unsubscribeToken, tokenValid } from '../src/token.js';
 
@@ -223,7 +224,7 @@ test('Resend refuses: the signup stays, not welcomed, the failure counted', asyn
 test('unsubscribed while the welcome was in flight: the address is not brought back', async () => {
   const env = envWith({ RESEND_API_KEY: 'k' });
   globalThis.fetch = async () => { env.LAUNCH_EMAILS.m.delete('x@example.com'); return new Response('{}'); };
-  assert.equal(await sendWelcomeEmail('x@example.com', 'en', env), true);
+  assert.equal(await sendWelcomeEmail('x@example.com', 'en', env), 'sent');
   assert.equal(env.LAUNCH_EMAILS.m.has('x@example.com'), false);
 });
 
@@ -415,4 +416,54 @@ test('wrangler.toml sets DAILY_SEND_CAP to a positive whole number', () => {
   const toml = readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8');
   const m = toml.match(/^DAILY_SEND_CAP = "(\d+)"$/m);
   assert.ok(m && Number(m[1]) > 0 && dailyCap({ DAILY_SEND_CAP: m[1] }) === Number(m[1]));
+});
+
+// ---- one total for everything sent (team-lead 2026-11-20: Resend free = 100/day) --
+test('every sender shares ONE daily total: a later launch-day send and the welcomes', async () => {
+  const env = envWith({ RESEND_API_KEY: 'k', DAILY_SEND_CAP: '3', EXPORT_SECRET: 's' });
+  const launch = { from: 'x', to: ['l@example.com'], subject: 's', html: 'h', text: 't' };
+  assert.equal(await sendViaResend(env, launch), 'sent');          // a launch-day message
+  await subscribe(env, { email: 'a@example.com' });                // a welcome
+  assert.equal(await sentToday(env), 2);
+  for (const e of ['b@example.com', 'c@example.com']) await subscribe(env, { email: e });
+  assert.equal(await sendViaResend(env, launch), 'capped', 'the launch send stops at the shared cap too');
+  assert.equal(sent.length, 3, 'never more than DAILY_SEND_CAP in a day, all senders together');
+  const bl = await (await backlog(env, { key: 's', send: '1' })).json();
+  assert.deepEqual([bl.sent, bl.capReached], [0, true]);
+  for (const k of [...env.LAUNCH_EMAILS.m.keys()]) if (!k.includes('@')) env.LAUNCH_EMAILS.m.delete(k); // next UTC day
+  const next = await (await backlog(env, { key: 's', send: '1' })).json();
+  assert.deepEqual([next.sent, next.remaining], [1, 0], 'carries on where it stopped');
+});
+
+test('Resend answering 429 is "capped": no failure counted, the backlog stops for today', async () => {
+  resendStatus = 429;
+  const env = envWith({ LAUNCH_EMAILS: seeded(4), EXPORT_SECRET: 's', RESEND_API_KEY: 'k' });
+  const out = await (await backlog(env, { key: 's', send: '1' })).json();
+  assert.deepEqual([out.sent, out.failed, out.capReached], [0, 0, true]);
+  assert.equal(sent.length, 1, 'one try, then it stops for the day');
+  for (const [k, v] of env.LAUNCH_EMAILS.m) if (k.includes('@')) assert.equal(JSON.parse(v).failures, undefined);
+});
+
+test('only src/mail.js sendViaResend talks to Resend (no sender can bypass the cap)', () => {
+  const dir = new URL('../src/', import.meta.url);
+  const hits = [];
+  for (const f of readdirSync(dir)) {
+    if (!f.endsWith('.js')) continue;
+    // Code only: comments may name Resend; a call cannot hide in one.
+    const src = readFileSync(new URL(f, dir), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1'); // not the // in https://
+    for (const m of src.matchAll(/resend\.com/gi)) hits.push(f);
+  }
+  assert.deepEqual(hits, ['mail.js']);
+  const mail = readFileSync(new URL('mail.js', dir), 'utf8');
+  const door = mail.slice(mail.indexOf('export async function sendViaResend'), mail.indexOf('export async function sendWelcomeEmail'));
+  assert.ok(door.includes('api.resend.com/emails'), 'the one call is inside sendViaResend');
+});
+
+test('the cap in wrangler.toml stays at or under 90 a day (Resend free: 100 a day, 3,000 a month)', () => {
+  // Raise this only with a paid Resend plan, and change this test with it.
+  const toml = readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8');
+  const cap = Number(toml.match(/^DAILY_SEND_CAP = "(\d+)"$/m)[1]);
+  assert.ok(cap <= 90, `DAILY_SEND_CAP ${cap} leaves no margin under 100`);
+  assert.ok(cap * 31 <= 3000, 'a full month at the cap stays under 3,000');
+  assert.ok(DEFAULT_DAILY_SEND_CAP <= 90);
 });

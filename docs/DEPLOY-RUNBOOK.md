@@ -172,7 +172,8 @@ the rest. Dry run first (counts, sends nothing), then send; each call sends at m
 repeat until `remaining` is 0. The key goes in the POST body, never the URL (URLs land in
 logs). A failed send stays waiting and is retried by the next call; nobody gets it twice.
 No more than `DAILY_SEND_CAP` welcomes go out per UTC day, signups and backlog together
-(`wrangler.toml` `[vars]`, 90, under Resend's free 100 a day; raise it with the Resend plan).
+(`wrangler.toml` `[vars]`, 90, under Resend's free plan, "limited to 100 emails per day", 3,000 a month;
+any later launch-day mailing must send through `sendViaResend` in `src/mail.js` and shares the same total; raise the cap only with a paid plan).
 When the answer says `"capReached": true`, the rest are not failures: run it again tomorrow.
 
 ```sh

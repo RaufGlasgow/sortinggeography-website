@@ -9,12 +9,19 @@ import { unsubscribeToken } from './token.js';
 // few dead addresses can never block the backlog for everyone else.
 export const MAX_FAILURES = 3;
 
-// A cap on welcomes sent per UTC day, across everyone (18.5 review E6). The
-// per-IP limit alone still lets one source sign up thousands of strangers a
-// day, each mailed once. Past the cap a welcome is not sent and not counted as
-// a failure: the signup simply waits for the next day's backlog send.
-// DAILY_SEND_CAP (wrangler.toml [vars]) sets it; missing or not a positive
-// whole number means DEFAULT_DAILY_SEND_CAP, never "no cap".
+// THE daily cap on everything this site sends through Resend (18.5 review E6;
+// team-lead 2026-11-20). Resend's free plan is "limited to 100 emails per day"
+// and 3,000 a month (resend.com/pricing, read by team-lead 2026-11-20), and
+// the page does not say what happens past 100. So every send, welcome,
+// backlog and any later launch-day mailing, goes through sendViaResend()
+// below, which counts them all against ONE per-UTC-day total and stops at
+// DAILY_SEND_CAP (wrangler.toml [vars], 90: 10 under the limit for the KV
+// counter's small overshoot under a burst; 90 x 31 = 2,790, under the month).
+// What is not sent today is not a failure: it waits, and the backlog (or the
+// launch send) carries on the next day where it stopped.
+// scripts/test_email.mjs fails if any other file in src/ calls Resend, or if
+// the cap in wrangler.toml goes above 90. Missing or not a positive whole
+// number means DEFAULT_DAILY_SEND_CAP, never "no cap".
 export const DEFAULT_DAILY_SEND_CAP = 90;
 const SENDS_KEY = (now) => `sends:${now.toISOString().slice(0, 10)}`;
 
@@ -27,24 +34,19 @@ export function dailyCap(env) {
 // and the backlog skip every key without one.
 export const isSignupKey = (name) => name.includes('@');
 
-async function sentToday(env, now) {
+export async function sentToday(env, now = new Date()) {
   return Number((await env.LAUNCH_EMAILS.get(SENDS_KEY(now))) || 0);
 }
 
-// Resend, same as the Sorting History site; the template is src/email.js.
-// Returns true only when Resend accepted the message (2xx), and only then is
-// the signup marked welcomedAt, so a send that failed (domain not yet
-// verified, bad key, outage) is picked up by the backlog send later.
-export async function sendWelcomeEmail(email, lang, env) {
-  // Not configured yet: store the signup, send nothing. Without the
-  // unsubscribe secret there is no honest unsubscribe link, so no mail either.
-  if (!env.RESEND_API_KEY || !env.UNSUBSCRIBE_SECRET) return false;
+// The one door to Resend. 'sent' (2xx, counted), 'capped' (today's total is
+// reached, or Resend itself answers 429: nothing is a failure, try tomorrow),
+// or 'failed' (refused or unreachable).
+export async function sendViaResend(env, message) {
   const now = new Date();
-  if ((await sentToday(env, now)) >= dailyCap(env)) return false; // waits for the backlog
-  const { message } = welcomeEmail(email, lang, await unsubscribeToken(email, env.UNSUBSCRIBE_SECRET));
-  let ok = false;
+  if ((await sentToday(env, now)) >= dailyCap(env)) return 'capped';
+  let res;
   try {
-    const res = await fetch('https://api.resend.com/emails', {
+    res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${env.RESEND_API_KEY}`,
@@ -52,19 +54,36 @@ export async function sendWelcomeEmail(email, lang, env) {
       },
       body: JSON.stringify(message),
     });
-    ok = res.ok;
-    if (ok) {
-      // KV is eventually consistent, so the count can run a little over under
-      // a burst; the per-IP limit keeps that small. Kept two days, then gone.
-      await env.LAUNCH_EMAILS.put(SENDS_KEY(now), String((await sentToday(env, now)) + 1),
-        { expirationTtl: 2 * 86400 });
-    }
   } catch (e) {
-    ok = false; // fire-and-forget: never fail a stored subscription because mail failed
+    return 'failed';
   }
+  if (res.status === 429) return 'capped';
+  if (!res.ok) return 'failed';
+  try {
+    // KV is eventually consistent, so the count can run a little over under
+    // a burst (the per-IP limit keeps that small). Kept two days, then gone.
+    await env.LAUNCH_EMAILS.put(SENDS_KEY(now), String((await sentToday(env, now)) + 1),
+      { expirationTtl: 2 * 86400 });
+  } catch (e) {
+    /* the send happened; a missed count only errs one high */
+  }
+  return 'sent';
+}
+
+// The welcome (signup and backlog): 'sent', 'capped', 'failed', or 'off'
+// (not configured). Only 'sent' marks the signup welcomedAt; 'failed' counts a
+// failure (E4); 'capped' changes nothing and simply waits.
+export async function sendWelcomeEmail(email, lang, env) {
+  // Not configured yet: store the signup, send nothing. Without the
+  // unsubscribe secret there is no honest unsubscribe link, so no mail either.
+  if (!env.RESEND_API_KEY || !env.UNSUBSCRIBE_SECRET) return 'off';
+  const { message } = welcomeEmail(email, lang, await unsubscribeToken(email, env.UNSUBSCRIBE_SECRET));
+  const result = await sendViaResend(env, message);
+  if (result === 'capped') return result; // waits for the backlog
+  const ok = result === 'sent';
   try {
     const stored = await env.LAUNCH_EMAILS.get(email);
-    if (!stored) return ok; // unsubscribed meanwhile: do not bring the address back
+    if (!stored) return result; // unsubscribed meanwhile: do not bring the address back
     const record = JSON.parse(stored);
     if (ok) {
       record.welcomedAt = new Date().toISOString();
@@ -76,7 +95,7 @@ export async function sendWelcomeEmail(email, lang, env) {
   } catch (e) {
     /* the record could not be updated; the send result still stands */
   }
-  return ok;
+  return result;
 }
 
 // Everyone who signed up before the key existed, or whose welcome failed,
@@ -123,11 +142,14 @@ export async function handleWelcomeBacklog(request, env) {
   const room = Math.max(0, dailyCap(env) - (await sentToday(env, new Date())));
   let sent = 0;
   let failed = 0;
+  let capped = false;
   for (const record of waiting.slice(0, Math.min(BACKLOG_BATCH, room))) {
-    if (await sendWelcomeEmail(record.email, record.lang || 'en', env)) sent += 1;
+    const result = await sendWelcomeEmail(record.email, record.lang || 'en', env);
+    if (result === 'sent') sent += 1;
+    else if (result === 'capped') { capped = true; break; } // today is done; carry on tomorrow
     else failed += 1;
   }
   return Response.json({ dryRun: false, sent, failed, remaining: waiting.length - sent, givenUp,
-    capReached: room <= BACKLOG_BATCH && waiting.length > room });
+    capReached: capped || (room <= BACKLOG_BATCH && waiting.length > room) });
 }
 
