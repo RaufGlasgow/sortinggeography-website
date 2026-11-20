@@ -11,7 +11,7 @@ export const MAX_FAILURES = 3;
 
 // THE daily cap on everything this site sends through Resend (18.5 review E6;
 // team-lead 2026-11-20). Resend's free plan is "limited to 100 emails per day"
-// and 3,000 a month (resend.com/pricing, read by team-lead 2026-11-20), and
+// and 3,000 a month (resend.com/pricing, read by team-lead 19 Nov 2026), and
 // the page does not say what happens past 100. So every send, welcome,
 // backlog and any later launch-day mailing, goes through sendViaResend()
 // below, which counts them all against ONE per-UTC-day total and stops at

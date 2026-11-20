@@ -40,9 +40,9 @@ namespace_id = "1001"
 simple = { limit = 5, period = 60 }
 
 # Everything sent through Resend per UTC day, welcomes, backlog and any launch
-# mailing together (18.5 E6; team-lead 2026-11-20). Resend's free plan is
-# "limited to 100 emails per day", 3,000 a month (resend.com/pricing, read by
-# team-lead 2026-11-20); 90 leaves 10 of margin. Past it, sends wait for the
+# mailing together (18.5 E6; team-lead 2026-11-20). Source: resend.com/pricing,
+# read by team-lead 19 Nov 2026: "The Free plan is limited to 100 emails per
+# day", 3,000 a month. 90 leaves 10 of margin. Past it, sends wait for the
 # next day. Raise only with a paid plan (scripts/test_email.mjs pins <= 90).
 [vars]
 DAILY_SEND_CAP = "90"
