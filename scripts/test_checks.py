@@ -23,6 +23,8 @@ import build_launch  # noqa: E402
 import check_platform  # noqa: E402
 import check_store_pages  # noqa: E402
 import check_sheet_links  # noqa: E402
+import build_i18n  # noqa: E402
+import site_i18n  # noqa: E402
 import build_features  # noqa: E402
 import check_comments  # noqa: E402
 import check_wrangler_pin  # noqa: E402
@@ -766,8 +768,8 @@ launch_case("the platforms named without a date", False, lambda r: edit(
 
 def generator_case(name, extra, region, expect_red):
     real = build_launch.regions
-    def patched(ms, stores=build_launch.STORES):
-        out = real(ms, stores)
+    def patched(ms, stores=build_launch.STORES, *a, **kw):
+        out = real(ms, stores, *a, **kw)
         out[region] = out[region] + extra
         return out
     build_launch.regions = patched
@@ -906,6 +908,125 @@ ok = RAUF_WHEN in when_text and build_launch.regions(RELEASE)["hero-countdown"].
 print(f"{'ok  ' if ok else 'FAIL'} launch   {'green' if ok else 'red  '} Ra'uf's platforms-first wording, word for word")
 if not ok:
     failures.append("launch: Ra'uf's platforms-first wording")
+
+
+# ---- 18.4: every game language on the site ---------------------------------------
+def publish(root, lang="de", change=None):
+    """Publish a language with stand-in strings ("DE· " + English, placeholders and
+    tags kept), as the translation pipeline's output will be, then rebuild."""
+    en = json.loads((root / "src/i18n/site_en.arb").read_text())
+    arb = {"@@locale": lang}
+    for k, v in en.items():
+        if not k.startswith("@"):
+            arb[k] = f"{lang.upper()}· {v}"
+    if change:
+        change(arb)
+    site_i18n.arb_path(lang, root).write_text(json.dumps(arb, ensure_ascii=False))
+    langs = json.loads((root / "src/site_languages.json").read_text())
+    langs["published"] = sorted(set(langs["published"]) | {lang})
+    (root / "src/site_languages.json").write_text(json.dumps(langs))
+    build_i18n.build(root)
+
+
+def i18n_problems(root):
+    return (build_i18n.gates(root) + build_launch.check(root, now_ms=EARLY)
+            + check_platform.check(check_platform.targets(root), root) + check_comments.check(root))
+
+
+def i18n_case(name, setup, expect_red, inspect=None):
+    root = copy_site()
+    try:
+        setup(root)
+        bad = i18n_problems(root)
+        red = bool(bad)
+        if inspect and not red:
+            inspect(root)
+    except AssertionError as e:
+        red, bad = None, [f"inspection failed: {e}"]
+    except SystemExit as e:     # a build that refuses is red too
+        red, bad = True, [str(e)]
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} i18n     {'red  ' if red else 'green'} {name}" + ("" if ok else f"  <- {bad[:2]}"))
+    if not ok:
+        failures.append(f"i18n: {name}: {bad[:2]}")
+
+
+def de_page_right(root):
+    de = (root / "de/index.html").read_text()
+    en = (root / "index.html").read_text()
+    assert '<html lang="de">' in de
+    assert "10. Dezember 2026" in de, "the launch date in German, from CLDR"
+    assert "<li>Kanada</li>" in de, "country names from CLDR"
+    assert 'href="../style.css"' in de and 'src="../countdown.js"' in de
+    assert 'name="lang" value="de"' in de, "signups from /de/ are stored as de"
+    for page in (de, en):
+        for lg, href in (("en", "https://sortinggeography.com/"), ("de", "https://sortinggeography.com/de/"),
+                         ("x-default", "https://sortinggeography.com/")):
+            assert f'<link rel="alternate" hreflang="{lg}" href="{href}">' in page, (lg, "hreflang reciprocal")
+    assert "<loc>https://sortinggeography.com/de/</loc>" in (root / "sitemap.xml").read_text()
+    assert "<h1>DE· Put the world in order</h1>" in de, "the heading is the German string"
+    assert "<h1>Put the world in order</h1>" not in de, "no English heading left"
+
+
+i18n_case("today: English only, nothing published", lambda r: None, False)
+i18n_case("German published and fully translated: built right", lambda r: publish(r), False, de_page_right)
+i18n_case("a German value left in English", lambda r: publish(r, change=lambda a: a.update(heroTitle="Put the world in order")), True)
+i18n_case("...unless allow_identical lists it", lambda r: ((r / "src/i18n/allow_identical.json").write_text(
+    json.dumps({"de": ["heroTitle"]})), publish(r, change=lambda a: a.update(heroTitle="Put the world in order"))), False)
+i18n_case("allow_identical names a key that does not exist", lambda r: ((r / "src/i18n/allow_identical.json").write_text(
+    json.dumps({"de": ["noSuchKey"]})), publish(r)), True)
+i18n_case("a German key missing", lambda r: publish(r, change=lambda a: a.pop("card1Text")), True)
+i18n_case("an unknown key in German", lambda r: publish(r, change=lambda a: a.update(extraKey="x")), True)
+i18n_case("the link tag dropped from a German value", lambda r: publish(r, change=lambda a: a.update(
+    honestyText="DE· keine Links hier")), True)
+i18n_case("the German page hand-edited", lambda r: (publish(r), edit(r, "de/index.html", "<h1>", "<h1>x ")), True)
+i18n_case("the English page loses its hreflang once German is published", lambda r: (publish(r), edit(
+    r, "index.html", '<link rel="alternate" hreflang="de" href="https://sortinggeography.com/de/">', "")), True)
+i18n_case("the sitemap loses /de/", lambda r: (publish(r), edit(
+    r, "sitemap.xml", "  <url><loc>https://sortinggeography.com/de/</loc></url>\n", "")), True)
+i18n_case("a French page on disk, French not published", lambda r: ((r / "fr").mkdir(), (r / "fr/index.html").write_text(
+    '<!doctype html><html lang="fr"><body><h1>x</h1></body></html>')), True)
+i18n_case("German published but its ARB missing", lambda r: (r / "src/site_languages.json").write_text(
+    json.dumps({"published": ["de"]})), True)
+i18n_case("a bad language tag", lambda r: (r / "src/site_languages.json").write_text(
+    json.dumps({"published": ["German"]})), True)
+i18n_case("a placeholder dropped from a German launch string", lambda r: publish(r, change=lambda a: a.update(
+    launchDateLine="DE· es kommt bald")), True)
+i18n_case("a placeholder renamed in a German string", lambda r: publish(r, change=lambda a: a.update(
+    whenPre="DE· {plattformen}, {date}")), True)
+
+
+def i18n_unit(name, fn):
+    """Each 18.4 guard on its own: in the full checks a missing ARB refuses first."""
+    root = copy_site()
+    try:
+        try:
+            red = bool(fn(root))
+        except SystemExit:
+            red = True
+    finally:
+        shutil.rmtree(root)
+    print(f"{'ok  ' if red else 'FAIL'} i18n     {'red  ' if red else 'green'} {name}")
+    if not red:
+        failures.append(f"i18n: {name}")
+
+
+def stray_fr(r):
+    (r / "fr").mkdir()
+    (r / "fr/index.html").write_text('<!doctype html><html lang="fr"><body><h1>x</h1></body></html>')
+    return [b for b in build_i18n.gates(r) if "not published" in b]
+
+
+def bad_tag(r):
+    (r / "src/site_languages.json").write_text(json.dumps({"published": ["German"]}))
+    site_i18n.published(r)      # must raise; returning at all means the tag got through
+    return False
+
+
+i18n_unit("gates() alone refuses a language page that is not published", stray_fr)
+i18n_unit("published() alone refuses a bad language tag", bad_tag)
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")

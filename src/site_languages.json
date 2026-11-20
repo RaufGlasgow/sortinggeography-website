@@ -1,0 +1,4 @@
+{
+  "_note": "Languages whose site pages are built and served (Story 18.4). Add one only in the release where the game ships it, with its src/i18n/site_<lang>.arb complete.",
+  "published": []
+}

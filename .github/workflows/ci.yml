@@ -29,6 +29,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node first: the launch and site-language checks read CLDR dates and
+      # country names through it (scripts/cldr.mjs, Story 18.4).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Every HTML file parses
         run: |
           python3 - <<'PY'
@@ -148,6 +154,9 @@ jobs:
           print("ok   palette clean")
           PY
 
+      - name: Every site language is complete, translated and current; hreflang and sitemap match (Story 18.4)
+        run: python3 scripts/build_i18n.py --check
+
       - name: Every launch date and phrase comes from src/launch.js (Story 18.8)
         run: python3 scripts/build_launch.py --check
 
@@ -168,10 +177,6 @@ jobs:
 
       - name: Every guard goes red when broken on purpose
         run: python3 scripts/test_checks.py
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
 
       - name: The worker and the countdown parse
         run: |

@@ -40,6 +40,8 @@ import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
+import site_i18n  # noqa: E402  (scripts/ is on sys.path when run as a script)
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LAUNCH_JS = ROOT / "src" / "launch.js"
 
@@ -88,64 +90,77 @@ def time_line(ms: int) -> str:
     return f"At {lis} in Lisbon, which is {utc} UTC."
 
 
-def badges(stores=STORES) -> str:
+def badges(stores=STORES, s: dict | None = None, root_prefix: str = "") -> str:
+    s = s or site_i18n.strings("en")
     out = []
     for key, name, url in stores:
-        alt = "Get it on Google Play" if key == "google" else "Download on the App Store"
+        alt = html.escape(s["badgeGoogleAlt"] if key == "google" else s["badgeAppleAlt"], quote=True)
         if key == "google":
-            art = (f'<span class="badge-art badge-google"><img src="images/google-play-badge.png" '
+            art = (f'<span class="badge-art badge-google"><img src="{root_prefix}images/google-play-badge.png" '
                    f'alt="{alt}" width="646" height="250"></span>')
         else:
-            art = (f'<span class="badge-art badge-apple"><img src="images/app-store-badge.svg" '
+            art = (f'<span class="badge-art badge-apple"><img src="{root_prefix}images/app-store-badge.svg" '
                    f'alt="{alt}" width="120" height="40"></span>')
         if url:
             out.append(f'<a class="badge" href="{html.escape(url)}" rel="noopener">{art}</a>')
         else:
-            out.append(f'<span class="badge badge-late">{art}<small>Coming soon</small></span>')
+            out.append(f'<span class="badge badge-late">{art}<small>{html.escape(s["badgeComingSoon"])}</small></span>')
     return '<div class="badges">' + "".join(out) + "</div>"
 
 
-def out_platforms(stores=STORES) -> str:
+def all_linked(stores=STORES) -> bool:
     """Review F1: the "out" sentence names the platforms only when EVERY store
     has a link. Until then it says just "Out now" (Ra'uf 2026-11-18: one
     headline for both; a late store's own badge carries "Coming soon"), so the
     page can never claim a store that has no listing to link to."""
-    return f" on {PLATFORMS_SHORT}" if all(url for _k, _n, url in stores) else ""
+    return all(url for _k, _n, url in stores)
 
 
-def regions(ms: int, stores=STORES) -> dict[str, str]:
-    """name -> generated HTML. Every launch word on the site comes from here."""
-    on = out_platforms(stores)
-    units = [("d", "days"), ("h", "hours"), ("m", "minutes"), ("s", "seconds")]
-    tiles = "".join(f'<span class="cd-unit"><b data-u="{k}">0</b><span>{n}</span></span>'
+def out_platforms(stores=STORES) -> str:
+    return f" on {PLATFORMS_SHORT}" if all_linked(stores) else ""
+
+
+def regions(ms: int, stores=STORES, lang: str = "en", root: pathlib.Path = ROOT) -> dict[str, str]:
+    """name -> generated HTML, in the page's language (Story 18.4). Every launch
+    word comes from src/i18n/site_<lang>.arb; dates and times from CLDR."""
+    s = site_i18n.strings(lang, root)
+    c = site_i18n.cldr(lang, ms)
+    e = html.escape
+    plat = s["platformsShort"]
+    linked = all_linked(stores)
+    rp = "../" if lang != "en" else ""
+    units = [("d", s["countdownDays"]), ("h", s["countdownHours"]), ("m", s["countdownMinutes"]),
+             ("s", s["countdownSeconds"])]
+    tiles = "".join(f'<span class="cd-unit"><b data-u="{k}">0</b><span>{e(n)}</span></span>'
                     for k, n in units)
+    f = site_i18n.fill
+    out_line = f(s["launchOutNowOn"], platforms=plat) if linked else s["launchOutNow"]
     return {
-        "hero-chip": (f'<span class="tag only-pre">Out {chip_date(ms)}</span>'
-                      '<span class="tag only-post">Out now</span>'),
+        "hero-chip": (f'<span class="tag only-pre">{e(f(s["launchChip"], date=c["chip"]))}</span>'
+                      f'<span class="tag only-post">{e(s["launchOutNow"])}</span>'),
         "hero-countdown": (
             '<div class="launch">'
             '<div class="only-pre">'
             # Platforms first, as the When? line (Ra'uf 2026-11-20).
-            f'<p class="launch-date">The same game for {PLATFORMS_SHORT}. It launches on {date_text(ms)}.</p>'
-            f'<p class="launch-time">{time_line(ms)}</p>'
+            f'<p class="launch-date">{e(f(s["launchDateLine"], platforms=plat, date=c["date"]))}</p>'
+            f'<p class="launch-time">{e(f(s["launchTimeLine"], lisbon=c["lisbon"], utc=c["utc"]))}</p>'
             # The timer is decoration: hidden until countdown.js runs, and
             # hidden from screen readers, which read the sentence above.
             f'<div class="countdown" data-release="{ms}" hidden aria-hidden="true">{tiles}</div>'
             '</div>'
             '<div class="only-post">'
-            f'<p class="launch-date">Out now{on}.</p>'
-            f'{badges(stores)}'
+            f'<p class="launch-date">{e(out_line)}.</p>'
+            f'{badges(stores, s, rp)}'
             '</div>'
             '</div>'),
         "press-release": (
-            f'<span class="only-pre">{date_text(ms)}, {time_line(ms)[3:-1]}</span>'
-            f'<span class="only-post">Out now{on}, since {date_text(ms)}</span>'),
+            f'<span class="only-pre">{e(f(s["pressReleasePre"], date=c["date"], lisbon=c["lisbon"], utc=c["utc"]))}</span>'
+            f'<span class="only-post">{e(f(s["pressReleasePostOn"], platforms=plat, date=c["date"]) if linked else f(s["pressReleasePost"], date=c["date"]))}</span>'),
         "when": (
-            '<h2 class="only-pre">When?</h2><h2 class="only-post">Get the game</h2>'
+            f'<h2 class="only-pre">{e(s["whenTitlePre"])}</h2><h2 class="only-post">{e(s["whenTitlePost"])}</h2>'
             # Ra'uf's pick 2026-11-20, "Platforms first", word for word.
-            f'<p class="only-pre">The same game for {PLATFORMS_SHORT}, on phones and tablets. '
-            f'It launches on {date_text(ms)}.</p>'
-            f'<p class="only-post">Out now{on}, on phones and tablets.</p>'),
+            f'<p class="only-pre">{e(f(s["whenPre"], platforms=plat, date=c["date"]))}</p>'
+            f'<p class="only-post">{e(f(s["whenPostOn"], platforms=plat) if linked else s["whenPost"])}</p>'),
     }
 
 
@@ -227,12 +242,12 @@ def same_day_claims(text: str) -> list[str]:
 
 def check(root: pathlib.Path = ROOT, now_ms: int | None = None) -> list[str]:
     ms = release_ms(root)
-    gen = regions(ms)
     bad: list[str] = []
     seen: set[str] = set()
     for p in served_pages(root):
         rel = p.relative_to(root)
         text = p.read_text(encoding="utf-8")
+        gen = regions(ms, lang=site_i18n.page_lang(text), root=root)   # 18.4: each page in its language
         if render(text, gen, str(rel)) != text:
             bad.append(f"{rel}: a launch region is stale or hand-edited; run scripts/build_launch.py")
         seen.update(m.group(2) for m in REGION.finditer(text))
@@ -246,8 +261,9 @@ def check(root: pathlib.Path = ROOT, now_ms: int | None = None) -> list[str]:
                 i = rest.count("\n", 0, m.start()) + 1
                 snippet = " ".join(rest[max(0, m.start() - 40):m.end() + 40].split())
                 bad.append(f"{rel}:{i}: {what} outside a generated region: ...{snippet}...")
-    for state in ([(k, n, None) for k, n, _ in STORES], STORES):
-        for name, frag in regions(ms, state).items():
+    for state, lang in [(st, lg) for st in ([(k, n, None) for k, n, _ in STORES], STORES)
+                        for lg in ["en", *site_i18n.published(root)]]:
+        for name, frag in regions(ms, state, lang, root).items():
             for what in same_day_claims(frag):
                 bad.append(f"launch region {name}: {what} (no same-day promise)")
     for p in served_pages(root):
@@ -314,10 +330,10 @@ def ci_schedule(root: pathlib.Path = ROOT) -> list[str]:
 
 
 def build(root: pathlib.Path = ROOT) -> None:
-    gen = regions(release_ms(root))
+    ms = release_ms(root)
     for p in served_pages(root):
         text = p.read_text(encoding="utf-8")
-        new = render(text, gen, str(p.relative_to(root)))
+        new = render(text, regions(ms, lang=site_i18n.page_lang(text), root=root), str(p.relative_to(root)))
         if new != text:
             p.write_text(new, encoding="utf-8")
             print(f"wrote {p.relative_to(root)}")
