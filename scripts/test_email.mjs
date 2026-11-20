@@ -7,7 +7,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import worker from '../src/worker.js';
-import { sendWelcomeEmail, sendViaResend, sentToday, BACKLOG_BATCH, MAX_FAILURES, DEFAULT_DAILY_SEND_CAP, dailyCap } from '../src/mail.js';
+import { sendWelcomeEmail, sendViaResend, sentToday, BACKLOG_BATCH, MAX_FAILURES, DEFAULT_DAILY_SEND_CAP, dailyCap,
+  DEFAULT_BACKLOG_PAUSE_MS, backlogPause } from '../src/mail.js';
 import { readdirSync } from 'node:fs';
 import { welcomeEmail, LANGS, pickLang, unsubscribeUrl, esc } from '../src/email.js';
 import { unsubscribeToken, tokenValid } from '../src/token.js';
@@ -34,7 +35,8 @@ function fakeLimit(max = 1000) {
 }
 
 function envWith(extra = {}) {
-  return { LAUNCH_EMAILS: fakeKV(), SUBSCRIBE_LIMIT: fakeLimit(), UNSUBSCRIBE_SECRET: SECRET, ...extra };
+  // BACKLOG_PAUSE_MS 0 keeps these tests fast; the pause has its own tests.
+  return { LAUNCH_EMAILS: fakeKV(), SUBSCRIBE_LIMIT: fakeLimit(), UNSUBSCRIBE_SECRET: SECRET, BACKLOG_PAUSE_MS: '0', ...extra };
 }
 
 let sent;
@@ -466,4 +468,32 @@ test('the cap in wrangler.toml stays at or under 90 a day (Resend free: 100 a da
   assert.ok(cap <= 90, `DAILY_SEND_CAP ${cap} leaves no margin under 100`);
   assert.ok(cap * 31 <= 3000, 'a full month at the cap stays under 3,000');
   assert.ok(DEFAULT_DAILY_SEND_CAP <= 90);
+});
+
+// ---- the pause between backlog sends (team-lead 2026-11-20) --------------------
+test('the backlog pauses between sends, not before the first', async () => {
+  const env = envWith({ LAUNCH_EMAILS: seeded(4), EXPORT_SECRET: 's', RESEND_API_KEY: 'k', BACKLOG_PAUSE_MS: '40' });
+  const times = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { times.push(Date.now()); return real(url, init); };
+  const t0 = Date.now();
+  const out = await (await backlog(env, { key: 's', send: '1' })).json();
+  assert.equal(out.sent, 4);
+  assert.ok(times[0] - t0 < 30, `no pause before the first send (${times[0] - t0} ms)`);
+  for (let i = 1; i < times.length; i += 1) {
+    assert.ok(times[i] - times[i - 1] >= 35, `send ${i} came ${times[i] - times[i - 1]} ms after the last`);
+  }
+});
+
+test('the default pause is about 0.6 s, and a bad setting means the default', () => {
+  assert.equal(DEFAULT_BACKLOG_PAUSE_MS, 600);
+  assert.equal(backlogPause({}), 600);
+  for (const v of ['', '-1', '1.5', 'x', null]) assert.equal(backlogPause({ BACKLOG_PAUSE_MS: v }), 600, String(v));
+  assert.equal(backlogPause({ BACKLOG_PAUSE_MS: '0' }), 0);
+  assert.equal(backlogPause({ BACKLOG_PAUSE_MS: '250' }), 250);
+});
+
+test('wrangler.toml does not turn the pause off', () => {
+  const toml = readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8');
+  assert.doesNotMatch(toml, /^BACKLOG_PAUSE_MS\s*=/m, 'the deployed worker uses the default pause');
 });

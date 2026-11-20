@@ -176,6 +176,7 @@ No more than `DAILY_SEND_CAP` welcomes go out per UTC day, signups and backlog t
 (`wrangler.toml` `[vars]`, 90, under Resend's free plan, "limited to 100 emails per day", 3,000 a month;
 any later launch-day mailing must send through `sendViaResend` in `src/mail.js` and shares the same total; raise the cap only with a paid plan).
 When the answer says `"capReached": true`, the rest are not failures: run it again tomorrow.
+Each call pauses about 0.6 s between sends (Resend also limits requests per second), so a full call of 40 takes about 24 s; let it finish.
 
 ```sh
 read -rs SECRET   # paste EXPORT_SECRET, then Enter
