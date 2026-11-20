@@ -82,8 +82,18 @@ def blocks_text(text: str) -> list[str]:
     return out
 
 
+# The ONE page allowed to name Android alone: the Google Play closed-test page
+# (Story 20.3b). Joining a Google Play test is an Android procedure, so its
+# steps cannot honestly name iOS. The exemption covers only rule 3, only this
+# path, and only while the page says why in so many words; the other rules
+# (device names, Apple first, Apple alone) still apply to it.
+ANDROID_ONLY = {"testers/index.html": "This test runs on Google Play, so it is for Android only."}
+
+
 def problems_in(name: str, content: str, is_html: bool) -> list[str]:
     bad = []
+    why = ANDROID_ONLY.get(name.replace("\\", "/"))
+    android_alone_ok = bool(why) and why in re.sub(r"\s+", " ", html.unescape(content))
     for raw in (blocks_html(content) if is_html else blocks_text(content)):
         text = re.sub(r"\s+", " ", html.unescape(raw)).strip()
         if not text:
@@ -94,7 +104,7 @@ def problems_in(name: str, content: str, is_html: bool) -> list[str]:
         a, g, an = APPLE.search(text), GOOGLE.search(text), ANDROID.search(text)
         if a and not g:
             bad.append(f"{name}: {a.group(0)!r} with no Android or Google beside it: {short}")
-        if an and not a:
+        if an and not a and not android_alone_ok:
             bad.append(f"{name}: {an.group(0)!r} with no iOS or App Store beside it: {short}")
         if a and g and a.start() < g.start():
             bad.append(f"{name}: {a.group(0)!r} comes before {g.group(0)!r} (Android side first): {short}")
