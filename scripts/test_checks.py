@@ -22,6 +22,7 @@ sys.path.insert(0, str(HERE))
 import build_launch  # noqa: E402
 import check_platform  # noqa: E402
 import check_store_pages  # noqa: E402
+import check_sheet_links  # noqa: E402
 import build_features  # noqa: E402
 import check_comments  # noqa: E402
 import check_wrangler_pin  # noqa: E402
@@ -607,6 +608,136 @@ pin_case("CI loose to a major (wrangler@4)", True, lambda r: edit(
 feature_case("src/facts.gen.js hand-edited", True, lambda r: (r / "src/facts.gen.js").write_text(
     (r / "src/facts.gen.js").read_text().replace('"axes": 190', '"axes": 200')))
 feature_case("src/facts.gen.js deleted", True, lambda r: (r / "src/facts.gen.js").unlink())
+
+# ---- 20.9: the game links only to sheets the site has ------------------------------
+def sheet_game(files: dict[str, str]) -> pathlib.Path:
+    g = pathlib.Path(tempfile.mkdtemp(prefix="sg-game-"))
+    roster = {"_meta": {}, "countries": {iso: {} for iso in ("AD", "AE", "FR")}}
+    files = {"pipeline/roster/countries.json": json.dumps(roster), "app/lib/main.dart": "void main() {}\n", **files}
+    for rel, text in files.items():
+        (g / rel).parent.mkdir(parents=True, exist_ok=True)
+        (g / rel).write_text(text)
+    for cmd in (["init", "-q", "-b", "main"], ["add", "-A"],
+                ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
+        subprocess.run(["git", "-C", str(g), *cmd], check=True)
+    return g
+
+
+def sheets(root, langs):
+    for lang in langs:
+        for iso in ("ad", "ae", "fr"):
+            p = root / check_sheet_links.sheet_path(lang, iso)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("<!doctype html><html><body><h1>x</h1></body></html>")
+
+
+def sheet_case(name, dart, expect_red, have=(), extra=None):
+    files = {} if dart is None else {check_sheet_links.SHEET_URL_DART: dart}
+    files.update(extra or {})
+    g, root = sheet_game(files), copy_site()
+    try:
+        sheets(root, have)
+        red = bool(check_sheet_links.check(g, "main", root))
+    finally:
+        shutil.rmtree(g)
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} sheets   {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"sheets: {name}")
+
+
+def const(body):
+    return f"const Set<String> kCountrySheetLanguages = <String>{{{body}}};\n"
+
+
+URL_LINE = "const kSheetBase = 'https://sortinggeography.com/countries/';\n"
+sheet_case("no sheet file on main, nothing links: no link yet", None, False)
+sheet_case("the set empty: no link", URL_LINE + const(""), False)
+sheet_case("en linked, every en sheet on the site", URL_LINE + const("'en'"), False, have=["en"])
+sheet_case("en linked, no sheets on the site", URL_LINE + const("'en'"), True)
+sheet_case("en linked, one sheet missing", URL_LINE + const("'en'"), True, have=["en"],
+           extra={"pipeline/roster/countries.json": json.dumps({"countries": {"AD": {}, "AE": {}, "FR": {}, "ZW": {}}})})
+sheet_case("de linked, only en sheets on the site", URL_LINE + const("'en', 'de'"), True, have=["en"])
+sheet_case("en and pt-pt linked, both on the site", URL_LINE + const("'en', 'pt-pt'"), False, have=["en", "pt-pt"])
+sheet_case("a tag in upper case", URL_LINE + const("'pt-PT'"), True, have=["pt-PT"])
+sheet_case("a double-quoted tag", URL_LINE + const('"en"'), True, have=["en"])
+sheet_case("a tag twice", URL_LINE + const("'en', 'en'"), True, have=["en"])
+sheet_case("the constant written another way", URL_LINE + "final kCountrySheetLanguages = {'en'};\n", True, have=["en"])
+sheet_case("the constant twice", URL_LINE + const("") + const("'en'"), True, have=["en"])
+sheet_case("an interpolated $lang/countries link in another file", None, True,
+           extra={"app/lib/play/other.dart": "String u(l, i) => 'https://sortinggeography.com/$l/countries/$i/';\n"})
+sheet_case("Uri.https('sortinggeography.com', '/countries/...') in another file", None, True,
+           extra={"app/lib/play/other.dart": "final u = Uri.https('sortinggeography.com', '/countries/$iso/');\n"})
+sheet_case("countries before the host on the line", None, True,
+           extra={"packages/x/lib/y.dart": "const p = '/countries/'; const h = 'SortingGeography.com';\n"})
+sheet_case("host in a constant, '$kHost/countries/$iso/' on the next line", None, True,
+           extra={"app/lib/play/other.dart": "const kHost = 'https://sortinggeography.com';\nString u(i) =>\n    '$kHost/countries/$i/';\n"})
+sheet_case("host + '/countries/' concatenated across lines", None, True,
+           extra={"app/lib/play/other.dart": "final u = kSiteOrigin +\n    '/countries/' + iso;\n"})
+sheet_case("'countries/axes' in a comment is not a path", None, False,
+           extra={"app/lib/shell/t.dart": "// draws only unlocked countries/axes\n"})
+sheet_case("the privacy link alone is not a sheet link", None, False,
+           extra={"app/lib/shell/seam.dart": "const u = 'https://sortinggeography.com/privacy.html';\n"})
+sheet_case("a sheet link built in another file", None, True,
+           extra={"app/lib/play/elsewhere.dart": "const u = 'https://sortinggeography.com/de/countries/';\n"})
+
+
+def sheet_git_case(name, game_for, ref, expect_red):
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="sg-bad-"))
+    root = copy_site()
+    try:
+        red = bool(check_sheet_links.check(game_for(tmp), ref, root))
+    finally:
+        shutil.rmtree(tmp)
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} sheets   {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"sheets: {name}")
+
+
+def real_game(tmp):
+    g = sheet_game({})
+    shutil.rmtree(tmp)
+    shutil.move(str(g), str(tmp))
+    return tmp
+
+
+def not_the_game(tmp):
+    (tmp / "README").write_text("x")
+    for cmd in (["init", "-q", "-b", "main"], ["add", "-A"],
+                ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
+        subprocess.run(["git", "-C", str(tmp), *cmd], check=True)
+    return tmp
+
+
+# review S1: any git failure must fail, never read as "no sheet link yet".
+sheet_git_case("the real game at a real ref", real_game, "main", False)
+sheet_git_case("--game path that does not exist", lambda tmp: tmp / "nope", "main", True)
+sheet_git_case("--game folder that is not a git repo", lambda tmp: tmp, "main", True)
+sheet_git_case("--ref that does not exist (origin/mian)", real_game, "origin/mian", True)
+sheet_git_case("a git repo that is not the game (no roster)", not_the_game, "main", True)
+
+
+def raises_case(name, fn):
+    """Each git guard on its own: the two overlap in check(), so each needs its own red."""
+    g = sheet_game({})
+    try:
+        try:
+            fn(g)
+            red = False
+        except check_sheet_links.GitFailed:
+            red = True
+    finally:
+        shutil.rmtree(g)
+    print(f"{'ok  ' if red else 'FAIL'} sheets   {'red  ' if red else 'green'} {name}")
+    if not red:
+        failures.append(f"sheets: {name}")
+
+
+raises_case("require_ref refuses a ref that does not exist", lambda g: check_sheet_links.require_ref(g, "origin/mian"))
+raises_case("sheet_link_files refuses when git grep fails", lambda g: check_sheet_links.sheet_link_files(g, "origin/mian"))
 
 # ---- 20.3b: the Google Play closed-test page ------------------------------------
 TP = "testers/index.html"
