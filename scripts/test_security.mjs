@@ -213,3 +213,44 @@ test('stripping stays fast on a worst-case body (no regex blow-up)', () => {
     assert.ok(ms < 200, `${body.length} letters took ${ms.toFixed(1)} ms`);
   }
 });
+
+
+// ---- fonts are our own (team-lead 2026-11-20, Story 18.3) ----------------------
+// The CSP allows fonts and styles from 'self' only. A design that loads Google
+// Fonts would break once the CSP is enforced, and send every visitor's address
+// to Google. Fonts live under /fonts/<family>/, each family with its OFL text.
+const THIRD_PARTY_FONTS = /fonts\.googleapis\.com|fonts\.gstatic\.com|use\.typekit\.net|fonts\.bunny\.net/i;
+
+function servedFiles(dir = '') {
+  return readdirSync(new URL(dir || '.', SITE), { withFileTypes: true }).flatMap((e) => {
+    const rel = dir + e.name;
+    if (e.isDirectory()) {
+      return NOT_SERVED.has(e.name) || IGNORED.has(e.name) || e.name.startsWith('.') ? [] : servedFiles(rel + '/');
+    }
+    return IGNORED.has(e.name) ? [] : [rel];
+  });
+}
+const FONT_FILE = /\.(woff2?|ttf|otf|eot)$/i;
+
+for (const file of servedFiles().filter((f) => /\.(html|css|js|mjs|svg)$/i.test(f))) {
+  test(`${file}: no third-party font service`, () => {
+    const t = readFileSync(new URL(file, SITE), 'utf8');
+    assert.doesNotMatch(t, THIRD_PARTY_FONTS, `${file} loads fonts from a third party`);
+  });
+}
+
+// review-share F1: every font file anywhere on the site (loose, nested, in images/) must sit under fonts/,
+// with the SIL OFL 1.1 text in its own folder or an ancestor folder below fonts/.
+test('every font file we serve is under fonts/ beside its OFL licence', () => {
+  for (const f of servedFiles().filter((x) => FONT_FILE.test(x))) {
+    assert.ok(f.startsWith('fonts/') && f.split('/').length >= 3, `${f}: font files belong in fonts/<family>/`);
+    const parts = f.split('/').slice(0, -1);
+    let lic = null;
+    for (let i = parts.length; i >= 2; i -= 1) {            // fonts/<family>[/...]; never fonts/ itself
+      const cand = parts.slice(0, i).join('/') + '/OFL.txt';
+      try { lic = readFileSync(new URL(cand, SITE), 'utf8'); break; } catch { /* look higher */ }
+    }
+    assert.ok(lic !== null, `${f}: no OFL.txt in its folder or above it below fonts/`);
+    assert.match(lic, /SIL Open Font License, Version 1\.1/, `${f}: its OFL.txt is not the OFL`);
+  }
+});
