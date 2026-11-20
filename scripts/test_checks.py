@@ -313,10 +313,12 @@ def fake_game(unlock: bool, posthog: bool, switch: bool, age: str | bool = False
     (g / "packages/sort_platform/pubspec.yaml").write_text("dependencies:\n  meta: any\n")
     (g / "app/lib/settings.dart").write_text(
         ("const label = 'Share anonymous usage numbers';\n" if switch else "const label = 'Sound';\n"))
-    routed = age in (True, "route-only")
+    routed = age in (True, "route-only", "renamed-screen")
     (g / "app/lib/main.dart").write_text("void main() {}\n" + ("// router\n      case AgeScreen.routeName:\n" if routed else ""))
     if age in (True, "screen-only"):
         (g / "app/lib/shell/age_screen.dart").write_text("class AgeScreen {}\n")
+    if age in (True, "store-only", "renamed-screen"):
+        (g / "app/lib/shell/player_age.dart").write_text("const String kAgeRecordKey = 'age.record';\n")
     for cmd in (["init", "-q", "-b", "main"], ["add", "-A"],
                 ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
         subprocess.run(["git", "-C", str(g), *cmd], check=True)
@@ -368,6 +370,8 @@ def half_age_case(name, age):
 
 half_age_case("age_screen.dart on main but not routed: refuse to guess", "screen-only")
 half_age_case("routed to AgeScreen but no age_screen.dart: refuse to guess", "route-only")
+half_age_case("A3: screen AND route renamed, the stored age record still there: refuse, never 'off'", "store-only")
+half_age_case("the stored record and the route, the screen file renamed: refuse", "renamed-screen")
 feature_case("'date of birth' typed by hand outside a region", True, add_para("We ask your date of birth."))
 feature_case("'does not ask your age' typed by hand", True, add_para("The app does not ask your age."))
 feature_case("age screen on: built text passes every guard", False, flags={**OFF, "age_screen": True})
@@ -1376,16 +1380,20 @@ def age_text_case(name, flags, must, must_not):
 
 AGE_ON = {**OFF, "age_screen": True}
 age_text_case("age screen on: the short-version bullet and the new Ads paragraph", AGE_ON,
-    ["<li>The first time you open the game, it asks for your date of birth. It keeps only whether you are under 16, "
-     "on your phone or tablet, and never sends it anywhere.</li>",
-     "The first time you open the game, it asks for your date of birth, once.",
+    ["<li>When you first open this version of the game, it asks for your date of birth. It keeps only whether you "
+     "are under 16, on your phone or tablet, and never sends it anywhere.</li>",
+     "When you first open this version of the game, it asks for your date of birth. It uses the date only",
      "The answer is never sent to us, to Google or to anyone else."],
-    ["The app does not ask your age."])
+    ["The app does not ask your age.", "date of birth, once", "The first time you open the game"])
 age_text_case("age screen off: today's page, word for word", OFF,
     ["The app does not ask your age. Instead, every ad request tells Google"], ["date of birth"])
 age_text_case("age screen + analytics on: under 16 sends nothing", {**ALL_ON, "analytics_switch": False, "unlock": False},
     ["If you are under 16, or the app does not know your age, it sends no usage statistics at all.",
-     "If you are 16 or over, the app sends anonymous usage numbers"], [])
+     "If you are 16 or over, the app sends anonymous usage numbers",
+     "The app does not ask whether it may send them."],
+    ["There is no question about this when you start the app."])
+age_text_case("analytics on, age screen off: the old sentence stays", {**ALL_ON, "analytics_switch": False, "unlock": False, "age_screen": False},
+    ["There is no question about this when you start the app."], ["The app does not ask whether it may send them."])
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")

@@ -57,6 +57,7 @@ import site_i18n  # noqa: E402
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FEATURES = ("analytics", "analytics_switch", "unlock", "age_screen")
 SWITCH_LABEL = "Share anonymous usage numbers"
+AGE_RECORD_KEY = r"""['"]age\.record['"]"""         # Story 6.17's kAgeRecordKey, the stored answer
 IP_LINE = "discarded on arrival, never stored"          # F4: the one wording
 
 
@@ -172,7 +173,7 @@ def languages_text(tags) -> str:
 
 # Story 6.17 (pm-release draft 2026-11-20, privacy-age-screen-draft-2026-11-20.md; Ra'uf approves the wording):
 # the app asks a date of birth once and keeps only whether the player is under 16. Off = today's page.
-AGE_BULLET = ("The first time you open the game, it asks for your date of birth. It keeps only whether you are "
+AGE_BULLET = ("When you first open this version of the game, it asks for your date of birth. It keeps only whether you are "
               "under 16, on your phone or tablet, and never sends it anywhere.")
 
 
@@ -181,8 +182,10 @@ def privacy_ads_age(f):
         return ("<p>\n    <strong>Every player is treated as possibly a child.</strong> The app does not ask\n"
                 "    your age. Instead, every ad request tells Google to treat the player as a child,\n"
                 "    and to show only ads suitable for all ages. That means:\n  </p>")
-    return ("<p>\n    <strong>Every player is treated as possibly a child.</strong> The first time you open the\n"
-            "    game, it asks for your date of birth, once. It uses the date only to work out whether you\n"
+    # review-share A2: existing installs are asked on their first launch after the update, and an unreadable
+    # record is asked again, so neither "the first time you open the game" nor "once" is true for everyone.
+    return ("<p>\n    <strong>Every player is treated as possibly a child.</strong> When you first open this\n"
+            "    version of the game, it asks for your date of birth. It uses the date only to work out whether you\n"
             "    are under 16 or 16 and over, keeps just that answer on your phone or tablet, and forgets\n"
             "    the date itself. The answer is never sent to us, to Google or to anyone else. Whatever you\n"
             "    answer, every ad request tells Google to treat the player as a child, and to show only ads\n"
@@ -236,6 +239,10 @@ def privacy_analytics(f):
     if f["age_screen"]:
         age = ("\n  <p>\n    If you are under 16, or the app does not know your age, it sends no usage statistics\n"
                "    at all. If you are 16 or over, it sends the anonymous usage numbers described here.\n  </p>")
+    # review-share A1 / pm-release: with the age question on, "no question when you start the app" would
+    # contradict it; the point it makes is that the app does not ask permission to send.
+    no_question = ("The app does not ask whether it may send them." if f["age_screen"] else
+                   "There is no question about this when\n    you start the app.")
     return f"""<h2>Anonymous usage statistics</h2>{age}
   <p>
     To understand which questions are too hard and where people give up, the app
@@ -248,8 +255,7 @@ def privacy_analytics(f):
     They go to PostHog, an analytics service, in its European Union region. They are
     anonymous: they carry no name, no email, no advertising ID, no location and no
     other personal data. Your IP address is {IP_LINE}, and every event also asks
-    PostHog not to work out a location from it. There is no question about this when
-    you start the app. The only link between one event and the next is a random
+    PostHog not to work out a location from it. {no_question} The only link between one event and the next is a random
     number the app makes up when it is first installed, which is not tied to you,
     your device's advertising ID or anything outside this app. We look at them only
     as totals, never at one player.
@@ -557,16 +563,27 @@ def game_features(game: pathlib.Path, ref: str = "origin/main") -> dict[str, boo
         raise SystemExit(f"git grep failed: {r.stderr.strip()}")
     # Story 6.17: the age screen is on main when the screen exists AND main.dart routes to it. One without the
     # other is a half-merged state the page cannot describe truthfully, so it fails rather than guesses.
+    # review-share A3: the stable marker is the key the answer is STORED under ('age.record', 6.17's
+    # kAgeRecordKey): renaming it would orphan every install's answer, so it outlives any file or route rename.
+    # All three signals agree -> on or off; any mix (a half merge, or a rename of the screen and its route)
+    # refuses to guess, so a rename can never read as "off".
     has_screen = game_show(game, ref, "app/lib/shell/age_screen.dart") is not None
     main_dart = game_show(game, ref, "app/lib/main.dart")
     if main_dart is None:
         raise SystemExit(f"{game}: cannot read app/lib/main.dart at {ref}")
     routed = bool(re.search(r"\bcase\s+AgeScreen\.routeName\s*:", main_dart))
-    if has_screen != routed:
-        raise SystemExit(f"{ref}: age_screen.dart {'exists' if has_screen else 'is missing'} but main.dart "
-                         f"{'routes' if routed else 'does not route'} to AgeScreen: cannot tell whether 6.17 is on")
+    k = subprocess.run(["git", "-C", str(game), "grep", "-l", "-E", AGE_RECORD_KEY, ref, "--", "app/lib", "packages"],
+                       capture_output=True, text=True)
+    if k.returncode not in (0, 1):
+        raise SystemExit(f"git grep failed: {k.stderr.strip()}")
+    stored = bool(k.stdout.strip())
+    signals = {"the stored age record ('age.record')": stored, "shell/age_screen.dart": has_screen,
+               "main.dart routing to AgeScreen": routed}
+    if len(set(signals.values())) != 1:
+        raise SystemExit(f"{ref}: 6.17's signals disagree ({', '.join(f'{n}: {v}' for n, v in signals.items())}): "
+                         "cannot tell whether the age screen is on")
     return {"analytics": posthog, "analytics_switch": bool(r.stdout.strip()), "unlock": m.group(1) == "true",
-            "age_screen": has_screen and routed}
+            "age_screen": stored}
 
 
 def game_facts(game: pathlib.Path, ref: str = "origin/main") -> dict:
