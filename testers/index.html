@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Become a tester — Sorting Geography</title>
+<meta name="description" content="How to join the Sorting Geography test on Google Play before the game is public, and what testers do.">
+<meta name="robots" content="noindex">
+<link rel="canonical" href="https://sortinggeography.com/testers/">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="bar">
+  <a class="wordmark" href="../">Sorting&nbsp;Geography</a>
+  <nav><a href="../support/">Support</a> <a href="../privacy/">Privacy</a></nav>
+</header>
+
+<!--
+  Story 20.3b: the page testers are sent to for the Google Play closed test.
+  noindex and not in the sitemap: it is for invited people, not for search.
+  The join steps and the day count come from src/testers.json through
+  scripts/build_features.py; while a link is null the step shows a todo span
+  and --game refuses the deploy. check_platform.py exempts this one page from
+  the "name both platforms" rule (it is a Google Play procedure) only while it
+  carries the sentence saying why.
+  Game facts this page states, as on game main: the Daily is hidden until the
+  gate opens (app/lib/shell/daily_gate_store.dart, 16.9), then shows as a tab
+  in the persistent bottom navigation (app/lib/shell/nav_shell.dart lines 1
+  and 102).
+-->
+
+<main class="prose">
+  <h1>Become a tester</h1>
+  <p class="lede">
+    Help us test Sorting Geography on Android before it goes public.
+  </p>
+
+  <h2>Why we need you</h2>
+  <!-- feature:testers-why --><p>
+    Before Sorting Geography goes public, we are testing it with real players. This test runs on
+    Google Play, so it is for Android only.
+  </p><!-- /feature:testers-why -->
+
+  <h2>What you need</h2>
+  <ul>
+    <li>an Android phone or tablet with Google Play;</li>
+    <li>a Google account, the same one your phone uses for Google Play.</li>
+  </ul>
+
+  <h2>How to join</h2>
+  <!-- feature:testers-join --><ol>
+    <li>Join the testers' group, signed in with your Google account:
+      <span class="todo">testers' group: link to come</span>.</li>
+    <li>On your phone or tablet, open the test link and tap "Become a tester":
+      <span class="todo">Google Play test: link to come</span>.</li>
+    <li>From that page, install Sorting Geography from Google Play. Updates arrive through
+      Google Play like any other app's.</li>
+  </ol><!-- /feature:testers-join -->
+
+  <h2>What testers do</h2>
+  <!-- feature:testers-do --><ul>
+    <li>Keep the game installed and stay in the test for at least 14 days in a row.</li>
+    <li>Play a few games every day.</li>
+    <li>After you have played for a while, a Daily appears at the bottom of the screen. From
+      then on, play it once a day too.</li>
+    <li>Tell us anything that seems wrong, however small.</li>
+  </ul><!-- /feature:testers-do -->
+
+  <h2>Tell us what you think</h2>
+  <p>
+    Anything confusing, broken, too easy or too hard: email
+    <a href="mailto:support@sortinggeography.com?subject=Tester">support@sortinggeography.com</a>.
+    A screenshot helps. So does your phone or tablet model.
+  </p>
+
+  <h2>Your details</h2>
+  <p>
+    When you join the testers' group, we can see the Google address you joined with.
+    We use it only to run this test. The game itself collects no more from testers than
+    from anyone else; the <a href="../privacy/">privacy page</a> says what that is.
+  </p>
+</main>
+
+<footer class="bar foot">
+  <span>Sorting Geography</span>
+  <nav><a href="../support/">Support</a> <a href="../privacy/">Privacy</a> <a href="../terms/">Terms</a> <a href="../press/">Press</a> <a href="../credits.html">Data sources</a></nav>
+</footer>
+</body>
+</html>
