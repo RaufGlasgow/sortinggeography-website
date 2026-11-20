@@ -70,7 +70,7 @@ def main(base: str) -> int:
 
     # 18.9b B5: the worker strips every HTML comment, so a live page never
     # carries the internal notes the source pages hold.
-    for path in ("/", "/privacy/", "/support/", "/terms/", "/press/"):
+    for path in ("/", "/privacy/", "/support/", "/terms/", "/press/", "/testers/"):
         try:
             status, _, body = get(base, path)
         except OSError as e:

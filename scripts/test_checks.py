@@ -45,6 +45,16 @@ def copy_site() -> pathlib.Path:
     return tmp
 
 
+def fill_tester_links(root: pathlib.Path) -> None:
+    """Both closed-test links set to valid values, pages rebuilt (as Ra'uf's fill will be)."""
+    p = root / "src/testers.json"
+    t = json.loads(p.read_text())
+    t["group_url"] = build_features.GROUP_PREFIX + "sorting-geography-testers"
+    t["optin_url"] = build_features.OPTIN_URL
+    p.write_text(json.dumps(t))
+    build_features.build(root)
+
+
 def edit(root: pathlib.Path, rel: str, old: str, new: str) -> None:
     p = root / rel
     text = p.read_text(encoding="utf-8")
@@ -341,9 +351,11 @@ store_case("sitemap drops the press page", True, lambda r: edit(
     r, "sitemap.xml", "  <url><loc>https://sortinggeography.com/press/</loc></url>\n", ""))
 
 
-def todo_case(name, mutate, expect_red):
+def todo_case(name, mutate, expect_red, links=True):
     root = copy_site()
     try:
+        if links:
+            fill_tester_links(root)
         mutate(root)
         red = bool(build_features.todos(root))
     finally:
@@ -386,7 +398,7 @@ todo_case("a class merely containing 'todo' (todo-list) is not a placeholder", l
 # against a fake game that matches the site, so the only possible red is the
 # placeholder. Deleting `+ todos()` from the --game list must turn the second
 # case green and fail this suite.
-def matching_game() -> pathlib.Path:
+def matching_game(package: str = build_features.PACKAGE) -> pathlib.Path:
     g = fake_game(False, False, False)
     (g / "app/assets/data").mkdir(parents=True)
     (g / "packages/sort_platform/lib/src/l10n").mkdir(parents=True)
@@ -399,14 +411,19 @@ def matching_game() -> pathlib.Path:
     (g / "packages/sort_platform/lib/src/l10n/shipped_locales.gen.dart").write_text(
         "const List<String> kShippedLocaleTags = <String>[\n"
         + "".join(f"  '{t}',\n" for t in facts["languages"]) + "];\n")
+    (g / "app/android/app").mkdir(parents=True)
+    (g / "app/android/app/build.gradle.kts").write_text(
+        f'android {{\n    defaultConfig {{\n        applicationId = "{package}"\n    }}\n}}\n')
     for cmd in (["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "facts"]):
         subprocess.run(["git", "-C", str(g), *cmd], check=True)
     return g
 
 
-def deploy_case(name, mutate, expect_red):
-    root, g = copy_site(), matching_game()
+def deploy_case(name, mutate, expect_red, package=build_features.PACKAGE, links=True):
+    root, g = copy_site(), matching_game(package)
     try:
+        if links:
+            fill_tester_links(root)
         mutate(root)
         r = subprocess.run([sys.executable, str(root / "scripts/build_features.py"),
                             "--game", str(g), "--ref", "main"], capture_output=True, text=True)
@@ -424,6 +441,9 @@ def deploy_case(name, mutate, expect_red):
 deploy_case("--game on today's site against a matching game", lambda r: None, False)
 deploy_case("--game with a placeholder open in terms", lambda r: edit(
     r, "terms/index.html", "Empty Cup Media LLC", TODO), True)
+# 20.3b: the tester page's links are todo spans until Ra'uf has them.
+deploy_case("--game with today's tester links still open", lambda r: None, True, links=False)
+deploy_case("--game when the game's applicationId differs", lambda r: None, True, package="com.example.other")
 
 
 def facts_case(name, game_over, expect_red):
@@ -574,6 +594,86 @@ pin_case("CI loose to a major (wrangler@4)", True, lambda r: edit(
 feature_case("src/facts.gen.js hand-edited", True, lambda r: (r / "src/facts.gen.js").write_text(
     (r / "src/facts.gen.js").read_text().replace('"axes": 190', '"axes": 200')))
 feature_case("src/facts.gen.js deleted", True, lambda r: (r / "src/facts.gen.js").unlink())
+
+# ---- 20.3b: the Google Play closed-test page ------------------------------------
+TP = "testers/index.html"
+WHY = "This test runs on Google Play, so it is for Android only."
+todo_case("tester links still open today: deploy refused", lambda r: None, True, links=False)
+platform_case("tester page names Android alone, with its reason", False)
+platform_case("the reason sentence removed from the tester page", True, lambda r: edit(
+    r, TP, "This test runs on", "This test is on"))
+platform_case("another page copies the reason sentence and names Android alone", True, lambda r: edit(
+    r, "support/index.html", "<h1>Support</h1>", "<h1>Support</h1><p>Install it from Google Play.</p><p>" + WHY + "</p>"))
+platform_case("Android alone on another page is still red", True, lambda r: edit(
+    r, "support/index.html", "<h1>Support</h1>", "<h1>Support</h1><p>Install it from Google Play.</p>"))
+platform_case("tester page still may not say iPhone", True, lambda r: edit(
+    r, TP, "<h1>Become a tester</h1>", "<h1>Become a tester</h1><p>Not on iPhone yet.</p>"))
+platform_case("tester page still may not name the App Store alone", True, lambda r: edit(
+    r, TP, "<h1>Become a tester</h1>", "<h1>Become a tester</h1><p>The App Store comes later.</p>"))
+feature_case("'14 days in a row' typed by hand on the tester page", True, lambda r: edit(
+    r, TP, "<h1>Become a tester</h1>", "<h1>Become a tester</h1><p>It lasts 14 days in a row.</p>"))
+feature_case("'12 testers' typed by hand (Google's count stays off the page)", True, lambda r: edit(
+    r, TP, "<h1>Become a tester</h1>", "<h1>Become a tester</h1><p>We need 12 testers.</p>"))
+feature_case("testers.json days changed, page not rebuilt", True, lambda r: (r / "src/testers.json").write_text(
+    (r / "src/testers.json").read_text().replace('"days": 14', '"days": 15')))
+feature_case("a tester region deleted", True, lambda r: edit(
+    r, TP, "<!-- feature:testers-join -->", "<!-- gone -->"))
+store_case("tester page deleted", True, lambda r: (r / TP).unlink())
+store_case("tester page loses noindex", True, lambda r: edit(r, TP, '<meta name="robots" content="noindex">\n', ""))
+store_case("tester page loses its contact", True, lambda r: edit(
+    r, TP, 'href="mailto:support@sortinggeography.com?subject=Tester"', 'href="mailto:x@example.com"'))
+store_case("tester page added to the sitemap", True, lambda r: edit(
+    r, "sitemap.xml", "</urlset>", "  <url><loc>https://sortinggeography.com/testers/</loc></url>\n</urlset>"))
+
+
+def testers_json_case(name, value, expect_red):
+    root = copy_site()
+    try:
+        p = root / "src/testers.json"
+        t = json.loads(p.read_text())
+        t.update(value)
+        p.write_text(json.dumps(t))
+        try:
+            build_features.load_testers(root)
+            red = False
+        except SystemExit:
+            red = True
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} testers  {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"testers: {name}")
+
+
+testers_json_case("both links null (today)", {}, False)
+testers_json_case("valid group and opt-in links", {"group_url": build_features.GROUP_PREFIX + "x",
+                                                   "optin_url": build_features.OPTIN_URL}, False)
+testers_json_case("group link on another site", {"group_url": "https://example.com/g/x"}, True)
+testers_json_case("group link with no group name", {"group_url": build_features.GROUP_PREFIX}, True)
+testers_json_case("opt-in link for another package", {"optin_url": "https://play.google.com/apps/testing/com.example"}, True)
+testers_json_case("opt-in link is the store page, not the test", {"optin_url": "https://play.google.com/store/apps/details?id=" + build_features.PACKAGE}, True)
+testers_json_case("days not a number", {"days": "14"}, True)
+testers_json_case("days is true (bool is an int in Python)", {"days": True}, True)
+testers_json_case("days zero", {"days": 0}, True)
+testers_json_case("group link with a quote that leaves the href", {"group_url": build_features.GROUP_PREFIX + 'x" onmouseover="alert(1)'}, True)
+testers_json_case("group link with an empty name and slash", {"group_url": build_features.GROUP_PREFIX + "/"}, True)
+testers_json_case("group link with a path after the name", {"group_url": build_features.GROUP_PREFIX + "x/y"}, True)
+testers_json_case("group name with dots, dashes, underscores", {"group_url": build_features.GROUP_PREFIX + "sorting-geo.testers_1"}, False)
+
+
+def built_link_case(name, url, must_not, expect_red=True):
+    """The link as BUILT into the page: escaped even if a future validator slipped."""
+    out = build_features._link_or_todo(url, "x")
+    red = must_not in out
+    ok = red == (not expect_red)
+    print(f"{'ok  ' if ok else 'FAIL'} link     {'raw  ' if red else 'safe '} {name}")
+    if not ok:
+        failures.append(f"link: {name}")
+
+
+built_link_case("a quote in a link is escaped when built", 'https://g/x" onmouseover="a', '" onmouseover="')
+built_link_case("an angle bracket in a link is escaped when built", "https://g/<script>", "<script>")
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")

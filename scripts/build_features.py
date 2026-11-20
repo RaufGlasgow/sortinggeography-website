@@ -44,6 +44,7 @@ this public repo's CI (the game repo is private), so it is a deploy step
 """
 from __future__ import annotations
 
+import html
 import json
 import pathlib
 import re
@@ -84,9 +85,39 @@ def load_facts(root: pathlib.Path = ROOT) -> dict:
     return facts
 
 
+# The Google Play closed test (Story 20.3b): src/testers.json holds the two
+# links Ra'uf gets when he makes the testers' group and the closed test, and
+# Google's own numbers. A null link renders as a todo span, so the page can be
+# built and reviewed now but --game refuses the deploy until both are real.
+PACKAGE = "com.emptycupmedia.sorting_geography"     # --game checks it against main
+GROUP_PREFIX = "https://groups.google.com/g/"
+# A group name is letters, digits, dot, dash, underscore; nothing that could
+# leave the href attribute (review-share T1).
+GROUP_URL = re.compile(r"https://groups\.google\.com/g/[A-Za-z0-9._-]+")
+OPTIN_URL = f"https://play.google.com/apps/testing/{PACKAGE}"
+
+
+def load_testers(root: pathlib.Path = ROOT) -> dict:
+    t = json.loads((root / "src" / "testers.json").read_text(encoding="utf-8"))
+    for k in ("group_url", "optin_url", "days"):
+        if k not in t:
+            raise SystemExit(f"src/testers.json: missing {k}")
+    # bool is an int in Python: refuse it explicitly (review-share T2).
+    if type(t["days"]) is not int or t["days"] < 1:
+        raise SystemExit("src/testers.json: days must be a whole number above 0")
+    g, o = t["group_url"], t["optin_url"]
+    if g is not None and not (isinstance(g, str) and GROUP_URL.fullmatch(g)):
+        raise SystemExit(f"src/testers.json: group_url must be null or {GROUP_PREFIX}<name> "
+                         "(letters, digits, '.', '-', '_')")
+    if o is not None and o != OPTIN_URL:
+        raise SystemExit(f"src/testers.json: optin_url must be null or exactly {OPTIN_URL}")
+    return t
+
+
 def context(root: pathlib.Path = ROOT, flags: dict | None = None) -> dict:
     ctx = dict(load_flags(root) if flags is None else flags)
     ctx.setdefault("facts", load_facts(root))
+    ctx.setdefault("testers", load_testers(root))
     return ctx
 
 
@@ -292,7 +323,49 @@ def terms_purchases(f):
   </p>"""
 
 
+def _link_or_todo(url: str | None, what: str) -> str:
+    if url is None:
+        return f'<span class="todo">{what}: link to come</span>'
+    u = html.escape(url, quote=True)
+    return f'<a href="{u}">{u}</a>'
+
+
+def testers_why(f):
+    # No tester count or "before it can go public" rule: whether Google's
+    # 12-tester rule applies depends on the account type (team-lead 2026-11-20).
+    return """<p>
+    Before Sorting Geography goes public, we are testing it with real players. This test runs on
+    Google Play, so it is for Android only.
+  </p>"""
+
+
+def testers_join(f):
+    t = f["testers"]
+    return f"""<ol>
+    <li>Join the testers' group, signed in with your Google account:
+      {_link_or_todo(t["group_url"], "testers' group")}.</li>
+    <li>On your phone or tablet, open the test link and tap "Become a tester":
+      {_link_or_todo(t["optin_url"], "Google Play test")}.</li>
+    <li>From that page, install Sorting Geography from Google Play. Updates arrive through
+      Google Play like any other app's.</li>
+  </ol>"""
+
+
+def testers_do(f):
+    t = f["testers"]
+    return f"""<ul>
+    <li>Keep the game installed and stay in the test for at least {t["days"]} days in a row.</li>
+    <li>Play a few games every day.</li>
+    <li>After you have played for a while, a Daily appears at the bottom of the screen. From
+      then on, play it once a day too.</li>
+    <li>Tell us anything that seems wrong, however small.</li>
+  </ul>"""
+
+
 FRAGMENTS = {
+    "testers-why": testers_why,
+    "testers-join": testers_join,
+    "testers-do": testers_do,
     "press-facts": press_facts,
     "press-description": press_description,
     "press-honesty": press_honesty,
@@ -320,6 +393,8 @@ CLAIMS = {
     # Counts come from src/facts.json, checked against the game by --game.
     # credits.html is exempt: scripts/build_credits.py generates it from the
     # dataset itself.
+    # Google's closed-test numbers come from src/testers.json.
+    "testers": [r"\b\d+\s+days in a row\b", r"\b\d+\s+testers\b"],
     "facts": [r"\b\d{2,3}\s+(?:questions|axes)\b", r"\b\d{3}\s+countries\b",
               r"\bdata(?:set)? version\s+v?\d+"],
 }
@@ -424,6 +499,19 @@ def game_facts(game: pathlib.Path, ref: str = "origin/main") -> dict:
             "pt_highest_point_m": int(pt) if isinstance(pt, (int, float)) and pt == int(pt) else pt}
 
 
+def compare_package(game: pathlib.Path, ref: str = "origin/main") -> list[str]:
+    """The tester page's Play link names PACKAGE; it must be the game's applicationId."""
+    gradle = game_show(game, ref, "app/android/app/build.gradle.kts")
+    if gradle is None:
+        return [f"{game}: cannot read app/android/app/build.gradle.kts at {ref}"]
+    m = re.search(r'\bapplicationId\s*=\s*"([^"]+)"', gradle)
+    if not m:
+        return ["build.gradle.kts: no applicationId line"]
+    if m.group(1) != PACKAGE:
+        return [f"the tester page's Play package is {PACKAGE}, but the game's main has {m.group(1)}"]
+    return []
+
+
 def compare_facts(facts: dict, real: dict) -> list[str]:
     return [f"src/facts.json {k} = {facts[k]!r}, but the game's main has {real[k]!r}"
             for k in FACT_KEYS if facts[k] != real[k]]
@@ -506,7 +594,7 @@ if __name__ == "__main__":
         ref = args[args.index("--ref") + 1] if "--ref" in args else "origin/main"
         real = game_features(game, ref)
         problems = (compare(load_flags(), real) + compare_facts(load_facts(), game_facts(game, ref))
-                    + check() + todos())
+                    + compare_package(game, ref) + check() + todos())
         if problems:
             print(f"feature check FAILED against {ref}:")
             for b in problems:
