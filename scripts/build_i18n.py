@@ -248,7 +248,22 @@ def game_state(game: pathlib.Path, ref: str) -> dict:
         if text is not None:
             arbs[lg] = text
     shipped = [lg for lg in site_i18n.GAME_LOCALES if locales.get(lg, {}).get("status") == "shipped"]
-    return {"en": en, "arbs": arbs, "shipped": shipped}
+    # 18.4a review M2: only a site file the game's CI gate passed may be read: its sha256 must be in
+    # pipeline/translation/site/gates.json (python -m translation site-gates).
+    rec_text = game_show(game, ref, f"{GAME_SITE}/gates.json")
+    if rec_text is None:
+        raise GameError(f"{game}: no {GAME_SITE}/gates.json at {ref} (the site gate record, Story 18.4a)")
+    record = json.loads(rec_text)
+    return {"en": en, "arbs": arbs, "shipped": shipped, "record": record}
+
+
+def passed(state: dict, lang: str) -> bool:
+    import hashlib
+    text = state["arbs"].get(lang)
+    if text is None:
+        return False
+    sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return state["record"].get(lang, {}).get("sha256") == sha
 
 
 def _complete(text: str, en_keys: set[str]) -> bool:
@@ -258,7 +273,8 @@ def _complete(text: str, en_keys: set[str]) -> bool:
 
 def plan(state: dict, root: pathlib.Path = ROOT) -> tuple[list[str], list[str]]:
     en_keys = set(site_i18n.strings("en", root))
-    published = [lg for lg in site_i18n.GAME_LOCALES if lg in state["arbs"] and _complete(state["arbs"][lg], en_keys)]
+    published = [lg for lg in site_i18n.GAME_LOCALES
+                 if lg in state["arbs"] and _complete(state["arbs"][lg], en_keys) and passed(state, lg)]
     served = [lg for lg in published if lg in state["shipped"]]
     return published, served
 
@@ -301,6 +317,10 @@ def check_game(game: pathlib.Path, ref: str, root: pathlib.Path = ROOT) -> list[
         p = site_i18n.arb_path(lg, root)
         if not p.exists() or p.read_text(encoding="utf-8") != state["arbs"][lg]:
             bad.append(f"{p.relative_to(root)} differs from the game's {GAME_SITE}/{site_i18n.arb_name(lg)}")
+    for lg in state["arbs"]:
+        if not passed(state, lg):
+            bad.append(f"the game's {GAME_SITE}/{site_i18n.arb_name(lg)} has no passing record in gates.json "
+                       "(run `python -m translation site-gates` on the game side); the website will not read it")
     for lg in state["shipped"]:
         if lg not in published:
             bad.append(f"the game ships {lg} but has no complete site strings for it: /{site_i18n.folder(lg)} cannot be built")
