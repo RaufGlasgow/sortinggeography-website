@@ -1,5 +1,6 @@
 {
   "analytics": false,
   "analytics_switch": false,
-  "unlock": false
+  "unlock": false,
+  "age_screen": false
 }
