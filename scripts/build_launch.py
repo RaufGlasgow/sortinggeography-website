@@ -125,7 +125,8 @@ def regions(ms: int, stores=STORES) -> dict[str, str]:
         "hero-countdown": (
             '<div class="launch">'
             '<div class="only-pre">'
-            f'<p class="launch-date">Sorting Geography launches on {date_text(ms)}.</p>'
+            # Platforms first, as the When? line (Ra'uf 2026-11-20).
+            f'<p class="launch-date">The same game for {PLATFORMS_SHORT}. It launches on {date_text(ms)}.</p>'
             f'<p class="launch-time">{time_line(ms)}</p>'
             # The timer is decoration: hidden until countdown.js runs, and
             # hidden from screen readers, which read the sentence above.
@@ -141,8 +142,9 @@ def regions(ms: int, stores=STORES) -> dict[str, str]:
             f'<span class="only-post">Out now{on}, since {date_text(ms)}</span>'),
         "when": (
             '<h2 class="only-pre">When?</h2><h2 class="only-post">Get the game</h2>'
-            f'<p class="only-pre">Sorting Geography launches on {date_text(ms)}. '
-            f'The same game for {PLATFORMS_SHORT}, on phones and tablets.</p>'
+            # Ra'uf's pick 2026-11-20, "Platforms first", word for word.
+            f'<p class="only-pre">The same game for {PLATFORMS_SHORT}, on phones and tablets. '
+            f'It launches on {date_text(ms)}.</p>'
             f'<p class="only-post">Out now{on}, on phones and tablets.</p>'),
     }
 

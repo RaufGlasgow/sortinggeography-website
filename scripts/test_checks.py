@@ -714,6 +714,16 @@ def built_link_case(name, url, must_not, expect_red=True):
 built_link_case("a quote in a link is escaped when built", 'https://g/x" onmouseover="a', '" onmouseover="')
 built_link_case("an angle bracket in a link is escaped when built", "https://g/<script>", "<script>")
 
+
+# Ra'uf's pick 2026-11-20 ("Platforms first"), word for word in the When? line.
+RAUF_WHEN = "The same game for Android and iOS, on phones and tablets. It launches on 10 December 2026."
+when_text = build_launch.regions(RELEASE)["when"]
+ok = RAUF_WHEN in when_text and build_launch.regions(RELEASE)["hero-countdown"].find(
+    "The same game for Android and iOS. It launches on 10 December 2026.") != -1
+print(f"{'ok  ' if ok else 'FAIL'} launch   {'green' if ok else 'red  '} Ra'uf's platforms-first wording, word for word")
+if not ok:
+    failures.append("launch: Ra'uf's platforms-first wording")
+
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
     for f in failures:
