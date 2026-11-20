@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 
 import worker from '../src/worker.js';
-import { SECURITY_HEADERS, CSP_REPORT_ONLY, CSP_REPORT_LOG_CHARS } from '../src/security.js';
+import { SECURITY_HEADERS, CSP_REPORT_ONLY, CSP_REPORT_LOG_CHARS, REPORT_MAX_BYTES, stripQueries } from '../src/security.js';
 
 const SITE = new URL('../', import.meta.url);
 const ORIGIN = 'https://sortinggeography.com';
@@ -139,7 +139,7 @@ test('a CSP report is logged (at most 2000 characters), stored nowhere, answered
   const real = console.log;
   console.log = (...a) => logs.push(a.join(' '));
   try {
-    const res = await worker.fetch(new Request(`${ORIGIN}/api/csp-report`, { method: 'POST', body: 'x'.repeat(5000),
+    const res = await worker.fetch(new Request(`${ORIGIN}/api/csp-report`, { method: 'POST', body: 'x'.repeat(5000).slice(0, REPORT_MAX_BYTES - 10),
       headers: { 'Content-Type': 'application/csp-report' } }), e, ctx());
     assert.equal(res.status, 204);
   } finally { console.log = real; }
@@ -153,4 +153,63 @@ test('a CSP report over 8 KB is refused unread; GET is 405', async () => {
     headers: { 'Content-Length': '9000' } }), env(), ctx());
   assert.equal(big.status, 413);
   assert.equal((await worker.fetch(new Request(`${ORIGIN}/api/csp-report`), env(), ctx())).status, 405);
+});
+
+// ---- review H1 / H2 ---------------------------------------------------------------
+function logged(fn) {
+  const logs = [];
+  const real = console.log;
+  console.log = (...a) => logs.push(a.join(' '));
+  return fn().finally(() => { console.log = real; }).then((r) => [r, logs]);
+}
+
+test('a report over 8 KB with NO Content-Length (streamed) is refused, and nothing is logged (H1)', async () => {
+  const big = new ReadableStream({
+    start(c) { for (let i = 0; i < 64; i += 1) c.enqueue(new TextEncoder().encode('x'.repeat(16384))); c.close(); },
+  });
+  const [res, logs] = await logged(() => worker.fetch(new Request(`${ORIGIN}/api/csp-report`,
+    { method: 'POST', body: big, duplex: 'half' }), env(), ctx()));
+  assert.equal(res.headers.get('Content-Length'), null);
+  assert.equal(res.status, 413);
+  assert.equal(logs.length, 0);
+});
+
+test('a report exactly at the limit is accepted', async () => {
+  const [res] = await logged(() => worker.fetch(new Request(`${ORIGIN}/api/csp-report`,
+    { method: 'POST', body: 'x'.repeat(REPORT_MAX_BYTES) }), env(), ctx()));
+  assert.equal(res.status, 204);
+});
+
+test('a report from the unsubscribe page never logs the address or the token (H2)', async () => {
+  const report = JSON.stringify({ 'csp-report': {
+    'document-uri': `${ORIGIN}/api/unsubscribe?email=a%40example.com&t=SECRETTOKEN#frag`,
+    referrer: `${ORIGIN}/api/unsubscribe?email=b%40example.com&t=TOKEN2`,
+    'blocked-uri': 'https://evil.example/x.js?email=c@example.com',
+    'source-file': 'chrome-extension://abc/inject.js?q=1',
+  } });
+  const [res, logs] = await logged(() => worker.fetch(new Request(`${ORIGIN}/api/csp-report`,
+    { method: 'POST', body: report, headers: { 'Content-Type': 'application/csp-report' } }), env(), ctx()));
+  assert.equal(res.status, 204);
+  assert.equal(logs.length, 1);
+  for (const leak of ['email', 'example.com&', '%40', 'SECRETTOKEN', 'TOKEN2', '@example.com', 'frag', '?q=1']) {
+    assert.equal(logs[0].includes(leak), false, `logged "${leak}": ${logs[0]}`);
+  }
+  assert.ok(logs[0].includes(`${ORIGIN}/api/unsubscribe`), 'the path is kept');
+});
+
+test('stripQueries keeps scheme, host and path of every URL, in any report format', () => {
+  assert.equal(stripQueries('"documentURL":"https://sortinggeography.com/api/unsubscribe?email=x&t=y"'),
+    '"documentURL":"https://sortinggeography.com/api/unsubscribe"');
+  assert.equal(stripQueries('a http://h/p#x b https://h2/?q c'), 'a http://h/p b https://h2/ c');
+});
+
+test('stripping stays fast on a worst-case body (no regex blow-up)', () => {
+  // 32 KB: big enough that a quadratic regex takes seconds, small enough that it
+  // still finishes and FAILS here instead of hanging the run.
+  for (const body of ['a'.repeat(REPORT_MAX_BYTES), 'a'.repeat(32768)]) {
+    const t0 = performance.now();
+    stripQueries(body);
+    const ms = performance.now() - t0;
+    assert.ok(ms < 200, `${body.length} letters took ${ms.toFixed(1)} ms`);
+  }
 });

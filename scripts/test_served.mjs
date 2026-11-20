@@ -167,3 +167,11 @@ test('the real worker sends every security header on pages, files, APIs and redi
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) assert.equal(res.headers.get(k), v, `${path}: ${k}`);
   }
 });
+
+// 18.10 review H1 in the real runtime: a streamed report with no length is refused.
+test('the real worker refuses a 1 MB CSP report sent with no Content-Length', async () => {
+  const big = new ReadableStream({ start(c) { for (let i = 0; i < 64; i += 1) c.enqueue(new TextEncoder().encode('x'.repeat(16384))); c.close(); } });
+  const res = await fetch(base + '/api/csp-report', { method: 'POST', body: big, duplex: 'half', signal: AbortSignal.timeout(15000) });
+  await res.arrayBuffer();
+  assert.equal(res.status, 413);
+});

@@ -47,14 +47,51 @@ export function withSecurityHeaders(response) {
 }
 
 // Browsers report CSP violations here. Logged (Cloudflare's worker logs, at
-// most 2000 characters), stored nowhere, answered 204. A body over 8 KB is
-// refused unread.
+// most 2000 characters), stored nowhere, answered 204.
+//  - The body is read from the stream up to REPORT_MAX_BYTES and refused (413)
+//    past it, whatever Content-Length says or omits (review H1: a chunked POST
+//    had no length and was read whole).
+//  - Every URL in it loses its query string and fragment before logging
+//    (review H2): a report from the unsubscribe page carries ?email=…&t=…,
+//    which must never reach a log, even if Workers Logs is turned on later.
 export const CSP_REPORT_LOG_CHARS = 2000;
+export const REPORT_MAX_BYTES = 8192;
+
+async function readCapped(request, max) {
+  if (!request.body) return '';
+  const reader = request.body.getReader();
+  const chunks = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(size);
+  let at = 0;
+  for (const c of chunks) { all.set(c, at); at += c.byteLength; }
+  return new TextDecoder().decode(all);
+}
+
+// Any URL keeps its scheme, host and path only. The scheme is bounded (at
+// most 32 characters) so the scan stays linear: an unbounded one is retried
+// from every position of a long run of letters, which grows with the square
+// of the body and could exhaust the worker's CPU on one report.
+export function stripQueries(text) {
+  return text.replace(/([a-z][a-z0-9+.-]{0,31}:\/\/[^\s"'?#]*)[?#][^\s"']*/gi, '$1');
+}
 
 export async function handleCspReport(request) {
-  const length = Number(request.headers.get('Content-Length') || 0);
-  if (length > 8192) return new Response(null, { status: 413 });
-  const body = (await request.text()).slice(0, CSP_REPORT_LOG_CHARS);
-  console.log('csp-report', body);
+  if (Number(request.headers.get('Content-Length') || 0) > REPORT_MAX_BYTES) {
+    return new Response(null, { status: 413 });
+  }
+  const body = await readCapped(request, REPORT_MAX_BYTES);
+  if (body === null) return new Response(null, { status: 413 });
+  console.log('csp-report', stripQueries(body).slice(0, CSP_REPORT_LOG_CHARS));
   return new Response(null, { status: 204 });
 }
