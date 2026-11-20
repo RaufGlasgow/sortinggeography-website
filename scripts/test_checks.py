@@ -999,8 +999,7 @@ def de_page_right(root):
     assert '<html lang="de">' in pr and '<div lang="en">' in pr, "the English policy, marked English"
     assert "DE· This privacy policy is in English" in pr, "the one-line note in the page's language"
     assert "<h1>Privacy</h1>" in pr and 'href="../support/"' in pr, "the English text, links kept in the language"
-    for page in ("index.html", "support/index.html", "de/support/index.html", "de/privacy/index.html"):
-        assert "href=\"https://sortinggeography.com/de/" in (root / page).read_text() or page == "index.html" or "hreflang" in (root / page).read_text()
+    # hreflang across pages: build_seo's reciprocity gate (review-share L1), which runs in every case above
 
 
 i18n_case("today: English only, nothing published", lambda r: None, False)
@@ -1265,6 +1264,66 @@ def ld_on_german_home():
 
 
 ld_on_german_home()
+
+
+# ---- review-share L1 / L2 (website 18.4 at faf73ab) -------------------------------------
+def l_case(name, setup, expect_red, inspect=None):
+    root = copy_site()
+    try:
+        bad = []
+        try:
+            setup(root)
+            bad = build_seo.check(root) + build_i18n.gates(root)
+            if inspect and not bad:
+                inspect(root)
+        except SystemExit as e:
+            bad = [str(e)]
+        red = bool(bad)
+    except AssertionError as e:
+        red, bad = None, [f"inspection failed: {e}"]
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} L        {'red  ' if red else 'green'} {name}" + ("" if ok else f"  <- {bad[:2]}"))
+    if not ok:
+        failures.append(f"L: {name}")
+
+
+def privacy_copy_right(r):
+    pr = (r / "de/privacy/index.html").read_text()
+    assert '<link rel="canonical" href="https://sortinggeography.com/privacy/">' in pr, "canonical to the English policy"
+    assert "hreflang" not in pr, "the English policy copy is nobody's alternate"
+    assert "hreflang" not in (r / "privacy/index.html").read_text()
+
+
+SITEMAP_DE = [
+    "https://sortinggeography.com/", "https://sortinggeography.com/support/", "https://sortinggeography.com/privacy/",
+    "https://sortinggeography.com/terms/", "https://sortinggeography.com/press/", "https://sortinggeography.com/credits.html",
+    "https://sortinggeography.com/de/", "https://sortinggeography.com/de/support/",
+]
+
+
+def sitemap_exact(r):
+    got = re.findall(r"<loc>([^<]+)</loc>", (r / "sitemap.xml").read_text())
+    assert sorted(got) == sorted(SITEMAP_DE), got
+
+
+l_case("L1: German served: /de/privacy/ canonicals to /privacy/, no hreflang either side", lambda r: publish(r), False, privacy_copy_right)
+l_case("L1: an hreflang set changed on one page only (not reciprocal)", lambda r: (publish(r), edit(r, "de/support/index.html",
+    '<link rel="alternate" hreflang="x-default" href="https://sortinggeography.com/support/">\n', "")), True)
+l_case("L1: a one-sided hreflang added to /privacy/", lambda r: (publish(r), edit(r, "privacy/index.html", "</head>",
+    '<link rel="alternate" hreflang="de" href="https://sortinggeography.com/de/privacy/">\n</head>')), True)
+l_case("L1: /privacy/ given a complete-looking set, but /de/privacy/ does not link back (only reciprocity can see it)",
+       lambda r: (publish(r), edit(r, "privacy/index.html", "</head>",
+    '<link rel="alternate" hreflang="en" href="https://sortinggeography.com/privacy/">\n'
+    '<link rel="alternate" hreflang="de" href="https://sortinggeography.com/de/privacy/">\n'
+    '<link rel="alternate" hreflang="x-default" href="https://sortinggeography.com/privacy/">\n</head>')), True)
+l_case("L1: hreflang to a page that does not exist here", lambda r: (publish(r), edit(r, "index.html",
+    '<link rel="alternate" hreflang="de" href="https://sortinggeography.com/de/">',
+    '<link rel="alternate" hreflang="de" href="https://sortinggeography.com/de/nope/">')), True)
+l_case("L2: the sitemap lists exactly the served pages, /de/support/ included", lambda r: publish(r), False, sitemap_exact)
+l_case("L2: /de/support/ dropped from the sitemap", lambda r: (publish(r), edit(r, "sitemap.xml",
+    "  <url><loc>https://sortinggeography.com/de/support/</loc></url>\n", "")), True)
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")

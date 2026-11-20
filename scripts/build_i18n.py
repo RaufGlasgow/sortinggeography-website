@@ -97,8 +97,13 @@ def page_url(lang: str, page: str) -> str:
     return SITE + site_i18n.folder(lang) + PAGES[page][1]
 
 
+# review-share L1: a language's privacy page is the English policy under a translated note, so it is not a
+# German (or any) alternate of /privacy/: no hreflang on it, and build_seo canonicals it to /privacy/.
+NOT_ALTERNATES = ("privacy",)
+
+
 def alternates(page: str, langs: list[str]) -> str:
-    if not langs:
+    if not langs or page in NOT_ALTERNATES:
         return ""
     links = [f'<link rel="alternate" hreflang="{lg}" href="{page_url(lg, page)}">' for lg in ["en", *langs]]
     links.append(f'<link rel="alternate" hreflang="x-default" href="{page_url("en", page)}">')
@@ -219,8 +224,12 @@ def sitemap_text(root: pathlib.Path = ROOT) -> str:
     """The sitemap with exactly one <url> per published language page (crawlable, 18.4)."""
     f = root / "sitemap.xml"
     t = f.read_text(encoding="utf-8")
-    t = re.sub(r"  <url><loc>" + re.escape(SITE) + r"[a-z]{2,3}(?:-[a-z0-9]{2,4})?/</loc></url>\n", "", t)
-    add = "".join(f"  <url><loc>{SITE}{site_i18n.folder(lg)}</loc></url>\n" for lg in site_i18n.served(root))
+    folders = "|".join(re.escape(site_i18n.folder(lg)) for lg in site_i18n.GAME_LOCALES)   # only language folders
+    t = re.sub(r"  <url><loc>" + re.escape(SITE) + f"(?:{folders})" + r"[a-z/]*</loc></url>\n", "", t)
+    # review-share L2: every served language page that is its own page (not the privacy copy, which canonicals to
+    # /privacy/): /de/, /de/support/ ...
+    add = "".join(f"  <url><loc>{page_url(lg, pg)}</loc></url>\n" for lg in site_i18n.served(root)
+                  for pg in pages_for(lg) if pg not in NOT_ALTERNATES)
     return t.replace("</urlset>", add + "</urlset>", 1)
 
 

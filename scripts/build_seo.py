@@ -38,6 +38,16 @@ def pages(root: pathlib.Path = ROOT) -> list[pathlib.Path]:
     return sorted(p for p in root.rglob("*.html") if not (set(p.relative_to(root).parts) & IGNORED))
 
 
+# review-share L1: a language's copy of the English privacy policy is not its own page: its canonical (and
+# og:url) is the English /privacy/.
+ENGLISH_COPIES = re.compile(r"[a-z]{2,3}(?:-[a-z0-9]{2,4})?/(privacy/index\.html)")
+
+
+def canonical_of(rel: str) -> str:
+    m = ENGLISH_COPIES.fullmatch(rel)
+    return url_of(m.group(1)) if m else url_of(rel)
+
+
 def url_of(rel: str) -> str:
     if rel == "index.html":
         return SITE + "/"
@@ -65,7 +75,7 @@ def lang_of(text: str) -> str:
 
 def region(rel: str, text: str) -> str:
     e = lambda s: html.escape(s, quote=True)
-    url = url_of(rel)
+    url = canonical_of(rel)
     title, desc = title_of(text) or "", description_of(text) or ""
     out = [f'<link rel="canonical" href="{url}">',
            '<meta property="og:type" content="website">',
@@ -115,6 +125,24 @@ def check(root: pathlib.Path = ROOT) -> list[str]:
                 bad.append(f"{rel}: hreflang links without x-default")
             if url_of(rel) not in {u for _, u in hl}:
                 bad.append(f"{rel}: hreflang links that do not include the page itself")
+    return bad + reciprocity(root)
+
+
+def reciprocity(root: pathlib.Path = ROOT) -> list[str]:
+    """review-share L1: hreflang sets must be complete and reciprocal ACROSS pages. Every page an alternate link
+    names must exist here and carry exactly the same set back; a page with none must not be named by any."""
+    by_url = {}
+    for p in pages(root):
+        rel = str(p.relative_to(root))
+        text = p.read_text(encoding="utf-8")
+        by_url[url_of(rel)] = (rel, frozenset(re.findall(r'<link rel="alternate" hreflang="([^"]+)" href="([^"]+)">', text)))
+    bad = []
+    for url, (rel, alts) in sorted(by_url.items()):
+        for _lang, href in sorted(alts):
+            if href not in by_url:
+                bad.append(f"{rel}: hreflang names {href}, which is not a page here")
+            elif by_url[href][1] != alts:
+                bad.append(f"{rel}: hreflang set differs on {by_url[href][0]} (not reciprocal)")
     return bad
 
 
