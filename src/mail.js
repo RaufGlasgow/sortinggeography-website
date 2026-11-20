@@ -105,6 +105,22 @@ export async function sendWelcomeEmail(email, lang, env) {
 // cap subrequests per request), so call it again until remaining is 0.
 export const BACKLOG_BATCH = 40;
 
+// A pause between backlog sends (team-lead 2026-11-20, from review-share's
+// note: Resend also limits requests per second, about 2 [prior knowledge, not
+// re-checked]). Without it a burst can draw a per-second 429, which reads as
+// "capped" and ends the call early (nothing lost, just slower). BACKLOG_PAUSE_MS
+// overrides it (tests use 0); missing or not a whole number >= 0 means the
+// default. 40 sends x 0.6 s is about 24 s per call.
+export const DEFAULT_BACKLOG_PAUSE_MS = 600;
+
+export function backlogPause(env) {
+  const raw = env.BACKLOG_PAUSE_MS;
+  const n = Number(raw);
+  return raw != null && raw !== '' && Number.isInteger(n) && n >= 0 ? n : DEFAULT_BACKLOG_PAUSE_MS;
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function handleWelcomeBacklog(request, env) {
   const form = await request.formData().catch(() => null);
   const key = form?.get('key');
@@ -143,7 +159,10 @@ export async function handleWelcomeBacklog(request, env) {
   let sent = 0;
   let failed = 0;
   let capped = false;
-  for (const record of waiting.slice(0, Math.min(BACKLOG_BATCH, room))) {
+  const pause = backlogPause(env);
+  const batch = waiting.slice(0, Math.min(BACKLOG_BATCH, room));
+  for (const [i, record] of batch.entries()) {
+    if (i > 0 && pause > 0) await sleep(pause); // between sends, never before the first
     const result = await sendWelcomeEmail(record.email, record.lang || 'en', env);
     if (result === 'sent') sent += 1;
     else if (result === 'capped') { capped = true; break; } // today is done; carry on tomorrow
