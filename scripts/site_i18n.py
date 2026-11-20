@@ -24,8 +24,14 @@ I18N = "src/i18n"
 LANGS_FILE = "src/site_languages.json"
 
 
+def arb_name(lang: str) -> str:
+    """site_pt_PT.arb: the app's underscore form, the same rule as the game's config.site_arb_path
+    (team-lead + pm-release 2026-11-20)."""
+    return f"site_{lang.replace('-', '_')}.arb"
+
+
 def arb_path(lang: str, root: pathlib.Path = ROOT) -> pathlib.Path:
-    return root / I18N / f"site_{lang.replace('-', '_')}.arb"
+    return root / I18N / arb_name(lang)
 
 
 @functools.lru_cache(maxsize=None)
@@ -49,13 +55,33 @@ def strings(lang: str, root: pathlib.Path = ROOT) -> dict[str, str]:
     return got
 
 
-def published(root: pathlib.Path = ROOT) -> list[str]:
+# The game's locales (pipeline/translation/config.py DEFAULT_LOCALES). Only these
+# may have site pages, and only their folders are managed in .assetsignore.
+GAME_LOCALES = ("de", "pt-PT", "nl", "es-419", "fr", "ja", "it", "ru")
+
+
+def _langs(root: pathlib.Path, field: str) -> list[str]:
     f = root / LANGS_FILE
-    langs = json.loads(f.read_text(encoding="utf-8")).get("published", []) if f.exists() else []
+    langs = json.loads(f.read_text(encoding="utf-8")).get(field, []) if f.exists() else []
     for lang in langs:
-        if not re.fullmatch(r"[a-z]{2,3}(?:-[A-Za-z0-9]{2,4})?", lang) or lang == "en":
-            raise SystemExit(f"{LANGS_FILE}: bad language tag {lang!r}")
+        if lang not in GAME_LOCALES:
+            raise SystemExit(f"{LANGS_FILE}: {field} has {lang!r}, not one of the game's locales {GAME_LOCALES}")
     return langs
+
+
+def published(root: pathlib.Path = ROOT) -> list[str]:
+    """Languages whose pages are BUILT: their verified site_<x>.arb was pulled from game main."""
+    return _langs(root, "published")
+
+
+def served(root: pathlib.Path = ROOT) -> list[str]:
+    """Languages whose pages are SERVED: the game's locales.json says "shipped" (pulled by build_i18n.py --pull,
+    checked by --game). Every other built language page stays in .assetsignore, a 404, until then."""
+    s = _langs(root, "served")
+    not_built = sorted(set(s) - set(published(root)))
+    if not_built:
+        raise SystemExit(f"{LANGS_FILE}: served {not_built} but not published (no pages built)")
+    return s
 
 
 def folder(lang: str) -> str:

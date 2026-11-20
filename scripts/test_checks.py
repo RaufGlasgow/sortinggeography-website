@@ -924,6 +924,7 @@ def publish(root, lang="de", change=None):
     site_i18n.arb_path(lang, root).write_text(json.dumps(arb, ensure_ascii=False))
     langs = json.loads((root / "src/site_languages.json").read_text())
     langs["published"] = sorted(set(langs["published"]) | {lang})
+    langs["served"] = sorted(set(langs.get("served", [])) | {lang})   # as if the game shipped it
     (root / "src/site_languages.json").write_text(json.dumps(langs))
     build_i18n.build(root)
 
@@ -1027,6 +1028,133 @@ def bad_tag(r):
 
 i18n_unit("gates() alone refuses a language page that is not published", stray_fr)
 i18n_unit("published() alone refuses a bad language tag", bad_tag)
+
+
+# ---- 18.4 pull-and-hold (pm-release 2026-11-20): a page is SERVED only once the game ships its language
+def fake_site_game(root, de_status="in_progress", de_arb=True, en_override=None, drop_key=None):
+    g = pathlib.Path(tempfile.mkdtemp(prefix="sg-game-"))
+    site = g / "pipeline/translation/site"
+    site.mkdir(parents=True)
+    en_text = (root / "src/i18n/site_en.arb").read_text()
+    (site / "site_en.arb").write_text(en_override if en_override is not None else en_text)
+    if de_arb:
+        en = json.loads(en_text)
+        de = {"@@locale": "de", **{k: f"DE· {v}" for k, v in en.items() if not k.startswith("@")}}
+        if drop_key:
+            de.pop(drop_key)
+        (site / "site_de.arb").write_text(json.dumps(de, ensure_ascii=False))
+    (g / "pipeline/translation/locales.json").write_text(json.dumps({"de": {"status": de_status}, "fr": {"status": "in_progress"}}))
+    for cmd in (["init", "-q", "-b", "main"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
+        subprocess.run(["git", "-C", str(g), *cmd], check=True)
+    return g
+
+
+def regame(g, **change):
+    """A new commit on the fake game's main (e.g. de flipped back to in_progress)."""
+    lp = g / "pipeline/translation/locales.json"
+    data = json.loads(lp.read_text())
+    data.update(change)
+    lp.write_text(json.dumps(data))
+    subprocess.run(["git", "-C", str(g), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "flip"], check=True)
+
+
+def hold_case(name, game_kw, steps, expect_red, inspect=None):
+    root = copy_site()
+    g = fake_site_game(root, **game_kw)
+    try:
+        bad = []
+        try:
+            for step in steps:
+                step(g, root)
+            bad = build_i18n.check_game(g, "main", root) + build_launch.check(root, now_ms=EARLY)
+            if inspect and not bad:
+                inspect(g, root)
+        except SystemExit as e:
+            bad = [str(e)]
+        except build_i18n.GameError as e:
+            bad = [str(e)]
+        red = bool(bad)
+    except AssertionError as e:
+        red, bad = None, [f"inspection failed: {e}"]
+    finally:
+        shutil.rmtree(g)
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} hold     {'red  ' if red else 'green'} {name}" + ("" if ok else f"  <- {bad[:2]}"))
+    if not ok:
+        failures.append(f"hold: {name}")
+
+
+PULL = lambda g, r: build_i18n.pull(g, "main", r)
+
+
+def held_de(g, r):
+    assert "de" in (r / ".assetsignore").read_text().split(), "/de/ must be in .assetsignore"
+    assert (r / "de/index.html").exists(), "built"
+    assert "hreflang=\"de\"" not in (r / "index.html").read_text(), "no hreflang to a held page"
+    assert "/de/</loc>" not in (r / "sitemap.xml").read_text(), "a held page is not in the sitemap"
+
+
+def served_de(g, r):
+    assert "de" not in (r / ".assetsignore").read_text().split(), "/de/ served"
+    assert "hreflang=\"de\"" in (r / "index.html").read_text()
+    assert "/de/</loc>" in (r / "sitemap.xml").read_text()
+
+
+hold_case("German translated, not shipped: built and HELD", {}, [PULL], False, held_de)
+hold_case("German shipped: built and SERVED", {"de_status": "shipped"}, [PULL], False, served_de)
+hold_case("MUTATION: German flipped back to in_progress after a served pull: --game red",
+          {"de_status": "shipped"}, [PULL, lambda g, r: regame(g, de={"status": "in_progress"})], True)
+hold_case("...and the next pull drops /de/ out of the served set",
+          {"de_status": "shipped"}, [PULL, lambda g, r: regame(g, de={"status": "in_progress"}), PULL], False, held_de)
+hold_case("served set hand-edited to include a held German", {}, [PULL, lambda g, r: (
+    (r / "src/site_languages.json").write_text(json.dumps({"published": ["de"], "served": ["de"]})),
+    build_i18n.build(r))], True)
+hold_case("de removed from .assetsignore by hand while held", {}, [PULL, lambda g, r: edit(r, ".assetsignore", "\nde\n", "\n")], True)
+hold_case("the game's site_en.arb differs from the website's", {"en_override": "{}"}, [], True)
+def game_en_edit(g, r):
+    f = g / "pipeline/translation/site/site_en.arb"
+    f.write_text(f.read_text() + "\n")
+    subprocess.run(["git", "-C", str(g), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "en"], check=True)
+
+
+hold_case("only the game's English changes after a clean pull", {}, [PULL, game_en_edit], True)
+hold_case("the website's site_de.arb drifts from the game's", {}, [PULL, lambda g, r: site_i18n.arb_path("de", r).write_text(
+    site_i18n.arb_path("de", r).read_text().replace("DE·", "XX·"))], True)
+hold_case("a pull is needed (game has German, website never pulled)", {}, [], True)
+hold_case("the game ships German with no site strings", {"de_status": "shipped", "de_arb": False}, [], True)
+hold_case("an incomplete German site ARB is not built", {"drop_key": "heroTitle"}, [PULL], False,
+          lambda g, r: (lambda: None)() if not (r / "de/index.html").exists() else (_ for _ in ()).throw(AssertionError("built")))
+
+
+def bad_game_case(name, game_for, ref):
+    root = copy_site()
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="sg-bad-"))
+    try:
+        red = bool(build_i18n.check_game(game_for(tmp, root), ref, root))
+    finally:
+        shutil.rmtree(tmp)
+        shutil.rmtree(root)
+    print(f"{'ok  ' if red else 'FAIL'} hold     {'red  ' if red else 'green'} {name}")
+    if not red:
+        failures.append(f"hold: {name}")
+
+
+bad_game_case("--game at a path that does not exist", lambda tmp, r: tmp / "nope", "main")
+bad_game_case("--game at a folder that is not git", lambda tmp, r: tmp, "main")
+bad_game_case("--game at a ref that does not exist", lambda tmp, r: fake_site_game(r), "origin/mian")
+
+
+def name_rule():
+    """team-lead + pm-release: site_pt_PT.arb, the game's config.site_arb_path rule."""
+    want = {"de": "site_de.arb", "pt-PT": "site_pt_PT.arb", "es-419": "site_es_419.arb", "ja": "site_ja.arb"}
+    ok = all(site_i18n.arb_name(k) == v for k, v in want.items()) and site_i18n.folder("pt-PT") == "pt-pt/"
+    print(f"{'ok  ' if ok else 'FAIL'} hold     {'green' if ok else 'red  '} site ARB names (site_pt_PT.arb) and folders (/pt-pt/)")
+    if not ok:
+        failures.append("hold: naming rule")
+
+
+name_rule()
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
