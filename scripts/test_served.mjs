@@ -168,10 +168,16 @@ test('the real worker sends every security header on pages, files, APIs and redi
   }
 });
 
-// 18.10 review H1 in the real runtime: a streamed report with no length is refused.
-test('the real worker refuses a 1 MB CSP report sent with no Content-Length', async () => {
-  const big = new ReadableStream({ start(c) { for (let i = 0; i < 64; i += 1) c.enqueue(new TextEncoder().encode('x'.repeat(16384))); c.close(); } });
-  const res = await fetch(base + '/api/csp-report', { method: 'POST', body: big, duplex: 'half', signal: AbortSignal.timeout(15000) });
+// 18.10 review H1 in the real runtime: a streamed report with no length is
+// refused. Just over the limit (two 5 KB chunks, no Content-Length), so the
+// client has finished uploading before the worker answers and the 413 is not
+// racing a half-sent body (a 1 MB upload could be cut short and surface as a
+// reset or a 503 from the local proxy instead). The 1 MB case is in
+// scripts/test_security.mjs, where nothing races.
+test('the real worker refuses a CSP report over 8 KB sent with no Content-Length', async () => {
+  const chunk = new TextEncoder().encode('x'.repeat(5000));
+  const body = new ReadableStream({ start(c) { c.enqueue(chunk); c.enqueue(chunk); c.close(); } });
+  const res = await fetch(base + '/api/csp-report', { method: 'POST', body, duplex: 'half', signal: AbortSignal.timeout(15000) });
   await res.arrayBuffer();
   assert.equal(res.status, 413);
 });
