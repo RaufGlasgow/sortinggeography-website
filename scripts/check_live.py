@@ -130,6 +130,18 @@ def main(base: str) -> int:
         else:
             print(f"ok   {path} security headers match src/security.js")
 
+    # Story 6.17 release gate (pm-release): once the age screen is described, the live /privacy/ must say so.
+    feats = json.loads((pathlib.Path(__file__).resolve().parent.parent / "src/features.json").read_text())
+    if feats.get("age_screen"):
+        try:
+            status, _, body = get(base, "/privacy/")
+            if "date of birth" not in body:
+                bad.append("/privacy/ does not yet describe the age question (6.17 must not reach a store before it does)")
+            else:
+                print("ok   /privacy/ describes the age question (6.17)")
+        except OSError as e:
+            bad.append(f"/privacy/: no answer ({e})")
+
     domain = SUPPORT_EMAIL.split("@", 1)[1]
     mx = subprocess.run(["dig", "+short", "MX", domain], capture_output=True, text=True).stdout.strip()
     if not mx:

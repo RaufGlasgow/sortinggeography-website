@@ -55,7 +55,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import site_i18n  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-FEATURES = ("analytics", "analytics_switch", "unlock")
+FEATURES = ("analytics", "analytics_switch", "unlock", "age_screen")
 SWITCH_LABEL = "Share anonymous usage numbers"
 IP_LINE = "discarded on arrival, never stored"          # F4: the one wording
 
@@ -170,10 +170,30 @@ def languages_text(tags) -> str:
 # The text. Each fragment takes the flags and returns the region's HTML.
 # ---------------------------------------------------------------------------
 
+# Story 6.17 (pm-release draft 2026-11-20, privacy-age-screen-draft-2026-11-20.md; Ra'uf approves the wording):
+# the app asks a date of birth once and keeps only whether the player is under 16. Off = today's page.
+AGE_BULLET = ("The first time you open the game, it asks for your date of birth. It keeps only whether you are "
+              "under 16, on your phone or tablet, and never sends it anywhere.")
+
+
+def privacy_ads_age(f):
+    if not f["age_screen"]:
+        return ("<p>\n    <strong>Every player is treated as possibly a child.</strong> The app does not ask\n"
+                "    your age. Instead, every ad request tells Google to treat the player as a child,\n"
+                "    and to show only ads suitable for all ages. That means:\n  </p>")
+    return ("<p>\n    <strong>Every player is treated as possibly a child.</strong> The first time you open the\n"
+            "    game, it asks for your date of birth, once. It uses the date only to work out whether you\n"
+            "    are under 16 or 16 and over, keeps just that answer on your phone or tablet, and forgets\n"
+            "    the date itself. The answer is never sent to us, to Google or to anyone else. Whatever you\n"
+            "    answer, every ad request tells Google to treat the player as a child, and to show only ads\n"
+            "    suitable for all ages. That means:\n  </p>")
+
+
 def privacy_summary(f):
-    out = []
+    out = [f"<li>{AGE_BULLET}</li>"] if f["age_screen"] else []
     if f["analytics"]:
-        line = ("The app sends anonymous usage numbers so we can see which questions are too hard. "
+        line = (("If you are 16 or over, the app" if f["age_screen"] else "The app") +
+                " sends anonymous usage numbers so we can see which questions are too hard. "
                 f"Your IP address is {IP_LINE}; no advertising ID, nothing that identifies you.")
         if f["analytics_switch"]:
             line += " You can switch them off in Settings."
@@ -212,7 +232,11 @@ def privacy_analytics(f):
     if f["analytics_switch"]:
         switch = ("\n  <p>\n    They are on unless you switch them off: in Settings, turn off\n    "
                   f"<strong>{SWITCH_LABEL}</strong>, and the app sends none from then on.\n  </p>")
-    return f"""<h2>Anonymous usage statistics</h2>
+    age = ""
+    if f["age_screen"]:
+        age = ("\n  <p>\n    If you are under 16, or the app does not know your age, it sends no usage statistics\n"
+               "    at all. If you are 16 or over, it sends the anonymous usage numbers described here.\n  </p>")
+    return f"""<h2>Anonymous usage statistics</h2>{age}
   <p>
     To understand which questions are too hard and where people give up, the app
     sends anonymous usage numbers: for example that a puzzle was finished, on which
@@ -406,6 +430,7 @@ def testers_do(f):
 
 
 FRAGMENTS = {
+    "privacy-ads-age": privacy_ads_age,
     "testers-why": testers_why,
     "testers-join": testers_join,
     "testers-do": testers_do,
@@ -436,6 +461,8 @@ CLAIMS = {
     # Counts come from src/facts.json, checked against the game by --game.
     # credits.html is exempt: scripts/build_credits.py generates it from the
     # dataset itself.
+    # Story 6.17: the age question is named only by its generated passages.
+    "age_screen": [r"\bdate of birth\b", r"\bunder 16\b", r"\bdoes not ask\s+your age\b"],
     # Google's closed-test numbers come from src/testers.json.
     "testers": [r"\b\d+\s+days in a row\b", r"\b\d+\s+testers\b"],
     "facts": [r"\b\d{2,3}\s+(?:questions|axes)\b", r"\b\d{3}\s+countries\b",
@@ -528,7 +555,18 @@ def game_features(game: pathlib.Path, ref: str = "origin/main") -> dict[str, boo
                         "app/lib", "packages"], capture_output=True, text=True)
     if r.returncode not in (0, 1):
         raise SystemExit(f"git grep failed: {r.stderr.strip()}")
-    return {"analytics": posthog, "analytics_switch": bool(r.stdout.strip()), "unlock": m.group(1) == "true"}
+    # Story 6.17: the age screen is on main when the screen exists AND main.dart routes to it. One without the
+    # other is a half-merged state the page cannot describe truthfully, so it fails rather than guesses.
+    has_screen = game_show(game, ref, "app/lib/shell/age_screen.dart") is not None
+    main_dart = game_show(game, ref, "app/lib/main.dart")
+    if main_dart is None:
+        raise SystemExit(f"{game}: cannot read app/lib/main.dart at {ref}")
+    routed = bool(re.search(r"\bcase\s+AgeScreen\.routeName\s*:", main_dart))
+    if has_screen != routed:
+        raise SystemExit(f"{ref}: age_screen.dart {'exists' if has_screen else 'is missing'} but main.dart "
+                         f"{'routes' if routed else 'does not route'} to AgeScreen: cannot tell whether 6.17 is on")
+    return {"analytics": posthog, "analytics_switch": bool(r.stdout.strip()), "unlock": m.group(1) == "true",
+            "age_screen": has_screen and routed}
 
 
 def game_facts(game: pathlib.Path, ref: str = "origin/main") -> dict:
@@ -605,7 +643,8 @@ def compare(flags: dict, real: dict) -> list[str]:
     bad = []
     what = {"analytics": "the PostHog sink (posthog_flutter dependency)",
             "analytics_switch": f"the Settings switch \"{SWITCH_LABEL}\"",
-            "unlock": "the paid unlock (kPaidUnlockEnabled)"}
+            "unlock": "the paid unlock (kPaidUnlockEnabled)",
+            "age_screen": "the age screen (Story 6.17: shell/age_screen.dart routed from main.dart)"}
     for k in FEATURES:
         if flags[k] and not real[k]:
             bad.append(f"the pages claim {what[k]}, which the game's main does not have")

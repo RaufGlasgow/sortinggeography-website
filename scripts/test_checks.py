@@ -262,11 +262,11 @@ def feature_case(name: str, expect_red: bool, mutate=None, flags=None) -> None:
         failures.append(f"feature: {name}")
 
 
-ALL_ON = {"analytics": True, "analytics_switch": True, "unlock": True}
+ALL_ON = {"analytics": True, "analytics_switch": True, "unlock": True, "age_screen": True}
 feature_case("the site as committed", False)
 feature_case("all features on: built text passes every guard", False, flags=ALL_ON)
 feature_case("analytics on, no switch: built text passes", False,
-             flags={"analytics": True, "analytics_switch": False, "unlock": False})
+             flags={"analytics": True, "analytics_switch": False, "unlock": False, "age_screen": False})
 feature_case("features.json flipped, pages not rebuilt", True, lambda r: (r / "src/features.json").write_text(
     json.dumps(ALL_ON)))
 feature_case("PostHog typed into the privacy page by hand", True, add_para("Usage numbers go to PostHog."))
@@ -293,7 +293,7 @@ for name, cond in [
      on_text.count("discarded on arrival, never stored") >= 3 and "Never your IP" not in on_text),
     ("F5: no 'sends nothing anywhere' in any state",
      "sends nothing anywhere" not in on_text and "sends nothing anywhere" not in built_text(
-         {"analytics": False, "analytics_switch": False, "unlock": False})),
+         {"analytics": False, "analytics_switch": False, "unlock": False, "age_screen": False})),
 ]:
     print(f"{'ok  ' if cond else 'FAIL'} wording  {name}")
     if not cond:
@@ -301,7 +301,8 @@ for name, cond in [
 
 
 # F3 --game: features.json against a fake game repo's main.
-def fake_game(unlock: bool, posthog: bool, switch: bool) -> pathlib.Path:
+def fake_game(unlock: bool, posthog: bool, switch: bool, age: str | bool = False) -> pathlib.Path:
+    """age: False, True (screen + route), "screen-only" or "route-only" (half-merged states)."""
     g = pathlib.Path(tempfile.mkdtemp(prefix="sg-game-"))
     (g / "app/lib/shell").mkdir(parents=True)
     (g / "packages/sort_platform").mkdir(parents=True)
@@ -312,6 +313,10 @@ def fake_game(unlock: bool, posthog: bool, switch: bool) -> pathlib.Path:
     (g / "packages/sort_platform/pubspec.yaml").write_text("dependencies:\n  meta: any\n")
     (g / "app/lib/settings.dart").write_text(
         ("const label = 'Share anonymous usage numbers';\n" if switch else "const label = 'Sound';\n"))
+    routed = age in (True, "route-only")
+    (g / "app/lib/main.dart").write_text("void main() {}\n" + ("// router\n      case AgeScreen.routeName:\n" if routed else ""))
+    if age in (True, "screen-only"):
+        (g / "app/lib/shell/age_screen.dart").write_text("class AgeScreen {}\n")
     for cmd in (["init", "-q", "-b", "main"], ["add", "-A"],
                 ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
         subprocess.run(["git", "-C", str(g), *cmd], check=True)
@@ -330,16 +335,42 @@ def game_case(name, game_state, flags, expect_red):
         failures.append(f"game: {name}")
 
 
-OFF = {"analytics": False, "analytics_switch": False, "unlock": False}
+OFF = {"analytics": False, "analytics_switch": False, "unlock": False, "age_screen": False}
 game_case("main has nothing, pages claim nothing", (False, False, False), OFF, False)
 game_case("pages claim the unlock, main has it off", (False, False, False), {**OFF, "unlock": True}, True)
 game_case("pages claim analytics, main has no posthog_flutter", (False, False, False),
           {**OFF, "analytics": True}, True)
 game_case("pages claim the switch, main has no such row", (False, True, False),
-          {"analytics": True, "analytics_switch": True, "unlock": False}, True)
+          {"analytics": True, "analytics_switch": True, "unlock": False, "age_screen": False}, True)
 game_case("main turned the unlock on, pages say nothing", (True, False, False), OFF, True)
 game_case("main ships PostHog, pages say no numbers are sent", (False, True, False), OFF, True)
-game_case("everything on both sides", (True, True, True), ALL_ON, False)
+game_case("everything on both sides", (True, True, True, True), ALL_ON, False)
+# Story 6.17: the age screen.
+game_case("main ships the age screen, the page still says it does not ask", (False, False, False, True), OFF, True)
+game_case("the page describes the age screen, main does not have it", (False, False, False, False), {**OFF, "age_screen": True}, True)
+game_case("the age screen on both sides", (False, False, False, True), {**OFF, "age_screen": True}, False)
+
+
+def half_age_case(name, age):
+    g = fake_game(False, False, False, age)
+    try:
+        try:
+            build_features.game_features(g, "main")
+            red = False
+        except SystemExit:
+            red = True
+    finally:
+        shutil.rmtree(g)
+    print(f"{'ok  ' if red else 'FAIL'} game     {'red  ' if red else 'green'} {name}")
+    if not red:
+        failures.append(f"game: {name}")
+
+
+half_age_case("age_screen.dart on main but not routed: refuse to guess", "screen-only")
+half_age_case("routed to AgeScreen but no age_screen.dart: refuse to guess", "route-only")
+feature_case("'date of birth' typed by hand outside a region", True, add_para("We ask your date of birth."))
+feature_case("'does not ask your age' typed by hand", True, add_para("The app does not ask your age."))
+feature_case("age screen on: built text passes every guard", False, flags={**OFF, "age_screen": True})
 
 # Round 2 follow-up: the daily CI run is F1's whole fix.
 launch_case("schedule trigger removed from ci.yml", True, lambda r: edit(
@@ -1324,6 +1355,37 @@ l_case("L1: hreflang to a page that does not exist here", lambda r: (publish(r),
 l_case("L2: the sitemap lists exactly the served pages, /de/support/ included", lambda r: publish(r), False, sitemap_exact)
 l_case("L2: /de/support/ dropped from the sitemap", lambda r: (publish(r), edit(r, "sitemap.xml",
     "  <url><loc>https://sortinggeography.com/de/support/</loc></url>\n", "")), True)
+
+
+# Story 6.17: what the privacy page says in each state (the drafted sentences, word for word).
+def age_text_case(name, flags, must, must_not):
+    root = copy_site()
+    try:
+        (root / "src/features.json").write_text(json.dumps(flags))
+        build_features.build(root)
+        page = " ".join((root / "privacy/index.html").read_text().split())
+        missing = [m for m in must if m not in page]
+        present = [m for m in must_not if m in page]
+    finally:
+        shutil.rmtree(root)
+    ok = not missing and not present
+    print(f"{'ok  ' if ok else 'FAIL'} age      {'green' if ok else 'red  '} {name}" + ("" if ok else f"  <- missing {missing} present {present}"))
+    if not ok:
+        failures.append(f"age: {name}")
+
+
+AGE_ON = {**OFF, "age_screen": True}
+age_text_case("age screen on: the short-version bullet and the new Ads paragraph", AGE_ON,
+    ["<li>The first time you open the game, it asks for your date of birth. It keeps only whether you are under 16, "
+     "on your phone or tablet, and never sends it anywhere.</li>",
+     "The first time you open the game, it asks for your date of birth, once.",
+     "The answer is never sent to us, to Google or to anyone else."],
+    ["The app does not ask your age."])
+age_text_case("age screen off: today's page, word for word", OFF,
+    ["The app does not ask your age. Instead, every ad request tells Google"], ["date of birth"])
+age_text_case("age screen + analytics on: under 16 sends nothing", {**ALL_ON, "analytics_switch": False, "unlock": False},
+    ["If you are under 16, or the app does not know your age, it sends no usage statistics at all.",
+     "If you are 16 or over, the app sends anonymous usage numbers"], [])
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
