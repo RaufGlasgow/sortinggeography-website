@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="{{@lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{pageTitle}}</title>
+<meta name="description" content="{{metaDescription}}">
+<!-- seo:head --><!-- /seo:head -->
+<link rel="stylesheet" href="{{@root}}style.css">{{@alternates}}
+<script src="{{@root}}countdown.js" defer></script>
+</head>
+<body>
+<header class="bar">
+  <a class="wordmark" href="{{@langroot}}./">Sorting&nbsp;Geography</a>
+  <nav><a href="{{@root}}credits.html">{{navDataSources}}</a> <a href="{{@langroot}}support/">{{navSupport}}</a> <a href="{{@langroot}}privacy/">{{navPrivacy}}</a></nav>
+</header>
+
+<section class="hero">
+  <!-- launch:hero-chip --><!-- /launch:hero-chip -->
+  <h1>{{heroTitle}}</h1>
+  <p>{{heroLede}}</p>
+  <!-- launch:hero-countdown --><!-- /launch:hero-countdown -->
+</section>
+
+<main>
+  <div class="example">
+    <p class="q">{{exampleQuestion}}</p>
+    <ol>
+      <li>{{@country:CA}}</li>
+      <li>{{@country:ID}}</li>
+      <li>{{@country:NO}}</li>
+      <li>{{@country:JP}}</li>
+      <li>{{@country:CL}}</li>
+    </ol>
+    <p class="muted" style="margin-top:1rem">
+      {{exampleText}}
+    </p>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <h3>{{card1Title}}</h3>
+      <p>{{card1Text}}</p>
+    </div>
+    <div class="card">
+      <h3>{{card2Title}}</h3>
+      <p>{{card2Text}}</p>
+    </div>
+    <div class="card">
+      <h3>{{card3Title}}</h3>
+      <p>{{card3Text}}</p>
+    </div>
+    <div class="card">
+      <h3>{{card4Title}}</h3>
+      <p>{{card4Text}}</p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <h2>{{whyTitle}}</h2>
+    <p>
+      {{whyText}}
+    </p>
+
+    <h2>{{honestyTitle}}</h2>
+    <p>
+      {{honestyText}}
+    </p>
+
+    <!-- launch:when --><!-- /launch:when -->
+    <div class="only-pre">
+    <form class="notify" id="notify" method="post" action="/api/subscribe">
+      <label for="email">{{notifyLabel}}</label>
+      <div class="notify-row">
+        <input type="hidden" name="lang" value="{{@lang}}">
+        <input id="email" name="email" type="email" required autocomplete="email"
+               inputmode="email" placeholder="you@example.com">
+        <button type="submit">{{notifyButton}}</button>
+      </div>
+      <p class="notify-msg" id="notify-msg" role="status" aria-live="polite"></p>
+      <p class="muted notify-fine">
+        {{notifyFine}}
+      </p>
+    </form>
+    <script src="{{@root}}subscribe.js" defer></script>
+    </div>
+  </div>
+</main>
+
+<footer class="bar foot">
+  <span>Sorting Geography</span>
+  <nav><a href="{{@langroot}}support/">{{navSupport}}</a> <a href="{{@langroot}}privacy/">{{navPrivacy}}</a> <a href="{{@root}}terms/">{{navTerms}}</a> <a href="{{@root}}press/">{{navPress}}</a> <a href="{{@root}}credits.html">{{navDataSources}}</a></nav>
+</footer>
+</body>
+</html>

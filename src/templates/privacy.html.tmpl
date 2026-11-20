@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="{{@lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{privacyPageTitle}}</title>
+<meta name="description" content="{{privacyMetaDescription}}">
+<!-- seo:head --><!-- /seo:head -->
+<link rel="stylesheet" href="{{@root}}style.css">{{@alternates}}
+</head>
+<body>
+<header class="bar">
+  <a class="wordmark" href="{{@langroot}}">Sorting&nbsp;Geography</a>
+  <nav><a href="{{@langroot}}support/">{{navSupport}}</a> <a href="{{@root}}credits.html">{{navDataSources}}</a></nav>
+</header>
+
+<main class="prose">
+  <p class="lede">{{privacyEnglishNote}}</p>
+  <div lang="en">
+{{@englishPrivacy}}
+  </div>
+</main>
+
+<footer class="bar foot">
+  <span>Sorting Geography</span>
+  <nav><a href="{{@langroot}}support/">{{navSupport}}</a> <a href="{{@langroot}}privacy/">{{navPrivacy}}</a> <a href="{{@root}}terms/">{{navTerms}}</a> <a href="{{@root}}press/">{{navPress}}</a> <a href="{{@root}}credits.html">{{navDataSources}}</a></nav>
+</footer>
+</body>
+</html>

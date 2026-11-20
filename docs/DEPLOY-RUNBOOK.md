@@ -102,6 +102,7 @@ different versions; change both together.
 ```sh
 git -C ../Sorting-Geography fetch origin
 python3 scripts/build_features.py --game ../Sorting-Geography
+python3 scripts/build_i18n.py --game ../Sorting-Geography     # site languages match the game; prints what it serves (18.4)
 python3 scripts/check_sheet_links.py --game ../Sorting-Geography   # the app links only to sheets the site has (20.9)
 npx --yes wrangler@4.74.0 deploy
 python3 scripts/check_live.py          # after: pages 200, no HTML comment served, MX
@@ -224,6 +225,27 @@ which obliges attribution.
 ```sh
 python3 scripts/build_credits.py ../Sorting-Geography/pipeline/content/dataset.json
 ```
+
+## Site languages (Story 18.4)
+
+The words of each language's pages come from `src/i18n/site_<x>.arb` (`site_pt_PT.arb`: the app's
+naming). The English is written here, in `src/i18n/site_en.arb`, and must be byte-identical on the
+game's main at `pipeline/translation/site/site_en.arb`. The translations are made on the game side
+(the night drafts them, 8.33; verify writes them to the game's main) and pulled here.
+
+A language's pages are **built** as soon as its verified strings are on the game's main, and
+**served** only once the game's `locales.json` says `shipped`. Until then the folder is in
+`.assetsignore`: a 404, not linked, not in the sitemap, no hreflang to it.
+
+**After each language ships (the named step, release runbook 20.11):**
+
+```sh
+git -C ../Sorting-Geography fetch origin
+python3 scripts/build_i18n.py --pull ../Sorting-Geography   # on a branch: copies the strings, serves what shipped
+python3 scripts/build_i18n.py --game ../Sorting-Geography   # "Serving: /de/ ..." says exactly what goes live
+```
+
+Commit, review, merge, then deploy (Step 4) and run `check_live.py`: the language's page must answer 200.
 
 ## Security headers and the CSP (Story 18.10)
 

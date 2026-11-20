@@ -11,6 +11,7 @@ green too (so the guard is not just red at everything).
 from __future__ import annotations
 
 import pathlib
+import re
 import shutil
 import sys
 import tempfile
@@ -23,6 +24,9 @@ import build_launch  # noqa: E402
 import check_platform  # noqa: E402
 import check_store_pages  # noqa: E402
 import check_sheet_links  # noqa: E402
+import build_i18n  # noqa: E402
+import build_seo  # noqa: E402
+import site_i18n  # noqa: E402
 import build_features  # noqa: E402
 import check_comments  # noqa: E402
 import check_wrangler_pin  # noqa: E402
@@ -766,8 +770,8 @@ launch_case("the platforms named without a date", False, lambda r: edit(
 
 def generator_case(name, extra, region, expect_red):
     real = build_launch.regions
-    def patched(ms, stores=build_launch.STORES):
-        out = real(ms, stores)
+    def patched(ms, stores=build_launch.STORES, *a, **kw):
+        out = real(ms, stores, *a, **kw)
         out[region] = out[region] + extra
         return out
     build_launch.regions = patched
@@ -906,6 +910,420 @@ ok = RAUF_WHEN in when_text and build_launch.regions(RELEASE)["hero-countdown"].
 print(f"{'ok  ' if ok else 'FAIL'} launch   {'green' if ok else 'red  '} Ra'uf's platforms-first wording, word for word")
 if not ok:
     failures.append("launch: Ra'uf's platforms-first wording")
+
+
+# ---- 18.4: every game language on the site ---------------------------------------
+def publish(root, lang="de", change=None):
+    """Publish a language with stand-in strings ("DE· " + English, placeholders and
+    tags kept), as the translation pipeline's output will be, then rebuild."""
+    en = json.loads((root / "src/i18n/site_en.arb").read_text())
+    arb = {"@@locale": lang}
+    for k, v in en.items():
+        if not k.startswith("@"):
+            arb[k] = f"{lang.upper()}· {v}"
+    if change:
+        change(arb)
+    site_i18n.arb_path(lang, root).write_text(json.dumps(arb, ensure_ascii=False))
+    langs = json.loads((root / "src/site_languages.json").read_text())
+    langs["published"] = sorted(set(langs["published"]) | {lang})
+    langs["served"] = sorted(set(langs.get("served", [])) | {lang})   # as if the game shipped it
+    (root / "src/site_languages.json").write_text(json.dumps(langs))
+    build_i18n.build(root)
+
+
+def broken_links(root):
+    """CI's 'no broken internal links' step, over every page, built language pages included."""
+    from urllib.parse import urlparse
+    bad = []
+    for p in sorted(root.rglob("*.html")):
+        if set(p.relative_to(root).parts) & {"docs", "src", "scripts", "node_modules", ".git", ".github", ".wrangler"}:
+            continue
+        for target in re.findall(r'(?:href|src)\s*=\s*"([^"]+)"', p.read_text(encoding="utf-8")):
+            u = urlparse(target)
+            if u.scheme or target.startswith(("#", "mailto:", "//")):
+                continue
+            if not (p.parent / u.path).resolve().exists():
+                bad.append(f"{p.relative_to(root)} -> {target}")
+    return bad
+
+
+def i18n_problems(root):
+    return (build_i18n.gates(root) + build_launch.check(root, now_ms=EARLY)
+            + check_platform.check(check_platform.targets(root), root) + check_comments.check(root)
+            + broken_links(root))
+
+
+def i18n_case(name, setup, expect_red, inspect=None):
+    root = copy_site()
+    try:
+        setup(root)
+        bad = i18n_problems(root)
+        red = bool(bad)
+        if inspect and not red:
+            inspect(root)
+    except AssertionError as e:
+        red, bad = None, [f"inspection failed: {e}"]
+    except SystemExit as e:     # a build that refuses is red too
+        red, bad = True, [str(e)]
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} i18n     {'red  ' if red else 'green'} {name}" + ("" if ok else f"  <- {bad[:2]}"))
+    if not ok:
+        failures.append(f"i18n: {name}: {bad[:2]}")
+
+
+def de_page_right(root):
+    de = (root / "de/index.html").read_text()
+    en = (root / "index.html").read_text()
+    assert '<html lang="de">' in de
+    assert "10. Dezember 2026" in de, "the launch date in German, from CLDR"
+    assert "<li>Kanada</li>" in de, "country names from CLDR"
+    assert 'href="../style.css"' in de and 'src="../countdown.js"' in de
+    assert 'name="lang" value="de"' in de, "signups from /de/ are stored as de"
+    for page in (de, en):
+        for lg, href in (("en", "https://sortinggeography.com/"), ("de", "https://sortinggeography.com/de/"),
+                         ("x-default", "https://sortinggeography.com/")):
+            assert f'<link rel="alternate" hreflang="{lg}" href="{href}">' in page, (lg, "hreflang reciprocal")
+    assert "<loc>https://sortinggeography.com/de/</loc>" in (root / "sitemap.xml").read_text()
+    assert "<h1>DE· Put the world in order</h1>" in de, "the heading is the German string"
+    assert "<h1>Put the world in order</h1>" not in de, "no English heading left"
+    sup = (root / "de/support/index.html").read_text()
+    assert '<html lang="de">' in sup and "<h1>DE· Support</h1>" in sup, "support translated"
+    assert 'href="../../style.css"' in sup and 'href="../privacy/"' in sup, "privacy link stays in German"
+    assert 'href="../../credits.html"' in sup and 'href="../../terms/"' in sup, "English-only pages from the site root"
+    assert "DE· Yes. Every question" in sup, "the generated answers are in the page's language"
+    assert re.search(r'DE· Very little[^<]*<a href="\.\./privacy/">', sup), "a link inside a translated string stays in the language"
+    assert '<link rel="canonical" href="https://sortinggeography.com/de/support/">' in sup
+    pr = (root / "de/privacy/index.html").read_text()
+    assert '<html lang="de">' in pr and '<div lang="en">' in pr, "the English policy, marked English"
+    assert "DE· This privacy policy is in English" in pr, "the one-line note in the page's language"
+    assert "<h1>Privacy</h1>" in pr and 'href="../support/"' in pr, "the English text, links kept in the language"
+    # hreflang across pages: build_seo's reciprocity gate (review-share L1), which runs in every case above
+
+
+i18n_case("today: English only, nothing published", lambda r: None, False)
+i18n_case("German published and fully translated: built right", lambda r: publish(r), False, de_page_right)
+i18n_case("the English policy links to the sources page: it still resolves on /de/privacy/", lambda r: (edit(
+    r, "privacy/index.html", "<h1>Privacy</h1>", '<h1>Privacy</h1>\n  <p><a href="../credits.html">Sources</a></p>'),
+    publish(r)), False, lambda r: None if 'href="../../credits.html">Sources' in (r / "de/privacy/index.html").read_text()
+    else (_ for _ in ()).throw(AssertionError("the sources link was not re-rooted")))
+i18n_case("a German value left in English", lambda r: publish(r, change=lambda a: a.update(heroTitle="Put the world in order")), True)
+i18n_case("...unless allow_identical lists it", lambda r: ((r / "src/i18n/allow_identical.json").write_text(
+    json.dumps({"de": ["heroTitle"]})), publish(r, change=lambda a: a.update(heroTitle="Put the world in order"))), False)
+i18n_case("allow_identical names a key that does not exist", lambda r: ((r / "src/i18n/allow_identical.json").write_text(
+    json.dumps({"de": ["noSuchKey"]})), publish(r)), True)
+i18n_case("an unknown tag added to a German value (review M5)", lambda r: publish(r, change=lambda a: a.update(
+    heroLede=a["heroLede"] + "<script>alert(1)</script>")), True)
+i18n_case("a stray > in a German value", lambda r: publish(r, change=lambda a: a.update(heroTitle="DE· Ordne > die Welt")), True)
+i18n_case("a German key missing", lambda r: publish(r, change=lambda a: a.pop("card1Text")), True)
+i18n_case("an unknown key in German", lambda r: publish(r, change=lambda a: a.update(extraKey="x")), True)
+i18n_case("the link tag dropped from a German value", lambda r: publish(r, change=lambda a: a.update(
+    honestyText="DE· keine Links hier")), True)
+i18n_case("the German page hand-edited", lambda r: (publish(r), edit(r, "de/index.html", "<h1>", "<h1>x ")), True)
+i18n_case("the English page loses its hreflang once German is published", lambda r: (publish(r), edit(
+    r, "index.html", '<link rel="alternate" hreflang="de" href="https://sortinggeography.com/de/">', "")), True)
+i18n_case("the sitemap loses /de/", lambda r: (publish(r), edit(
+    r, "sitemap.xml", "  <url><loc>https://sortinggeography.com/de/</loc></url>\n", "")), True)
+i18n_case("a French page on disk, French not published", lambda r: ((r / "fr").mkdir(), (r / "fr/index.html").write_text(
+    '<!doctype html><html lang="fr"><body><h1>x</h1></body></html>')), True)
+i18n_case("German published but its ARB missing", lambda r: (r / "src/site_languages.json").write_text(
+    json.dumps({"published": ["de"]})), True)
+i18n_case("a bad language tag", lambda r: (r / "src/site_languages.json").write_text(
+    json.dumps({"published": ["German"]})), True)
+i18n_case("a placeholder dropped from a German launch string", lambda r: publish(r, change=lambda a: a.update(
+    launchDateLine="DE· es kommt bald")), True)
+i18n_case("a placeholder renamed in a German string", lambda r: publish(r, change=lambda a: a.update(
+    whenPre="DE· {plattformen}, {date}")), True)
+
+
+def i18n_unit(name, fn):
+    """Each 18.4 guard on its own: in the full checks a missing ARB refuses first."""
+    root = copy_site()
+    try:
+        try:
+            red = bool(fn(root))
+        except SystemExit:
+            red = True
+    finally:
+        shutil.rmtree(root)
+    print(f"{'ok  ' if red else 'FAIL'} i18n     {'red  ' if red else 'green'} {name}")
+    if not red:
+        failures.append(f"i18n: {name}")
+
+
+def stray_fr(r):
+    (r / "fr").mkdir()
+    (r / "fr/index.html").write_text('<!doctype html><html lang="fr"><body><h1>x</h1></body></html>')
+    return [b for b in build_i18n.gates(r) if "not published" in b]
+
+
+def bad_tag(r):
+    (r / "src/site_languages.json").write_text(json.dumps({"published": ["German"]}))
+    site_i18n.published(r)      # must raise; returning at all means the tag got through
+    return False
+
+
+i18n_unit("gates() alone refuses a language page that is not published", stray_fr)
+i18n_unit("published() alone refuses a bad language tag", bad_tag)
+
+
+# ---- 18.4 pull-and-hold (pm-release 2026-11-20): a page is SERVED only once the game ships its language
+def fake_site_game(root, de_status="in_progress", de_arb=True, en_override=None, drop_key=None, gate_record=True):
+    g = pathlib.Path(tempfile.mkdtemp(prefix="sg-game-"))
+    site = g / "pipeline/translation/site"
+    site.mkdir(parents=True)
+    en_text = (root / "src/i18n/site_en.arb").read_text()
+    (site / "site_en.arb").write_text(en_override if en_override is not None else en_text)
+    if de_arb:
+        en = json.loads(en_text)
+        de = {"@@locale": "de", **{k: f"DE· {v}" for k, v in en.items() if not k.startswith("@")}}
+        if drop_key:
+            de.pop(drop_key)
+        (site / "site_de.arb").write_text(json.dumps(de, ensure_ascii=False))
+    if gate_record:
+        import hashlib
+        rec = {lg: {"sha256": hashlib.sha256((site / site_i18n.arb_name(lg)).read_bytes()).hexdigest()}
+               for lg in ("de",) if (site / site_i18n.arb_name(lg)).exists()}
+        if gate_record == "stale" and rec:
+            rec["de"]["sha256"] = "0" * 64
+        (site / "gates.json").write_text(json.dumps(rec))
+    (g / "pipeline/translation/locales.json").write_text(json.dumps({"de": {"status": de_status}, "fr": {"status": "in_progress"}}))
+    for cmd in (["init", "-q", "-b", "main"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
+        subprocess.run(["git", "-C", str(g), *cmd], check=True)
+    return g
+
+
+def regame(g, **change):
+    """A new commit on the fake game's main (e.g. de flipped back to in_progress)."""
+    lp = g / "pipeline/translation/locales.json"
+    data = json.loads(lp.read_text())
+    data.update(change)
+    lp.write_text(json.dumps(data))
+    subprocess.run(["git", "-C", str(g), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "flip"], check=True)
+
+
+def hold_case(name, game_kw, steps, expect_red, inspect=None):
+    root = copy_site()
+    g = fake_site_game(root, **game_kw)
+    try:
+        bad = []
+        try:
+            for step in steps:
+                step(g, root)
+            bad = build_i18n.check_game(g, "main", root) + build_launch.check(root, now_ms=EARLY)
+            if inspect and not bad:
+                inspect(g, root)
+        except SystemExit as e:
+            bad = [str(e)]
+        except build_i18n.GameError as e:
+            bad = [str(e)]
+        red = bool(bad)
+    except AssertionError as e:
+        red, bad = None, [f"inspection failed: {e}"]
+    finally:
+        shutil.rmtree(g)
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} hold     {'red  ' if red else 'green'} {name}" + ("" if ok else f"  <- {bad[:2]}"))
+    if not ok:
+        failures.append(f"hold: {name}")
+
+
+PULL = lambda g, r: build_i18n.pull(g, "main", r)
+
+
+def held_de(g, r):
+    assert "de" in (r / ".assetsignore").read_text().split(), "/de/ must be in .assetsignore"
+    assert (r / "de/index.html").exists(), "built"
+    assert "hreflang=\"de\"" not in (r / "index.html").read_text(), "no hreflang to a held page"
+    assert "/de/</loc>" not in (r / "sitemap.xml").read_text(), "a held page is not in the sitemap"
+
+
+def served_de(g, r):
+    assert "de" not in (r / ".assetsignore").read_text().split(), "/de/ served"
+    assert "hreflang=\"de\"" in (r / "index.html").read_text()
+    assert "/de/</loc>" in (r / "sitemap.xml").read_text()
+
+
+hold_case("German translated, not shipped: built and HELD", {}, [PULL], False, held_de)
+hold_case("German shipped: built and SERVED", {"de_status": "shipped"}, [PULL], False, served_de)
+hold_case("MUTATION: German flipped back to in_progress after a served pull: --game red",
+          {"de_status": "shipped"}, [PULL, lambda g, r: regame(g, de={"status": "in_progress"})], True)
+hold_case("...and the next pull drops /de/ out of the served set",
+          {"de_status": "shipped"}, [PULL, lambda g, r: regame(g, de={"status": "in_progress"}), PULL], False, held_de)
+hold_case("served set hand-edited to include a held German", {}, [PULL, lambda g, r: (
+    (r / "src/site_languages.json").write_text(json.dumps({"published": ["de"], "served": ["de"]})),
+    build_i18n.build(r))], True)
+hold_case("de removed from .assetsignore by hand while held", {}, [PULL, lambda g, r: edit(r, ".assetsignore", "\nde\n", "\n")], True)
+hold_case("the game's site_en.arb differs from the website's", {"en_override": "{}"}, [], True)
+def game_en_edit(g, r):
+    f = g / "pipeline/translation/site/site_en.arb"
+    f.write_text(f.read_text() + "\n")
+    subprocess.run(["git", "-C", str(g), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "en"], check=True)
+
+
+hold_case("only the game's English changes after a clean pull", {}, [PULL, game_en_edit], True)
+hold_case("the website's site_de.arb drifts from the game's", {}, [PULL, lambda g, r: site_i18n.arb_path("de", r).write_text(
+    site_i18n.arb_path("de", r).read_text().replace("DE·", "XX·"))], True)
+hold_case("a pull is needed (game has German, website never pulled)", {}, [], True)
+hold_case("the game ships German with no site strings", {"de_status": "shipped", "de_arb": False}, [], True)
+# 18.4a review M2: the website reads only a site file the game's CI gate passed.
+hold_case("German translated but with no gate record at all: --game red", {"gate_record": False}, [], True)
+hold_case("German's gate record is for another version of the file: --game red", {"gate_record": "stale"}, [], True)
+def not_built(g, r):
+    assert not (r / "de/index.html").exists(), "an ungated site file was built into a page"
+
+
+hold_case("...and --pull will not build it", {"gate_record": "stale"}, [PULL, not_built], True)
+hold_case("an incomplete German site ARB is not built", {"drop_key": "heroTitle"}, [PULL], False,
+          lambda g, r: (lambda: None)() if not (r / "de/index.html").exists() else (_ for _ in ()).throw(AssertionError("built")))
+
+
+def bad_game_case(name, game_for, ref):
+    root = copy_site()
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="sg-bad-"))
+    try:
+        red = bool(build_i18n.check_game(game_for(tmp, root), ref, root))
+    finally:
+        shutil.rmtree(tmp)
+        shutil.rmtree(root)
+    print(f"{'ok  ' if red else 'FAIL'} hold     {'red  ' if red else 'green'} {name}")
+    if not red:
+        failures.append(f"hold: {name}")
+
+
+bad_game_case("--game at a path that does not exist", lambda tmp, r: tmp / "nope", "main")
+bad_game_case("--game at a folder that is not git", lambda tmp, r: tmp, "main")
+bad_game_case("--game at a ref that does not exist", lambda tmp, r: fake_site_game(r), "origin/mian")
+
+
+def name_rule():
+    """team-lead + pm-release: site_pt_PT.arb, the game's config.site_arb_path rule."""
+    want = {"de": "site_de.arb", "pt-PT": "site_pt_PT.arb", "es-419": "site_es_419.arb", "ja": "site_ja.arb"}
+    ok = all(site_i18n.arb_name(k) == v for k, v in want.items()) and site_i18n.folder("pt-PT") == "pt-pt/"
+    print(f"{'ok  ' if ok else 'FAIL'} hold     {'green' if ok else 'red  '} site ARB names (site_pt_PT.arb) and folders (/pt-pt/)")
+    if not ok:
+        failures.append("hold: naming rule")
+
+
+name_rule()
+
+
+# ---- 18.3: canonical, Open Graph and structured data on every page -----------------
+def seo_case(name, mutate, expect_red, setup=None):
+    root = copy_site()
+    try:
+        if setup:
+            setup(root)
+        mutate(root)
+        red = bool(build_seo.check(root))
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} seo      {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"seo: {name}")
+
+
+seo_case("today's pages", lambda r: None, False)
+seo_case("a page's seo region removed", lambda r: edit(r, "terms/index.html", "<!-- seo:head -->", "<!-- gone -->"), True)
+seo_case("og:title hand-edited", lambda r: edit(r, "press/index.html",
+    '<meta property="og:title" content="Press kit — Sorting Geography">', '<meta property="og:title" content="Other">'), True)
+seo_case("the title changed, region not rebuilt", lambda r: edit(r, "support/index.html",
+    "<title>Support — Sorting Geography</title>", "<title>Help — Sorting Geography</title>"), True)
+seo_case("a second canonical outside the region", lambda r: edit(r, "privacy/index.html",
+    "</head>", '<link rel="canonical" href="https://example.com/">\n</head>'), True)
+seo_case("a page with no meta description", lambda r: (edit(r, "terms/index.html",
+    '<meta name="description" content="', '<meta name="x" content="'), build_seo.build(r)), True)
+seo_case("JSON-LD that does not parse", lambda r: edit(r, "index.html", '"@context": "https://schema.org"', '"@context": https://schema.org'), True)
+seo_case("hand-added JSON-LD in the body that does not parse", lambda r: edit(r, "press/index.html",
+    "</main>", '<script type="application/ld+json">{"@type": </script>\n</main>'), True)
+seo_case("hand-added JSON-LD without @context", lambda r: edit(r, "press/index.html",
+    "</main>", '<script type="application/ld+json">{"@type": "Thing"}</script>\n</main>'), True)
+seo_case("hand-added valid JSON-LD", lambda r: edit(r, "press/index.html",
+    "</main>", '<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Thing"}</script>\n</main>'), False)
+seo_case("a page added with no seo region", lambda r: ((r / "new").mkdir(), (r / "new/index.html").write_text(
+    '<!doctype html><html lang="en"><head><title>x</title><meta name="description" content="y"></head><body></body></html>')), True)
+seo_case("hreflang without x-default", lambda r: (publish(r), edit(r, "de/index.html",
+    '<link rel="alternate" hreflang="x-default" href="https://sortinggeography.com/">', "")), True)
+seo_case("German published: every page's tags current", lambda r: publish(r), False)
+
+
+def ld_on_german_home():
+    root = copy_site()
+    try:
+        publish(root)
+        t = (root / "de/index.html").read_text()
+        ok = '"inLanguage": "de"' in t and '<link rel="canonical" href="https://sortinggeography.com/de/">' in t
+    finally:
+        shutil.rmtree(root)
+    print(f"{'ok  ' if ok else 'FAIL'} seo      {'green' if ok else 'red  '} the German home page: its own canonical and inLanguage de")
+    if not ok:
+        failures.append("seo: German home")
+
+
+ld_on_german_home()
+
+
+# ---- review-share L1 / L2 (website 18.4 at faf73ab) -------------------------------------
+def l_case(name, setup, expect_red, inspect=None):
+    root = copy_site()
+    try:
+        bad = []
+        try:
+            setup(root)
+            bad = build_seo.check(root) + build_i18n.gates(root)
+            if inspect and not bad:
+                inspect(root)
+        except SystemExit as e:
+            bad = [str(e)]
+        red = bool(bad)
+    except AssertionError as e:
+        red, bad = None, [f"inspection failed: {e}"]
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} L        {'red  ' if red else 'green'} {name}" + ("" if ok else f"  <- {bad[:2]}"))
+    if not ok:
+        failures.append(f"L: {name}")
+
+
+def privacy_copy_right(r):
+    pr = (r / "de/privacy/index.html").read_text()
+    assert '<link rel="canonical" href="https://sortinggeography.com/privacy/">' in pr, "canonical to the English policy"
+    assert "hreflang" not in pr, "the English policy copy is nobody's alternate"
+    assert "hreflang" not in (r / "privacy/index.html").read_text()
+
+
+SITEMAP_DE = [
+    "https://sortinggeography.com/", "https://sortinggeography.com/support/", "https://sortinggeography.com/privacy/",
+    "https://sortinggeography.com/terms/", "https://sortinggeography.com/press/", "https://sortinggeography.com/credits.html",
+    "https://sortinggeography.com/de/", "https://sortinggeography.com/de/support/",
+]
+
+
+def sitemap_exact(r):
+    got = re.findall(r"<loc>([^<]+)</loc>", (r / "sitemap.xml").read_text())
+    assert sorted(got) == sorted(SITEMAP_DE), got
+
+
+l_case("L1: German served: /de/privacy/ canonicals to /privacy/, no hreflang either side", lambda r: publish(r), False, privacy_copy_right)
+l_case("L1: an hreflang set changed on one page only (not reciprocal)", lambda r: (publish(r), edit(r, "de/support/index.html",
+    '<link rel="alternate" hreflang="x-default" href="https://sortinggeography.com/support/">\n', "")), True)
+l_case("L1: a one-sided hreflang added to /privacy/", lambda r: (publish(r), edit(r, "privacy/index.html", "</head>",
+    '<link rel="alternate" hreflang="de" href="https://sortinggeography.com/de/privacy/">\n</head>')), True)
+l_case("L1: /privacy/ given a complete-looking set, but /de/privacy/ does not link back (only reciprocity can see it)",
+       lambda r: (publish(r), edit(r, "privacy/index.html", "</head>",
+    '<link rel="alternate" hreflang="en" href="https://sortinggeography.com/privacy/">\n'
+    '<link rel="alternate" hreflang="de" href="https://sortinggeography.com/de/privacy/">\n'
+    '<link rel="alternate" hreflang="x-default" href="https://sortinggeography.com/privacy/">\n</head>')), True)
+l_case("L1: hreflang to a page that does not exist here", lambda r: (publish(r), edit(r, "index.html",
+    '<link rel="alternate" hreflang="de" href="https://sortinggeography.com/de/">',
+    '<link rel="alternate" hreflang="de" href="https://sortinggeography.com/de/nope/">')), True)
+l_case("L2: the sitemap lists exactly the served pages, /de/support/ included", lambda r: publish(r), False, sitemap_exact)
+l_case("L2: /de/support/ dropped from the sitemap", lambda r: (publish(r), edit(r, "sitemap.xml",
+    "  <url><loc>https://sortinggeography.com/de/support/</loc></url>\n", "")), True)
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")

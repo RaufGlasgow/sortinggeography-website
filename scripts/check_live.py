@@ -84,6 +84,20 @@ def main(base: str) -> int:
                 print("ok   /testers/ 404 (not served until its links exist)")
         except OSError as e:
             bad.append(f"/testers/: no answer ({e})")
+    # 18.4: a served language page answers 200; a built one the game has not shipped is a 404.
+    sl = json.loads((pathlib.Path(__file__).resolve().parent.parent / "src/site_languages.json").read_text())
+    for lang in sl.get("published", []):
+        path = "/" + lang.lower() + "/"
+        want = 200 if lang in sl.get("served", []) else 404
+        try:
+            status, _, _ = get(base, path)
+        except OSError as e:
+            bad.append(f"{path}: no answer ({e})")
+            continue
+        if status != want:
+            bad.append(f"{path}: HTTP {status}, expected {want} ({'served' if want == 200 else 'held until the game ships it'})")
+        else:
+            print(f"ok   {path} {status} ({'served' if want == 200 else 'held'})")
     for path in ("/", "/privacy/", "/support/", "/terms/", "/press/") + (("/testers/",) if testers_live else ()):
         try:
             status, _, body = get(base, path)

@@ -51,6 +51,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import site_i18n  # noqa: E402
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FEATURES = ("analytics", "analytics_switch", "unlock")
 SWITCH_LABEL = "Share anonymous usage numbers"
@@ -152,6 +155,7 @@ def assetsignore_text(root: pathlib.Path, served: bool) -> str:
 
 def context(root: pathlib.Path = ROOT, flags: dict | None = None) -> dict:
     ctx = dict(load_flags(root) if flags is None else flags)
+    ctx.setdefault("root", root)
     ctx.setdefault("facts", load_facts(root))
     ctx.setdefault("testers", load_testers(root))
     return ctx
@@ -241,44 +245,47 @@ def privacy_unlock(f):
   </p>"""
 
 
+# Story 18.4: the support answers in the page's own language, from
+# src/i18n/site_<lang>.arb (every state of every switch is a key there).
+def _s(f) -> dict:
+    return f.get("s") or site_i18n.strings("en", f.get("root", ROOT))
+
+
+def _w(text: str) -> str:
+    """A site string into a region: escaped, except its own inline tags (<a>, <strong>)."""
+    parts = re.split(r"(</?(?:em|a|strong)\b[^>]*>)", text)
+    return "".join(p if re.fullmatch(r"</?(?:em|a|strong)\b[^>]*>", p or "") else html.escape(p, quote=False)
+                   for p in parts)
+
+
 def support_free(f):
-    s = ("<p>\n    Yes. Every question, every country and the Daily are free. The Daily never shows\n"
-         "    an ad. Endless play shows an occasional ad between puzzles.")
-    if f["unlock"]:
-        s += " A purchase removes the ads and changes nothing else."
-    return s + "\n  </p>"
+    s = _s(f)
+    text = s["supportFreeText"] + (" " + s["supportFreeUnlock"] if f["unlock"] else "")
+    return f"<p>\n    {_w(text)}\n  </p>"
 
 
 def support_unlock(f):
     if not f["unlock"]:
         return ""
-    return """<h3>I bought the unlock, but I still see ads</h3>
-  <p>
-    Open the app while connected to the internet: it checks with the store when it
-    starts. If that does not help, use Restore purchases in Settings, signed in to the
-    same Google Play or App Store account you bought it with. If it still shows ads,
-    write to us.
-  </p>
-
-  <h3>How do I cancel the yearly subscription?</h3>
-  <p>
-    Through the store you bought it from. On Android, open Google Play, then Payments
-    and subscriptions, then Subscriptions. On iOS, open Settings, tap your name, then
-    Subscriptions. A one-time purchase has nothing to cancel.
-  </p>"""
+    s = _s(f)
+    return (f"<h3>{_w(s['supportUnlockAdsTitle'])}</h3>\n  <p>\n    {_w(s['supportUnlockAdsText'])}\n  </p>\n\n"
+            f"  <h3>{_w(s['supportUnlockCancelTitle'])}</h3>\n  <p>\n    {_w(s['supportUnlockCancelText'])}\n  </p>")
 
 
 def support_analytics(f):
+    s = _s(f)
     if not f["analytics"]:
-        return ("<h3>Does the app send usage numbers?</h3>\n  <p>\n    No. It sends no usage "
-                "statistics of its own. The <a href=\"../privacy/\">privacy page</a>\n    says what "
-                "Google's ad service receives.\n  </p>")
-    body = ("The app sends anonymous usage numbers so we can see which questions are too\n    "
-            f"hard. Your IP address is {IP_LINE}; no advertising ID, nothing that identifies you.")
+        # the privacy link is relative to the support page: ../privacy/ is the page's own language
+        off = s["supportAnalyticsOffText"].replace('href="privacy/"', 'href="../privacy/"')
+        return f"<h3>{_w(s['supportAnalyticsTitle'])}</h3>\n  <p>\n    {_w(off)}\n  </p>"
+    body = s["supportAnalyticsYes"] + " " + s["supportAnalyticsOnText"]
     if f["analytics_switch"]:
-        return ("<h3>Can I stop the app sending usage numbers?</h3>\n  <p>\n    Yes. " + body +
-                f"\n    To stop them, open Settings and turn off <strong>{SWITCH_LABEL}</strong>.\n  </p>")
-    return "<h3>Does the app send usage numbers?</h3>\n  <p>\n    Yes. " + body + "\n  </p>"
+        if f.get("lang", "en") != "en":
+            # the label must be the app's own Settings label in that language; refuse rather than guess
+            raise SystemExit(f"support-analytics: the {f['lang']} switch label is not wired yet (Story 18.4)")
+        switch = site_i18n.fill(s["supportAnalyticsSwitchText"], switch=html.escape(SWITCH_LABEL))
+        return f"<h3>{_w(s['supportAnalyticsSwitchTitle'])}</h3>\n  <p>\n    {_w(body)}\n    {switch}\n  </p>"
+    return f"<h3>{_w(s['supportAnalyticsTitle'])}</h3>\n  <p>\n    {_w(body)}\n  </p>"
 
 
 def press_facts(f):
@@ -451,7 +458,9 @@ def render(text: str, flags: dict, where: str) -> str:
         name = m.group(2)
         if name not in FRAGMENTS:
             raise SystemExit(f"{where}: unknown feature region '{name}'")
-        return m.group(1) + FRAGMENTS[name](flags) + m.group(4)
+        return m.group(1) + FRAGMENTS[name](page_flags) + m.group(4)
+    lang = site_i18n.page_lang(text)       # 18.4: each page's regions in its own language
+    page_flags = {**flags, "lang": lang, "s": site_i18n.strings(lang, flags.get("root", ROOT))}
     return REGION.sub(sub, text)
 
 
