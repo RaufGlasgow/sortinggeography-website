@@ -125,7 +125,8 @@ def regions(ms: int, stores=STORES) -> dict[str, str]:
         "hero-countdown": (
             '<div class="launch">'
             '<div class="only-pre">'
-            f'<p class="launch-date">Sorting Geography comes to {PLATFORMS_SHORT} on {date_text(ms)}.</p>'
+            # Platforms first, as the When? line (Ra'uf 2026-11-20).
+            f'<p class="launch-date">The same game for {PLATFORMS_SHORT}. It launches on {date_text(ms)}.</p>'
             f'<p class="launch-time">{time_line(ms)}</p>'
             # The timer is decoration: hidden until countdown.js runs, and
             # hidden from screen readers, which read the sentence above.
@@ -137,13 +138,13 @@ def regions(ms: int, stores=STORES) -> dict[str, str]:
             '</div>'
             '</div>'),
         "press-release": (
-            f'<span class="only-pre">{date_text(ms)}, {time_line(ms)[3:-1]}, '
-            f'on {PLATFORMS_SHORT} together</span>'
+            f'<span class="only-pre">{date_text(ms)}, {time_line(ms)[3:-1]}</span>'
             f'<span class="only-post">Out now{on}, since {date_text(ms)}</span>'),
         "when": (
             '<h2 class="only-pre">When?</h2><h2 class="only-post">Get the game</h2>'
-            f'<p class="only-pre">Sorting Geography comes to {PLATFORMS_SHORT} on {date_text(ms)}, '
-            'on phones and tablets, the same game on both on the same day.</p>'
+            # Ra'uf's pick 2026-11-20, "Platforms first", word for word.
+            f'<p class="only-pre">The same game for {PLATFORMS_SHORT}, on phones and tablets. '
+            f'It launches on {date_text(ms)}.</p>'
             f'<p class="only-post">Out now{on}, on phones and tablets.</p>'),
     }
 
@@ -204,6 +205,26 @@ def strip_comments(text: str) -> str:
     return re.sub(r"<!--.*?-->", lambda m: re.sub(r"[^\n]", " ", m.group(0)), text, flags=re.S)
 
 
+# No promise that both platforms arrive on the same day (team-lead 2026-11-20):
+# under fallback A, Android can miss the release date, so launch copy names the
+# date and the platforms, never the two tied together. Scanned in the
+# generated text (every store state) and in every served page outside comments.
+SAME_DAY = [
+    ("'same day'", re.compile(r"\bsame\s+day\b", re.I)),
+    ("'on both on'", re.compile(r"\bon\s+both\s+on\b", re.I)),
+    ("'together' (both platforms at once)", re.compile(r"\btogether\b", re.I)),
+    ("'at the same time'", re.compile(r"\bat\s+the\s+same\s+time\b", re.I)),
+    ("'simultaneous(ly)'", re.compile(r"\bsimultaneous(?:ly)?\b", re.I)),
+    ("a platform tied to a date", re.compile(
+        r"\b(?:Android|iOS)\b[^<.]{0,40}?\bon\s+\d{1,2}\s+[A-Z][a-z]+\s+\d{4}\b")),
+]
+
+
+def same_day_claims(text: str) -> list[str]:
+    plain = re.sub(r"<[^>]+>", " ", strip_comments(text))
+    return [what for what, pat in SAME_DAY if pat.search(plain)]
+
+
 def check(root: pathlib.Path = ROOT, now_ms: int | None = None) -> list[str]:
     ms = release_ms(root)
     gen = regions(ms)
@@ -225,6 +246,13 @@ def check(root: pathlib.Path = ROOT, now_ms: int | None = None) -> list[str]:
                 i = rest.count("\n", 0, m.start()) + 1
                 snippet = " ".join(rest[max(0, m.start() - 40):m.end() + 40].split())
                 bad.append(f"{rel}:{i}: {what} outside a generated region: ...{snippet}...")
+    for state in ([(k, n, None) for k, n, _ in STORES], STORES):
+        for name, frag in regions(ms, state).items():
+            for what in same_day_claims(frag):
+                bad.append(f"launch region {name}: {what} (no same-day promise)")
+    for p in served_pages(root):
+        for what in same_day_claims(p.read_text(encoding="utf-8")):
+            bad.append(f"{p.relative_to(root)}: {what} (no same-day promise)")
     if "hero-countdown" not in seen:
         bad.append("no page carries the hero-countdown region")
     now_ms = int(time.time() * 1000) if now_ms is None else now_ms

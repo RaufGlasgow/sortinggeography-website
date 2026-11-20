@@ -739,6 +739,50 @@ def raises_case(name, fn):
 raises_case("require_ref refuses a ref that does not exist", lambda g: check_sheet_links.require_ref(g, "origin/mian"))
 raises_case("sheet_link_files refuses when git grep fails", lambda g: check_sheet_links.sheet_link_files(g, "origin/mian"))
 
+# 18.8b: no same-day promise in launch copy (team-lead 2026-11-20, fallback A).
+HERO_P = "<h1>Put the world in order</h1>"
+for name, para in [
+    ("'same day' typed into the home page", "<p>On both platforms the same day.</p>"),
+    ("'on both on' typed into the home page", "<p>The same game on both on launch.</p>"),
+    ("'together' typed into the home page", "<p>Android and iOS together.</p>"),
+    ("a platform tied to another date", "<p>Coming to Android and iOS on 3 March 2027.</p>"),
+    ("'at the same time' typed into the home page", "<p>On Android and iOS at the same time.</p>"),
+    ("'simultaneously' typed into the home page", "<p>Android and iOS launch simultaneously.</p>"),
+    ("'simultaneous' typed into the home page", "<p>A simultaneous launch on Android and iOS.</p>"),
+]:
+    launch_case(name, True, lambda r, para=para: edit(r, "index.html", HERO_P, HERO_P + "\n  " + para))
+launch_case("'same day' only inside a comment", False, lambda r: edit(
+    r, "index.html", HERO_P, HERO_P + "\n  <!-- never promise the same day -->"))
+launch_case("'same day' inside a comment that holds a '>'", False, lambda r: edit(
+    r, "index.html", HERO_P, HERO_P + "\n  <!-- launch copy -> never promise the same day -->"))
+launch_case("the platforms named without a date", False, lambda r: edit(
+    r, "index.html", HERO_P, HERO_P + "\n  <p>For Android and iOS.</p>"))
+
+
+def generator_case(name, extra, region, expect_red):
+    real = build_launch.regions
+    def patched(ms, stores=build_launch.STORES):
+        out = real(ms, stores)
+        out[region] = out[region] + extra
+        return out
+    build_launch.regions = patched
+    root = copy_site()
+    try:
+        # Pages NOT rebuilt: only the scan of the generated text itself can say 'no same-day promise'.
+        red = any("no same-day promise" in b for b in build_launch.check(root, now_ms=EARLY))
+    finally:
+        build_launch.regions = real
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} launch   {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"launch: {name}")
+
+
+generator_case("the generator itself writes 'same day'", "<p>Both on the same day.</p>", "when", True)
+generator_case("the generator writes 'together' in the press line", " on Android and iOS together", "press-release", True)
+generator_case("the generator adds a harmless sentence", "<p>Sort the world.</p>", "when", False)
+
 # ---- 20.3b: the Google Play closed-test page ------------------------------------
 TP = "testers/index.html"
 WHY = "This test runs on Google Play, so it is for Android only."
@@ -847,6 +891,16 @@ def built_link_case(name, url, must_not, expect_red=True):
 
 built_link_case("a quote in a link is escaped when built", 'https://g/x" onmouseover="a', '" onmouseover="')
 built_link_case("an angle bracket in a link is escaped when built", "https://g/<script>", "<script>")
+
+
+# Ra'uf's pick 2026-11-20 ("Platforms first"), word for word in the When? line.
+RAUF_WHEN = "The same game for Android and iOS, on phones and tablets. It launches on 10 December 2026."
+when_text = build_launch.regions(RELEASE)["when"]
+ok = RAUF_WHEN in when_text and build_launch.regions(RELEASE)["hero-countdown"].find(
+    "The same game for Android and iOS. It launches on 10 December 2026.") != -1
+print(f"{'ok  ' if ok else 'FAIL'} launch   {'green' if ok else 'red  '} Ra'uf's platforms-first wording, word for word")
+if not ok:
+    failures.append("launch: Ra'uf's platforms-first wording")
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
