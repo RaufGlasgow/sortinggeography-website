@@ -213,3 +213,30 @@ test('stripping stays fast on a worst-case body (no regex blow-up)', () => {
     assert.ok(ms < 200, `${body.length} letters took ${ms.toFixed(1)} ms`);
   }
 });
+
+
+// ---- fonts are our own (team-lead 2026-11-20, Story 18.3) ----------------------
+// The CSP allows fonts and styles from 'self' only. A design that loads Google
+// Fonts would break once the CSP is enforced, and send every visitor's address
+// to Google. Fonts live under /fonts/<family>/, each family with its OFL text.
+const THIRD_PARTY_FONTS = /fonts\.googleapis\.com|fonts\.gstatic\.com|use\.typekit\.net|fonts\.bunny\.net/i;
+
+for (const file of [...served('.html'), ...served('.css'), ...served('.js')]) {
+  test(`${file}: no third-party font service`, () => {
+    const t = readFileSync(new URL(file, SITE), 'utf8');
+    assert.doesNotMatch(t, THIRD_PARTY_FONTS, `${file} loads fonts from a third party`);
+  });
+}
+
+test('every font file we serve sits beside its family\'s OFL licence', () => {
+  let dirs = [];
+  try { dirs = readdirSync(new URL('fonts/', SITE), { withFileTypes: true }).filter((e) => e.isDirectory()); } catch { dirs = []; }
+  for (const d of dirs) {
+    const files = readdirSync(new URL(`fonts/${d.name}/`, SITE));
+    if (files.some((f) => /\.(woff2?|ttf|otf)$/i.test(f))) {
+      assert.ok(files.includes('OFL.txt'), `fonts/${d.name}/ has font files but no OFL.txt`);
+      const lic = readFileSync(new URL(`fonts/${d.name}/OFL.txt`, SITE), 'utf8');
+      assert.match(lic, /SIL Open Font License, Version 1\.1/, `fonts/${d.name}/OFL.txt is not the OFL`);
+    }
+  }
+});
