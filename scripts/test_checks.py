@@ -55,6 +55,14 @@ def fill_tester_links(root: pathlib.Path) -> None:
     build_features.build(root)
 
 
+def set_one_link(root: pathlib.Path) -> None:
+    p = root / "src/testers.json"
+    t = json.loads(p.read_text())
+    t["group_url"] = build_features.GROUP_PREFIX + "sorting-geography-testers"
+    p.write_text(json.dumps(t))
+    build_features.build(root)
+
+
 def edit(root: pathlib.Path, rel: str, old: str, new: str) -> None:
     p = root / rel
     text = p.read_text(encoding="utf-8")
@@ -442,7 +450,12 @@ deploy_case("--game on today's site against a matching game", lambda r: None, Fa
 deploy_case("--game with a placeholder open in terms", lambda r: edit(
     r, "terms/index.html", "Empty Cup Media LLC", TODO), True)
 # 20.3b: the tester page's links are todo spans until Ra'uf has them.
-deploy_case("--game with today's tester links still open", lambda r: None, True, links=False)
+# 20.3c: open tester links -> the page is not served -> --game passes; once the
+# links are set the page is served and checked like any other.
+deploy_case("--game with today's tester links still open (page not served)", lambda r: None, False, links=False)
+deploy_case("--game with one tester link set, the other still open", lambda r: set_one_link(r), False, links=False)
+deploy_case("--game with both links set and a placeholder put back in the page", lambda r: edit(
+    r, "testers/index.html", "Become a tester</h1>", "Become a tester</h1><p><span class=\"todo\">x</span></p>"), True)
 deploy_case("--game when the game's applicationId differs", lambda r: None, True, package="com.example.other")
 
 
@@ -593,7 +606,36 @@ pin_case("CI loose to a major (wrangler@4)", True, lambda r: edit(
 # ---- 20.3b: the Google Play closed-test page ------------------------------------
 TP = "testers/index.html"
 WHY = "This test runs on Google Play, so it is for Android only."
-todo_case("tester links still open today: deploy refused", lambda r: None, True, links=False)
+todo_case("tester links still open today: the unserved page's placeholders do not count", lambda r: None, False, links=False)
+todo_case("a placeholder on a SERVED page still counts while the tester page is unserved", lambda r: edit(
+    r, "terms/index.html", "Empty Cup Media LLC", TODO), True, links=False)
+
+
+def served_case(name, mutate, expect_red, links=False):
+    root = copy_site()
+    try:
+        if links:
+            fill_tester_links(root)
+        mutate(root)
+        red = bool(build_features.check(root))
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} served   {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"served: {name}")
+
+
+AI = ".assetsignore"
+served_case("links open, testers listed in .assetsignore (today)", lambda r: None, False)
+served_case("links open, testers line removed from .assetsignore", lambda r: edit(r, AI, "testers\n", ""), True)
+served_case("links set, page rebuilt: testers line gone", lambda r: None, False, links=True)
+served_case("links set but the testers line left in .assetsignore", lambda r: (r / AI).write_text(
+    (r / AI).read_text() + "testers\n"), True, links=True)
+served_case("links open and the home page links to /testers/", lambda r: edit(
+    r, "index.html", "<h1>Put the world in order</h1>", '<h1>Put the world in order</h1><p><a href="/testers/">Test it</a></p>'), True)
+served_case("links set and the home page links to /testers/", lambda r: (fill_tester_links(r), edit(
+    r, "index.html", "<h1>Put the world in order</h1>", '<h1>Put the world in order</h1><p><a href="/testers/">Test it</a></p>')), False)
 platform_case("tester page names Android alone, with its reason", False)
 platform_case("the reason sentence removed from the tester page", True, lambda r: edit(
     r, TP, "This test runs on", "This test is on"))
