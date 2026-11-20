@@ -1014,6 +1014,9 @@ i18n_case("...unless allow_identical lists it", lambda r: ((r / "src/i18n/allow_
     json.dumps({"de": ["heroTitle"]})), publish(r, change=lambda a: a.update(heroTitle="Put the world in order"))), False)
 i18n_case("allow_identical names a key that does not exist", lambda r: ((r / "src/i18n/allow_identical.json").write_text(
     json.dumps({"de": ["noSuchKey"]})), publish(r)), True)
+i18n_case("an unknown tag added to a German value (review M5)", lambda r: publish(r, change=lambda a: a.update(
+    heroLede=a["heroLede"] + "<script>alert(1)</script>")), True)
+i18n_case("a stray > in a German value", lambda r: publish(r, change=lambda a: a.update(heroTitle="DE· Ordne > die Welt")), True)
 i18n_case("a German key missing", lambda r: publish(r, change=lambda a: a.pop("card1Text")), True)
 i18n_case("an unknown key in German", lambda r: publish(r, change=lambda a: a.update(extraKey="x")), True)
 i18n_case("the link tag dropped from a German value", lambda r: publish(r, change=lambda a: a.update(

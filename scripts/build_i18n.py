@@ -45,8 +45,14 @@ MARKER = re.compile(r"\{\{(@?[A-Za-z][A-Za-z0-9]*)(?::([A-Z]{2}))?\}\}")
 REGION = build_launch.REGION
 
 
+ANY_TAG = re.compile(r"<[^<>]*>")
+
+
 def tags(value: str) -> list[str]:
-    return sorted(INLINE_TAG.findall(value))
+    """EVERY tag with its attributes, plus any stray < or > (the same rule as the game's site.tag_problems,
+    18.4a review M5): an unknown tag must never pass because the check did not know its name."""
+    stray = ["stray " + c for c in ANY_TAG.sub("", value) if c in "<>"]
+    return sorted(ANY_TAG.findall(value)) + sorted(stray)
 
 
 def placeholders(value: str) -> list[str]:
