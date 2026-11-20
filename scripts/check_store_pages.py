@@ -48,6 +48,19 @@ def check(root: pathlib.Path = ROOT) -> list[str]:
         if "<title>" not in text:
             bad.append(f"{page}: no <title>")
 
+    # Story 20.3b: the closed-test page. It is for invited testers, so it stays
+    # out of search (noindex, not in the sitemap) but must exist and carry the
+    # contact address testers report to.
+    tp = root / "testers/index.html"
+    if not tp.is_file():
+        bad.append("testers/index.html is missing (the Google Play closed-test page)")
+    else:
+        tt = tp.read_text(encoding="utf-8")
+        if not re.search(rf'href="mailto:{re.escape(SUPPORT_EMAIL)}(?:\?[^"]*)?"', tt):
+            bad.append(f"testers/index.html: no mailto link to {SUPPORT_EMAIL}")
+        if not re.search(r'<meta\s+name="robots"\s+content="[^"]*\bnoindex\b[^"]*"\s*/?>', tt, re.I):
+            bad.append("testers/index.html: no <meta name=\"robots\" content=\"noindex\">")
+
     if (root / "privacy.html").exists():
         bad.append("privacy.html is back at the root; the page lives at /privacy/ (the worker 301s the old name)")
     worker = (root / "src" / "worker.js").read_text(encoding="utf-8")
@@ -79,6 +92,8 @@ def check(root: pathlib.Path = ROOT) -> list[str]:
                 "https://sortinggeography.com/terms/", "https://sortinggeography.com/press/"):
         if f"<loc>{loc}</loc>" not in sitemap:
             bad.append(f"sitemap.xml does not list {loc}")
+    if "sortinggeography.com/testers/" in sitemap:
+        bad.append("sitemap.xml lists /testers/; the tester page is for invited people, not search")
     return bad
 
 
