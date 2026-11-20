@@ -19,10 +19,13 @@ import { fileURLToPath } from 'node:url';
 
 const SITE = new URL('../', import.meta.url);
 const NOT_SERVED = new Set(['docs', 'src', 'scripts', 'node_modules', '.git', '.github', '.wrangler', 'functions']);
+// Story 20.3c: what .assetsignore lists is never uploaded, so it must 404.
+const IGNORED = new Set(readFileSync(new URL('.assetsignore', SITE), 'utf8').split('\n')
+  .map((l) => l.trim().replace(/^\/|\/$/g, '')).filter((l) => l && !l.startsWith('#')));
 function servedPages(dir = '') {
   return readdirSync(new URL(dir || '.', SITE), { withFileTypes: true }).flatMap((e) => {
     const rel = dir + e.name;
-    if (e.isDirectory()) return NOT_SERVED.has(e.name) || e.name.startsWith('.') ? [] : servedPages(rel + '/');
+    if (e.isDirectory()) return NOT_SERVED.has(e.name) || IGNORED.has(e.name) || e.name.startsWith('.') ? [] : servedPages(rel + '/');
     return e.name.endsWith('.html') ? [rel] : [];
   });
 }
@@ -107,5 +110,21 @@ for (const page of servedPages()) {
     assert.equal(sent.replace(stamped, '$1$2'), expected, `${path}: the served page is not the source minus its comments`);
     assert.ok(sent.includes('<h1'), `${path}: no <h1> left`);
     assert.ok(sent.includes('</main>') && sent.includes('</html>'), `${path}: page cut short`);
+  });
+}
+
+// Story 20.3c: a page dir in .assetsignore (the tester page until both of its
+// links exist) is not served by the real worker: 404, not the page.
+const UNSERVED_PAGES = readdirSync(SITE, { withFileTypes: true })
+  .filter((e) => e.isDirectory() && IGNORED.has(e.name) && !NOT_SERVED.has(e.name))
+  .map((e) => e.name);
+for (const dir of UNSERVED_PAGES) {
+  test(`/${dir}/ is listed in .assetsignore, so the real worker does not serve it`, async () => {
+    for (const path of [`/${dir}/`, `/${dir}/index.html`, `/${dir}`]) {
+      const res = await fetch(base + path, { headers: { Accept: 'text/html' }, redirect: 'manual', signal: AbortSignal.timeout(15000) });
+      const body = await res.text();
+      assert.notEqual(res.status, 200, `${path}: HTTP ${res.status}`);
+      assert.equal(body.includes('Become a tester'), false, `${path}: the page itself came back`);
+    }
   });
 }

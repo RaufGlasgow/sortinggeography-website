@@ -114,6 +114,42 @@ def load_testers(root: pathlib.Path = ROOT) -> dict:
     return t
 
 
+# Story 20.3c (team-lead 2026-11-20): until BOTH tester links are real, the
+# tester page is not served at all. build() lists it in .assetsignore (Cloudflare
+# then never uploads it: /testers/ is a 404), check() fails if that line and
+# testers.json disagree or if any served page links to /testers/, and todos()
+# looks only at served pages, so --game passes with its placeholders present.
+# Once both links are set, build() drops the line and the page is checked as any.
+TESTERS_IGNORE = "testers"
+ASSETSIGNORE = ".assetsignore"
+
+
+def testers_served(t: dict) -> bool:
+    return t["group_url"] is not None and t["optin_url"] is not None
+
+
+def ignored(root: pathlib.Path = ROOT) -> set[str]:
+    """Top-level names Cloudflare does not serve (.assetsignore, one per line)."""
+    f = root / ASSETSIGNORE
+    if not f.exists():
+        return set()
+    return {ln.strip().strip("/") for ln in f.read_text(encoding="utf-8").splitlines()
+            if ln.strip() and not ln.strip().startswith("#")}
+
+
+def is_served(p: pathlib.Path, root: pathlib.Path = ROOT) -> bool:
+    return p.relative_to(root).parts[0] not in ignored(root)
+
+
+def assetsignore_text(root: pathlib.Path, served: bool) -> str:
+    f = root / ASSETSIGNORE
+    lines = f.read_text(encoding="utf-8").splitlines() if f.exists() else []
+    lines = [ln for ln in lines if ln.strip().strip("/") != TESTERS_IGNORE]
+    if not served:
+        lines.append(TESTERS_IGNORE)
+    return "\n".join(lines) + "\n"
+
+
 def context(root: pathlib.Path = ROOT, flags: dict | None = None) -> dict:
     ctx = dict(load_flags(root) if flags is None else flags)
     ctx.setdefault("facts", load_facts(root))
@@ -422,6 +458,14 @@ def render(text: str, flags: dict, where: str) -> str:
 def check(root: pathlib.Path = ROOT, flags: dict | None = None) -> list[str]:
     flags = context(root, flags)
     bad = []
+    served = testers_served(flags["testers"])
+    if (TESTERS_IGNORE in ignored(root)) == served:
+        bad.append(f"{ASSETSIGNORE}: the tester page is {'listed' if served else 'not listed'} but "
+                   f"src/testers.json says it is {'' if served else 'not '}ready; run scripts/build_features.py")
+    if not served:
+        for p in served_pages(root):
+            if is_served(p, root) and re.search(r'href="[^"]*testers/?(?:index\.html)?"', p.read_text(encoding="utf-8")):
+                bad.append(f"{p.relative_to(root)}: links to /testers/, which is not served yet")
     seen = set()
     for p in served_pages(root):
         rel = p.relative_to(root)
@@ -529,6 +573,8 @@ TODO_WORDS = re.compile(r"to be confirmed|\[todo", re.I)
 def todos(root: pathlib.Path = ROOT) -> list[str]:
     bad = []
     for p in served_pages(root):
+        if not is_served(p, root):
+            continue    # never uploaded, never seen (20.3c)
         text = re.sub(r"<!--.*?-->", lambda m: re.sub(r"[^\n]", " ", m.group(0)),
                       p.read_text(encoding="utf-8"), flags=re.S)
         rel = p.relative_to(root)
@@ -558,6 +604,11 @@ def compare(flags: dict, real: dict) -> list[str]:
 
 def build(root: pathlib.Path = ROOT) -> None:
     flags = context(root)
+    want = assetsignore_text(root, testers_served(flags["testers"]))
+    f = root / ASSETSIGNORE
+    if not f.exists() or f.read_text(encoding="utf-8") != want:
+        f.write_text(want, encoding="utf-8")
+        print(f"wrote {ASSETSIGNORE} (tester page {'served' if testers_served(flags['testers']) else 'NOT served'})")
     for p in served_pages(root):
         text = p.read_text(encoding="utf-8")
         new = render(text, flags, str(p.relative_to(root)))
