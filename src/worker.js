@@ -33,10 +33,23 @@ import { serveAsset } from './pages.js';
 // handler (scripts/test_served.mjs caught a constant export breaking start-up).
 import { sendWelcomeEmail, handleWelcomeBacklog, isSignupKey } from './mail.js';
 import { tokenValid } from './token.js';
+import { withSecurityHeaders, handleCspReport } from './security.js';
 
 export default {
+  // Every response, page, file, API answer, redirect or error, leaves through
+  // withSecurityHeaders (Story 18.10, src/security.js).
   async fetch(request, env, ctx) {
+    return withSecurityHeaders(await route(request, env, ctx));
+  },
+};
+
+async function route(request, env, ctx) {
     const url = new URL(request.url);
+
+    if (url.pathname === '/api/csp-report') {
+      if (request.method === 'POST') return handleCspReport(request);
+      return new Response('Method not allowed', { status: 405 });
+    }
 
     if (url.pathname === '/api/subscribe') {
       if (request.method === 'POST') return handleSubscribe(request, env, ctx);
@@ -76,8 +89,7 @@ export default {
     }
 
     return serveAsset(request, env, Date.now());
-  },
-};
+}
 
 
 // The signup (18.5 review E1). Before the Resend key goes in, the route must

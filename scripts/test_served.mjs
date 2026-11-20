@@ -16,6 +16,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
+import { SECURITY_HEADERS } from '../src/security.js';
 
 const SITE = new URL('../', import.meta.url);
 const NOT_SERVED = new Set(['docs', 'src', 'scripts', 'node_modules', '.git', '.github', '.wrangler', 'functions']);
@@ -154,4 +155,15 @@ test('signup: stored by the real worker; cross-site refused; the rate limit bite
   for (let i = 0; i < 8; i += 1) codes.push((await post('/api/subscribe', form({ email: `burst${i}@example.com` }))).status);
   assert.ok(codes.includes(429), `the SUBSCRIBE_LIMIT binding refuses a burst: ${codes}`);
   assert.equal((await post('/api/send-welcome-backlog', new FormData())).status, 401, 'no EXPORT_SECRET in dev');
+});
+
+// Story 18.10: the security headers in the real runtime, on a page, a file,
+// an API answer and a redirect.
+test('the real worker sends every security header on pages, files, APIs and redirects', async () => {
+  for (const [path, init] of [['/', {}], ['/style.css', {}], ['/api/subscribe', {}], ['/index.html', { redirect: 'manual' }],
+    ['/api/csp-report', { method: 'POST', body: '{}', headers: { 'Content-Type': 'application/csp-report' } }]]) {
+    const res = await fetch(base + path, { ...init, signal: AbortSignal.timeout(15000) });
+    await res.arrayBuffer();
+    for (const [k, v] of Object.entries(SECURITY_HEADERS)) assert.equal(res.headers.get(k), v, `${path}: ${k}`);
+  }
 });

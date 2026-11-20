@@ -225,6 +225,25 @@ which obliges attribution.
 python3 scripts/build_credits.py ../Sorting-Geography/pipeline/content/dataset.json
 ```
 
+## Security headers and the CSP (Story 18.10)
+
+Every response carries the headers in `src/security.js`, the one list (never per page):
+HSTS `max-age=31536000` (no `includeSubDomains` yet), `Referrer-Policy:
+strict-origin-when-cross-origin`, `X-Content-Type-Options: nosniff`, `X-Frame-Options:
+SAMEORIGIN`, an enforced `frame-ancestors 'self'`, and a **report-only** CSP trimmed to what the
+site loads (only our own scripts, styles, images and `fetch('/api/subscribe')`). After a deploy,
+`scripts/check_live.py` checks the live headers equal that list.
+
+**Switching the CSP to enforcing, about a week after the deploy that ships it:**
+
+1. Read the reports: Cloudflare dashboard → Workers & Pages → `sortinggeography-website` → Logs,
+   search `csp-report` (each logged at most 2000 characters; nothing is stored).
+2. A report from our own pages means the CSP is missing something: fix the page or widen the
+   directive in `src/security.js`, with a test, and wait again. Reports from browser extensions
+   (`chrome-extension:`, `moz-extension:` sources) are noise.
+3. With a quiet week, move `CSP_REPORT_ONLY` into `Content-Security-Policy` (keep `report-uri`),
+   update `scripts/test_security.mjs`, review, deploy, run `check_live.py`.
+
 ## Still owed on this site, separately from deploying it
 
 - `privacy.html` is a **draft** and must be finalised against the shipping build before store
