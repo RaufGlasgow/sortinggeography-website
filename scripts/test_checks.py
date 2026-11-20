@@ -25,6 +25,7 @@ import check_platform  # noqa: E402
 import check_store_pages  # noqa: E402
 import check_sheet_links  # noqa: E402
 import build_i18n  # noqa: E402
+import build_seo  # noqa: E402
 import site_i18n  # noqa: E402
 import build_features  # noqa: E402
 import check_comments  # noqa: E402
@@ -1205,6 +1206,62 @@ def name_rule():
 
 
 name_rule()
+
+
+# ---- 18.3: canonical, Open Graph and structured data on every page -----------------
+def seo_case(name, mutate, expect_red, setup=None):
+    root = copy_site()
+    try:
+        if setup:
+            setup(root)
+        mutate(root)
+        red = bool(build_seo.check(root))
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} seo      {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"seo: {name}")
+
+
+seo_case("today's pages", lambda r: None, False)
+seo_case("a page's seo region removed", lambda r: edit(r, "terms/index.html", "<!-- seo:head -->", "<!-- gone -->"), True)
+seo_case("og:title hand-edited", lambda r: edit(r, "press/index.html",
+    '<meta property="og:title" content="Press kit — Sorting Geography">', '<meta property="og:title" content="Other">'), True)
+seo_case("the title changed, region not rebuilt", lambda r: edit(r, "support/index.html",
+    "<title>Support — Sorting Geography</title>", "<title>Help — Sorting Geography</title>"), True)
+seo_case("a second canonical outside the region", lambda r: edit(r, "privacy/index.html",
+    "</head>", '<link rel="canonical" href="https://example.com/">\n</head>'), True)
+seo_case("a page with no meta description", lambda r: (edit(r, "terms/index.html",
+    '<meta name="description" content="', '<meta name="x" content="'), build_seo.build(r)), True)
+seo_case("JSON-LD that does not parse", lambda r: edit(r, "index.html", '"@context": "https://schema.org"', '"@context": https://schema.org'), True)
+seo_case("hand-added JSON-LD in the body that does not parse", lambda r: edit(r, "press/index.html",
+    "</main>", '<script type="application/ld+json">{"@type": </script>\n</main>'), True)
+seo_case("hand-added JSON-LD without @context", lambda r: edit(r, "press/index.html",
+    "</main>", '<script type="application/ld+json">{"@type": "Thing"}</script>\n</main>'), True)
+seo_case("hand-added valid JSON-LD", lambda r: edit(r, "press/index.html",
+    "</main>", '<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Thing"}</script>\n</main>'), False)
+seo_case("a page added with no seo region", lambda r: ((r / "new").mkdir(), (r / "new/index.html").write_text(
+    '<!doctype html><html lang="en"><head><title>x</title><meta name="description" content="y"></head><body></body></html>')), True)
+seo_case("hreflang without x-default", lambda r: (publish(r), edit(r, "de/index.html",
+    '<link rel="alternate" hreflang="x-default" href="https://sortinggeography.com/">', "")), True)
+seo_case("German published: every page's tags current", lambda r: publish(r), False)
+
+
+def ld_on_german_home():
+    root = copy_site()
+    try:
+        publish(root)
+        t = (root / "de/index.html").read_text()
+        ok = '"inLanguage": "de"' in t and '<link rel="canonical" href="https://sortinggeography.com/de/">' in t
+    finally:
+        shutil.rmtree(root)
+    print(f"{'ok  ' if ok else 'FAIL'} seo      {'green' if ok else 'red  '} the German home page: its own canonical and inLanguage de")
+    if not ok:
+        failures.append("seo: German home")
+
+
+ld_on_german_home()
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")

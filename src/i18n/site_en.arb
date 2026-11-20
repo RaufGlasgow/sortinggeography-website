@@ -8,10 +8,6 @@
   "@metaDescription": {
     "description": "Search-result description. Android before iOS (platform rule)."
   },
-  "ogDescription": "Five countries, one question, one right order. A daily geography game built on real, sourced figures.",
-  "@ogDescription": {
-    "description": "Link-preview description."
-  },
   "navDataSources": "Data sources",
   "@navDataSources": {
     "description": "Header and footer link to the sources page."

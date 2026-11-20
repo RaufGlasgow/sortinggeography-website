@@ -70,6 +70,7 @@ TEMPLATE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Data sources — Sorting Geography</title>
 <meta name="description" content="Every figure in Sorting Geography, and where it came from.">
+<!-- seo:head --><!-- /seo:head -->
 <link rel="stylesheet" href="style.css">
 </head>
 <body>

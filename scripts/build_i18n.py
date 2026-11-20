@@ -154,6 +154,7 @@ def page_path(lang: str, page: str = "index") -> str:
 def empty_regions(text: str) -> str:
     """Launch and feature regions emptied: what the template alone builds."""
     text = REGION.sub(lambda m: m.group(1) + m.group(4), text)
+    text = re.sub(r"(<!-- seo:head -->).*?(<!-- /seo:head -->)", r"\1\2", text, flags=re.S)   # build_seo fills it
     return FEATURE_REGION.sub(lambda m: m.group(1) + m.group(4), text)
 
 
@@ -261,7 +262,9 @@ def build(root: pathlib.Path = ROOT) -> None:
                 print(f"wrote {page_path(lang, page)}")
     build_launch.build(root)
     import build_features
+    import build_seo
     build_features.build(root)
+    build_seo.build(root)
 
 
 # ---------------------------------------------------------------------------
