@@ -40,7 +40,7 @@ ROOT = site_i18n.ROOT
 TEMPLATE = "src/templates/index.html.tmpl"
 ALLOW = "src/i18n/allow_identical.json"
 SITE = "https://sortinggeography.com/"
-INLINE_TAG = re.compile(r"</?(?:em|a)\b[^>]*>")
+INLINE_TAG = re.compile(r"</?(?:em|a|strong)\b[^>]*>")
 MARKER = re.compile(r"\{\{(@?[A-Za-z][A-Za-z0-9]*)(?::([A-Z]{2}))?\}\}")
 REGION = build_launch.REGION
 
@@ -53,30 +53,68 @@ def placeholders(value: str) -> list[str]:
     return sorted(re.findall(r"\{([A-Za-z]+)\}", value))
 
 
-def safe(value: str, root_prefix: str) -> str:
-    """Escape everything except the inline tags; relative links gain the root."""
+# The pages each language gets (pm-release 2026-11-20): home and support
+# translated; privacy is the English policy under a one-line translated note.
+# name -> (template, path under the language folder, depth below it, also built for English?)
+PAGES = {
+    "index": ("src/templates/index.html.tmpl", "", 0, True),
+    "support": ("src/templates/support.html.tmpl", "support/", 1, True),
+    "privacy": ("src/templates/privacy.html.tmpl", "privacy/", 1, False),   # /privacy/ itself stays hand-written
+}
+LANG_TARGETS = ("", "support/", "privacy/")   # links that stay inside the visitor's language
+FEATURE_REGION = re.compile(r"(<!-- feature:([a-z0-9-]+) -->)(.*?)(<!-- /feature:\2 -->)", re.S)
+
+
+def prefixes(lang: str, page: str) -> tuple[str, str]:
+    """(site root, language root) as relative prefixes from this page."""
+    depth = PAGES[page][2]
+    return "../" * (depth + (lang != "en")), "../" * depth
+
+
+def _href(target: str, root: str, langroot: str) -> str:
+    return (langroot if target.split("#")[0] in LANG_TARGETS else root) + target
+
+
+def safe(value: str, root: str, langroot: str) -> str:
+    """Escape everything except the inline tags; site-root-relative links get the right prefix."""
     parts = re.split(f"({INLINE_TAG.pattern})", value)
     out = []
     for part in parts:
         if INLINE_TAG.fullmatch(part or ""):
-            out.append(re.sub(r'href="(?![a-z]+:|/|#)', f'href="{root_prefix}', part))
+            out.append(re.sub(r'href="(?![a-z]+:|/|#)([^"]*)"', lambda m: f'href="{_href(m.group(1), root, langroot)}"', part))
         else:
             out.append(html.escape(part, quote=False))
     return "".join(out)
 
 
-def alternates(langs: list[str]) -> str:
+def page_url(lang: str, page: str) -> str:
+    return SITE + site_i18n.folder(lang) + PAGES[page][1]
+
+
+def alternates(page: str, langs: list[str]) -> str:
     if not langs:
         return ""
-    links = [f'<link rel="alternate" hreflang="{lg}" href="{SITE}{site_i18n.folder(lg)}">' for lg in ["en", *langs]]
-    links.append(f'<link rel="alternate" hreflang="x-default" href="{SITE}">')
+    links = [f'<link rel="alternate" hreflang="{lg}" href="{page_url(lg, page)}">' for lg in ["en", *langs]]
+    links.append(f'<link rel="alternate" hreflang="x-default" href="{page_url("en", page)}">')
     return "\n" + "\n".join(links)
 
 
-def render(lang: str, root: pathlib.Path = ROOT) -> str:
-    tpl = (root / TEMPLATE).read_text(encoding="utf-8")
+def english_privacy(root: pathlib.Path, lang_root: str) -> str:
+    """The English policy's <main> body for a language's privacy page: comments out, links re-rooted one folder
+    deeper (support and privacy stay in the visitor's language), feature regions kept so build_features
+    renders and checks them as on /privacy/."""
+    text = (root / "privacy/index.html").read_text(encoding="utf-8")
+    body = re.search(r"<main[^>]*>(.*)</main>", text, re.S).group(1)
+    body = re.sub(r"<!--(?!\s*/?feature:).*?-->", "", body, flags=re.S)
+    body = re.sub(r'href="\.\./([^"]*)"', lambda m: "href=\"" + ("../" + m.group(1) if m.group(1).split("#")[0] in LANG_TARGETS else "../../" + m.group(1)) + "\"", body)
+    return body.strip("\n")
+
+
+def render(lang: str, root: pathlib.Path = ROOT, page: str = "index") -> str:
+    tpl_path = PAGES[page][0]
+    tpl = (root / tpl_path).read_text(encoding="utf-8")
     s = site_i18n.strings(lang, root)
-    rp = "../" if lang != "en" else ""
+    rp, lp = prefixes(lang, page)
     isos = tuple(sorted(set(re.findall(r"\{\{@country:([A-Z]{2})\}\}", tpl))))
     c = site_i18n.cldr(lang, build_launch.release_ms(root), isos)
     langs = site_i18n.served(root)          # hreflang only to pages a visitor can open
@@ -87,24 +125,36 @@ def render(lang: str, root: pathlib.Path = ROOT) -> str:
             return lang
         if name == "@root":
             return rp
+        if name == "@langroot":
+            return lp
+        if name == "@canonical":
+            return page_url(lang, page)
         if name == "@country":
             return html.escape(c["countries"][arg])
         if name == "@alternates":
-            return alternates(langs)
+            return alternates(page, langs)
+        if name == "@englishPrivacy":
+            return english_privacy(root, rp)
         if name.startswith("@"):
-            raise SystemExit(f"{TEMPLATE}: unknown marker {m.group(0)}")
+            raise SystemExit(f"{tpl_path}: unknown marker {m.group(0)}")
         if name not in s:
-            raise SystemExit(f"{TEMPLATE}: {{{{{name}}}}} is not in site_en.arb")
-        return safe(s[name], rp)
+            raise SystemExit(f"{tpl_path}: {{{{{name}}}}} is not in site_en.arb")
+        return safe(s[name], rp, lp)
     return MARKER.sub(sub, tpl)
 
 
-def page_path(lang: str) -> str:
-    return f"{site_i18n.folder(lang)}index.html"
+def pages_for(lang: str) -> list[str]:
+    return [pg for pg, (_t, _p, _d, en_too) in PAGES.items() if lang != "en" or en_too]
+
+
+def page_path(lang: str, page: str = "index") -> str:
+    return f"{site_i18n.folder(lang)}{PAGES[page][1]}index.html"
 
 
 def empty_regions(text: str) -> str:
-    return REGION.sub(lambda m: m.group(1) + m.group(4), text)
+    """Launch and feature regions emptied: what the template alone builds."""
+    text = REGION.sub(lambda m: m.group(1) + m.group(4), text)
+    return FEATURE_REGION.sub(lambda m: m.group(1) + m.group(4), text)
 
 
 def gates(root: pathlib.Path = ROOT) -> list[str]:
@@ -130,12 +180,13 @@ def gates(root: pathlib.Path = ROOT) -> list[str]:
         for k in sorted(ok_same - set(en)):
             bad.append(f"{ALLOW} {lang}: {k} is not a key")
     for lang in ["en", *site_i18n.published(root)]:
-        p = root / page_path(lang)
-        if not p.exists():
-            bad.append(f"{page_path(lang)} is missing; run scripts/build_i18n.py")
-            continue
-        if empty_regions(p.read_text(encoding="utf-8")) != render(lang, root):
-            bad.append(f"{page_path(lang)} is stale or hand-edited; run scripts/build_i18n.py")
+        for page in pages_for(lang):
+            p = root / page_path(lang, page)
+            if not p.exists():
+                bad.append(f"{page_path(lang, page)} is missing; run scripts/build_i18n.py")
+                continue
+            if empty_regions(p.read_text(encoding="utf-8")) != empty_regions(render(lang, root, page)):
+                bad.append(f"{page_path(lang, page)} is stale or hand-edited; run scripts/build_i18n.py")
     # pm-release 2026-11-20: the hold is a gate. A built language page the game has not shipped must be in
     # .assetsignore (never uploaded, a 404); a served one must not be.
     try:
@@ -143,12 +194,12 @@ def gates(root: pathlib.Path = ROOT) -> list[str]:
     except SystemExit as e:
         want_ai = None
         bad.append(str(e))
-    if want_ai is not None and (root / ASSETSIGNORE).read_text(encoding="utf-8") != want_ai:
+    if want_ai is not None and _lines(root / ASSETSIGNORE) != set(want_ai.split()):
         bad.append(f"{ASSETSIGNORE} does not hold exactly the unshipped language pages {held(root)}; "
                    "run scripts/build_i18n.py")
     if (root / "sitemap.xml").read_text(encoding="utf-8") != sitemap_text(root):
         bad.append("sitemap.xml does not list exactly the published language pages; run scripts/build_i18n.py")
-    known = {page_path(lg) for lg in ["en", *site_i18n.published(root)]}
+    known = {page_path(lg, pg) for lg in ["en", *site_i18n.published(root)] for pg in pages_for(lg)}
     for p in root.glob("*/index.html"):
         rel = str(p.relative_to(root))
         lang_dir = re.fullmatch(r"([a-z]{2,3}(?:-[a-z0-9]{2,4})?)/index\.html", rel)
@@ -175,6 +226,10 @@ def held(root: pathlib.Path = ROOT) -> list[str]:
     return [site_i18n.folder(lg).rstrip("/") for lg in site_i18n.published(root) if lg not in s]
 
 
+def _lines(f: pathlib.Path) -> set[str]:
+    return set(f.read_text(encoding="utf-8").split()) if f.exists() else set()
+
+
 def assetsignore_text(root: pathlib.Path = ROOT) -> str:
     """.assetsignore with exactly the held language folders; every other line kept as it is."""
     f = root / ASSETSIGNORE
@@ -187,7 +242,7 @@ def assetsignore_text(root: pathlib.Path = ROOT) -> str:
 def build(root: pathlib.Path = ROOT) -> None:
     ai = root / ASSETSIGNORE
     want_ai = assetsignore_text(root)
-    if not ai.exists() or ai.read_text(encoding="utf-8") != want_ai:
+    if not ai.exists() or _lines(ai) != set(want_ai.split()):   # the order of lines does not matter
         ai.write_text(want_ai, encoding="utf-8")
         print(f"wrote {ASSETSIGNORE} (held: {held(root) or 'none'})")
     sm = root / "sitemap.xml"
@@ -196,14 +251,17 @@ def build(root: pathlib.Path = ROOT) -> None:
         sm.write_text(want, encoding="utf-8")
         print("wrote sitemap.xml")
     for lang in ["en", *site_i18n.published(root)]:
-        p = root / page_path(lang)
-        new = render(lang, root)
-        old = p.read_text(encoding="utf-8") if p.exists() else ""
-        if empty_regions(old) != new:
-            p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(new, encoding="utf-8")
-            print(f"wrote {page_path(lang)}")
+        for page in pages_for(lang):
+            p = root / page_path(lang, page)
+            new = render(lang, root, page)
+            old = p.read_text(encoding="utf-8") if p.exists() else ""
+            if empty_regions(old) != empty_regions(new):
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(new, encoding="utf-8")
+                print(f"wrote {page_path(lang, page)}")
     build_launch.build(root)
+    import build_features
+    build_features.build(root)
 
 
 # ---------------------------------------------------------------------------

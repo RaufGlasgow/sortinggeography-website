@@ -11,6 +11,7 @@ green too (so the guard is not just red at everything).
 from __future__ import annotations
 
 import pathlib
+import re
 import shutil
 import sys
 import tempfile
@@ -929,9 +930,26 @@ def publish(root, lang="de", change=None):
     build_i18n.build(root)
 
 
+def broken_links(root):
+    """CI's 'no broken internal links' step, over every page, built language pages included."""
+    from urllib.parse import urlparse
+    bad = []
+    for p in sorted(root.rglob("*.html")):
+        if set(p.relative_to(root).parts) & {"docs", "src", "scripts", "node_modules", ".git", ".github", ".wrangler"}:
+            continue
+        for target in re.findall(r'(?:href|src)\s*=\s*"([^"]+)"', p.read_text(encoding="utf-8")):
+            u = urlparse(target)
+            if u.scheme or target.startswith(("#", "mailto:", "//")):
+                continue
+            if not (p.parent / u.path).resolve().exists():
+                bad.append(f"{p.relative_to(root)} -> {target}")
+    return bad
+
+
 def i18n_problems(root):
     return (build_i18n.gates(root) + build_launch.check(root, now_ms=EARLY)
-            + check_platform.check(check_platform.targets(root), root) + check_comments.check(root))
+            + check_platform.check(check_platform.targets(root), root) + check_comments.check(root)
+            + broken_links(root))
 
 
 def i18n_case(name, setup, expect_red, inspect=None):
@@ -969,10 +987,27 @@ def de_page_right(root):
     assert "<loc>https://sortinggeography.com/de/</loc>" in (root / "sitemap.xml").read_text()
     assert "<h1>DE· Put the world in order</h1>" in de, "the heading is the German string"
     assert "<h1>Put the world in order</h1>" not in de, "no English heading left"
+    sup = (root / "de/support/index.html").read_text()
+    assert '<html lang="de">' in sup and "<h1>DE· Support</h1>" in sup, "support translated"
+    assert 'href="../../style.css"' in sup and 'href="../privacy/"' in sup, "privacy link stays in German"
+    assert 'href="../../credits.html"' in sup and 'href="../../terms/"' in sup, "English-only pages from the site root"
+    assert "DE· Yes. Every question" in sup, "the generated answers are in the page's language"
+    assert re.search(r'DE· Very little[^<]*<a href="\.\./privacy/">', sup), "a link inside a translated string stays in the language"
+    assert '<link rel="canonical" href="https://sortinggeography.com/de/support/">' in sup
+    pr = (root / "de/privacy/index.html").read_text()
+    assert '<html lang="de">' in pr and '<div lang="en">' in pr, "the English policy, marked English"
+    assert "DE· This privacy policy is in English" in pr, "the one-line note in the page's language"
+    assert "<h1>Privacy</h1>" in pr and 'href="../support/"' in pr, "the English text, links kept in the language"
+    for page in ("index.html", "support/index.html", "de/support/index.html", "de/privacy/index.html"):
+        assert "href=\"https://sortinggeography.com/de/" in (root / page).read_text() or page == "index.html" or "hreflang" in (root / page).read_text()
 
 
 i18n_case("today: English only, nothing published", lambda r: None, False)
 i18n_case("German published and fully translated: built right", lambda r: publish(r), False, de_page_right)
+i18n_case("the English policy links to the sources page: it still resolves on /de/privacy/", lambda r: (edit(
+    r, "privacy/index.html", "<h1>Privacy</h1>", '<h1>Privacy</h1>\n  <p><a href="../credits.html">Sources</a></p>'),
+    publish(r)), False, lambda r: None if 'href="../../credits.html">Sources' in (r / "de/privacy/index.html").read_text()
+    else (_ for _ in ()).throw(AssertionError("the sources link was not re-rooted")))
 i18n_case("a German value left in English", lambda r: publish(r, change=lambda a: a.update(heroTitle="Put the world in order")), True)
 i18n_case("...unless allow_identical lists it", lambda r: ((r / "src/i18n/allow_identical.json").write_text(
     json.dumps({"de": ["heroTitle"]})), publish(r, change=lambda a: a.update(heroTitle="Put the world in order"))), False)

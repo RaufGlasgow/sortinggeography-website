@@ -191,5 +191,181 @@
   "pressReleasePostOn": "Out now on {platforms}, since {date}",
   "@pressReleasePostOn": {
     "description": "Press kit, after launch, both linked."
+  },
+  "supportPageTitle": "Support — Sorting Geography",
+  "@supportPageTitle": {
+    "description": "Browser tab title of the support page."
+  },
+  "supportMetaDescription": "Help with Sorting Geography on Android and iOS: how to reach us, how to report a problem, and answers to common questions.",
+  "@supportMetaDescription": {
+    "description": "Search-result description. Android before iOS."
+  },
+  "supportTitle": "Support",
+  "@supportTitle": {
+    "description": "Support page heading."
+  },
+  "supportLede": "Something not working, a number that looks wrong, or a question? Write to us.",
+  "@supportLede": {
+    "description": "Under the heading."
+  },
+  "supportContactTitle": "Contact",
+  "@supportContactTitle": {
+    "description": "Section heading."
+  },
+  "supportContactText": "Email <a href=\"mailto:support@sortinggeography.com\">support@sortinggeography.com</a>.",
+  "@supportContactText": {
+    "description": "Keep the mailto link exactly."
+  },
+  "supportReportIntro": "If you are reporting a problem, these help us find it:",
+  "@supportReportIntro": {
+    "description": "Before the list."
+  },
+  "supportReport1": "what you were doing when it happened;",
+  "@supportReport1": {
+    "description": "List item."
+  },
+  "supportReport2": "what you expected, and what happened instead;",
+  "@supportReport2": {
+    "description": "List item."
+  },
+  "supportReport3": "your phone or tablet model, whether it runs Android or iOS, and which version;",
+  "@supportReport3": {
+    "description": "List item. Android before iOS."
+  },
+  "supportReport4": "the app's version, shown in Settings.",
+  "@supportReport4": {
+    "description": "List item."
+  },
+  "supportQuestionsTitle": "Common questions",
+  "@supportQuestionsTitle": {
+    "description": "Section heading."
+  },
+  "supportPlayTitle": "How do I play?",
+  "@supportPlayTitle": {
+    "description": "Question."
+  },
+  "supportPlayText": "Each puzzle shows five countries and one question, such as which has the longest coastline. Drag them into order, then confirm. Your score fills in on the same board, with the real numbers and any pairs you had the wrong way round.",
+  "@supportPlayText": {
+    "description": "Answer."
+  },
+  "supportFreeTitle": "Is it free?",
+  "@supportFreeTitle": {
+    "description": "Question."
+  },
+  "supportAccountTitle": "Do I need an account?",
+  "@supportAccountTitle": {
+    "description": "Question."
+  },
+  "supportAccountText": "No. Open the app and play. There is nothing to sign in to.",
+  "@supportAccountText": {
+    "description": "Answer."
+  },
+  "supportOfflineTitle": "Does it work offline?",
+  "@supportOfflineTitle": {
+    "description": "Question."
+  },
+  "supportOfflineText": "Yes. The countries, flags and numbers are all inside the app, so you can play without a connection.",
+  "@supportOfflineText": {
+    "description": "Answer."
+  },
+  "supportMoveTitle": "How do I move my progress to a new phone or tablet?",
+  "@supportMoveTitle": {
+    "description": "Question."
+  },
+  "supportMoveText": "Your progress is stored on your device, not on a server of ours, so it moves only with your device's own backup and restore through Google or iCloud. We cannot restore it for you, because we never have it.",
+  "@supportMoveText": {
+    "description": "Answer. Google before iCloud."
+  },
+  "supportSourcesTitle": "Where do the numbers come from?",
+  "@supportSourcesTitle": {
+    "description": "Question."
+  },
+  "supportSourcesText": "Every value comes from one named primary source, with its year and a link, shown in the game. The full list is on the <a href=\"credits.html\">data sources</a> page.",
+  "@supportSourcesText": {
+    "description": "Keep the link."
+  },
+  "supportWrongTitle": "I think a number is wrong",
+  "@supportWrongTitle": {
+    "description": "Question."
+  },
+  "supportWrongText": "Please tell us: email the country, the question, and what you think the figure should be, with a source if you have one, and we will check it against the source.",
+  "@supportWrongText": {
+    "description": "Answer."
+  },
+  "supportCollectTitle": "What does the app collect?",
+  "@supportCollectTitle": {
+    "description": "Question."
+  },
+  "supportCollectText": "Very little, and nothing that identifies you. The <a href=\"privacy/\">privacy page</a> says exactly what, including what Google's ad service receives.",
+  "@supportCollectText": {
+    "description": "Keep the link."
+  },
+  "supportDeleteTitle": "How do I delete my data?",
+  "@supportDeleteTitle": {
+    "description": "Question."
+  },
+  "supportDeleteText": "Delete the app. Everything the game keeps is on your device, and it goes with the app.",
+  "@supportDeleteText": {
+    "description": "Answer."
+  },
+  "supportFreeText": "Yes. Every question, every country and the Daily are free. The Daily never shows an ad. Endless play shows an occasional ad between puzzles.",
+  "@supportFreeText": {
+    "description": "Generated answer (Is it free?)."
+  },
+  "supportFreeUnlock": "A purchase removes the ads and changes nothing else.",
+  "@supportFreeUnlock": {
+    "description": "Added when the paid unlock is on."
+  },
+  "supportUnlockAdsTitle": "I bought the unlock, but I still see ads",
+  "@supportUnlockAdsTitle": {
+    "description": "Shown when the paid unlock is on."
+  },
+  "supportUnlockAdsText": "Open the app while connected to the internet: it checks with the store when it starts. If that does not help, use Restore purchases in Settings, signed in to the same Google Play or App Store account you bought it with. If it still shows ads, write to us.",
+  "@supportUnlockAdsText": {
+    "description": "'Restore purchases' must match the app's own Settings label in this language."
+  },
+  "supportUnlockCancelTitle": "How do I cancel the yearly subscription?",
+  "@supportUnlockCancelTitle": {
+    "description": "Shown when the paid unlock is on."
+  },
+  "supportUnlockCancelText": "Through the store you bought it from. On Android, open Google Play, then Payments and subscriptions, then Subscriptions. On iOS, open Settings, tap your name, then Subscriptions. A one-time purchase has nothing to cancel.",
+  "@supportUnlockCancelText": {
+    "description": "Store menu names as each store shows them in this language. Android before iOS."
+  },
+  "supportAnalyticsTitle": "Does the app send usage numbers?",
+  "@supportAnalyticsTitle": {
+    "description": "Question, analytics off or on without a switch."
+  },
+  "supportAnalyticsOffText": "No. It sends no usage statistics of its own. The <a href=\"privacy/\">privacy page</a> says what Google's ad service receives.",
+  "@supportAnalyticsOffText": {
+    "description": "Answer while the app sends no usage numbers."
+  },
+  "supportAnalyticsOnText": "The app sends anonymous usage numbers so we can see which questions are too hard. Your IP address is discarded on arrival, never stored; no advertising ID, nothing that identifies you.",
+  "@supportAnalyticsOnText": {
+    "description": "Answer once analytics ships (after 'Yes.'). Keep 'discarded on arrival, never stored' exact in meaning (review F4)."
+  },
+  "supportAnalyticsYes": "Yes.",
+  "@supportAnalyticsYes": {
+    "description": "Before the answer."
+  },
+  "supportAnalyticsSwitchTitle": "Can I stop the app sending usage numbers?",
+  "@supportAnalyticsSwitchTitle": {
+    "description": "Question once the Settings switch ships."
+  },
+  "supportAnalyticsSwitchText": "To stop them, open Settings and turn off <strong>{switch}</strong>.",
+  "@supportAnalyticsSwitchText": {
+    "description": "{switch} is the app's own Settings label in this language."
+  },
+  "privacyPageTitle": "Privacy — Sorting Geography",
+  "@privacyPageTitle": {
+    "description": "Tab title of a language's privacy page (its text stays English)."
+  },
+  "privacyMetaDescription": "How Sorting Geography handles your data, in English.",
+  "@privacyMetaDescription": {
+    "description": "Search-result description of a language's privacy page."
+  },
+  "privacyEnglishNote": "This privacy policy is in English, and the English version is the one that applies.",
+  "@privacyEnglishNote": {
+    "description": "One line above the English policy on each language's privacy page (pm-release 2026-11-20)."
   }
 }
