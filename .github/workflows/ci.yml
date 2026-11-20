@@ -183,6 +183,9 @@ jobs:
       - name: The launch flips before, at and after the moment
         run: node --test scripts/test_launch.mjs
 
+      - name: The welcome email, its unsubscribe and the backlog send (Story 18.5)
+        run: node --test scripts/test_email.mjs
+
       # The real worker (workerd + HTMLRewriter, local only: no account, no
       # deploy) serves every page; each must be its source minus its comments.
       - name: Every page as the real worker sends it (Story 18.9c)
