@@ -275,8 +275,14 @@ def worker_wiring(root: pathlib.Path = ROOT) -> list[str]:
     bad = []
     worker = (root / "src" / "worker.js").read_text(encoding="utf-8")
     code = re.sub(r"//[^\n]*", "", worker)
-    if not re.search(r"\breturn\s+serveAsset\(\s*request\s*,\s*env\s*,\s*Date\.now\(\)\s*\)\s*;\s*\}\s*,\s*\};", code):
-        bad.append("src/worker.js: the fall-through no longer ends in `return serveAsset(request, env, Date.now());`")
+    # Story 18.10: fetch() hands every request to route() and wraps the answer
+    # in the security headers; route() ends in the serveAsset fall-through.
+    route = re.search(r"^async\s+function\s+route\(\s*request\s*,\s*env\s*,\s*ctx\s*\)\s*\{(.*?)^\}", code, re.S | re.M)
+    if not route or not re.search(r"\breturn\s+serveAsset\(\s*request\s*,\s*env\s*,\s*Date\.now\(\)\s*\)\s*;\s*$",
+                                  route.group(1)):
+        bad.append("src/worker.js: route() no longer ends in `return serveAsset(request, env, Date.now());`")
+    if not re.search(r"async\s+fetch\(\s*request\s*,\s*env\s*,\s*ctx\s*\)\s*\{\s*return\s+withSecurityHeaders\(\s*await\s+route\(\s*request\s*,\s*env\s*,\s*ctx\s*\)\s*\)\s*;\s*\}", code):
+        bad.append("src/worker.js: fetch() must be exactly `return withSecurityHeaders(await route(request, env, ctx));`")
     if re.search(r"\bASSETS\.fetch\(", code):
         bad.append("src/worker.js: calls env.ASSETS.fetch directly; pages must go through serveAsset (src/pages.js)")
     if not re.search(r"^import\s*\{[^}]*\bserveAsset\b[^}]*\}\s*from\s*'\./pages\.js';", worker, re.M):

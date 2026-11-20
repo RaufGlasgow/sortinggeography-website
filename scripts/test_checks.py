@@ -210,6 +210,11 @@ launch_case("W7b: run_worker_first line deleted", True, lambda r: edit(
     r, "wrangler.toml", "run_worker_first = true", ""))
 launch_case("W6b: serveAsset import dropped", True, lambda r: edit(
     r, "src/worker.js", "import { serveAsset } from './pages.js';", ""))
+# 18.10: every response leaves through withSecurityHeaders.
+launch_case("W8: fetch() returns route() unwrapped (no security headers)", True, lambda r: edit(
+    r, "src/worker.js", "return withSecurityHeaders(await route(request, env, ctx));", "return route(request, env, ctx);"))
+launch_case("W8b: route() answers before the serveAsset fall-through", True, lambda r: edit(
+    r, "src/worker.js", "    return serveAsset(request, env, Date.now());\n}", "    return serveAsset(request, env, Date.now());\n    return null;\n}"))
 
 
 # F1: the out sentence never names a store that has no link.

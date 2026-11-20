@@ -97,6 +97,25 @@ def main(base: str) -> int:
         else:
             print(f"ok   {path} carries no HTML comment")
 
+    # 18.10: the live headers are exactly what src/security.js builds (the one
+    # list, read through node so there is no second copy here).
+    expected = json.loads(subprocess.run(
+        ["node", "--input-type=module", "-e",
+         "import('" + (pathlib.Path(__file__).resolve().parent.parent / "src/security.js").as_uri()
+         + "').then(m => console.log(JSON.stringify(m.SECURITY_HEADERS)))"],
+        capture_output=True, text=True, check=True).stdout)
+    for path in ("/", "/style.css", "/privacy/", "/api/subscribe", "/index.html"):
+        try:
+            status, headers, _ = get(base, path)
+        except OSError as e:
+            bad.append(f"{path}: no answer ({e})")
+            continue
+        wrong = [k for k, v in expected.items() if headers.get(k.lower()) != v]
+        if wrong:
+            bad.append(f"{path} (HTTP {status}): security headers differ from src/security.js: {', '.join(wrong)}")
+        else:
+            print(f"ok   {path} security headers match src/security.js")
+
     domain = SUPPORT_EMAIL.split("@", 1)[1]
     mx = subprocess.run(["dig", "+short", "MX", domain], capture_output=True, text=True).stdout.strip()
     if not mx:
