@@ -25,7 +25,7 @@
   --surface-alt: #E7E1CE;
   --border: #B1ABA0;
   --ink: #103A22;
-  --muted: #5C6A5E;
+  --muted: #536156; /* The site's light muted is darker than the app's inkMuted (#5C6A5E) on purpose, for WCAG AA on --surface-alt; do not change it back. */
   --hi: #146B3A;
   --hi-pill: rgba(20, 107, 58, .14);
   --nav-bar: #F4F1E6;

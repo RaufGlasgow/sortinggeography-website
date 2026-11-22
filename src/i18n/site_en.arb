@@ -88,7 +88,7 @@
   "@card1Title": {
     "description": "Feature card 1 heading."
   },
-  "card1Text": "Every day there is one new puzzle: the same five countries and the same question for every player. Share your result without giving the answer away.",
+  "card1Text": "Once you have played a while, the Daily opens: one new puzzle a day, the same five countries and the same question for every player. Share your result without giving the answer away.",
   "@card1Text": {
     "description": "Feature card 1 text. No streak claims."
   },
@@ -96,7 +96,7 @@
   "@card2Title": {
     "description": "Feature card 2 heading."
   },
-  "card2Text": "Each value names one primary source, the year it describes and a link to it. Where a source has no figure for a country, the game says so instead of guessing.",
+  "card2Text": "Each value names one primary source, the year it describes and a link to it. Where a source has no figure for a country, that country is left out of the question rather than guessed.",
   "@card2Text": {
     "description": "Feature card 2 text."
   },
