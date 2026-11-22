@@ -80,7 +80,7 @@
   "@step3Title": {
     "description": "Step 3 heading."
   },
-  "step3Text": "Your score fills in on the same board, with the real numbers and the pairs you had the wrong way round.",
+  "step3Text": "Your score fills in on the same board, with the real numbers.",
   "@step3Text": {
     "description": "Step 3 explanation."
   },
