@@ -451,13 +451,19 @@ todo_case("a class merely containing 'todo' (todo-list) is not a placeholder", l
 # against a fake game that matches the site, so the only possible red is the
 # placeholder. Deleting `+ todos()` from the --game list must turn the second
 # case green and fail this suite.
+EXAMPLE_COASTLINE_KM = {"CA": 202080, "ID": 54716, "JP": 29751, "NO": 25148, "CL": 6435}
+EXAMPLE_COASTLINE_PER_AREA = {"CA": 22993.16, "ID": 28911.17, "JP": 81605.89, "NO": 69036.70, "CL": 8662.80}
+
+
 def matching_game(package: str = build_features.PACKAGE) -> pathlib.Path:
     g = fake_game(False, False, False)
     (g / "app/assets/data").mkdir(parents=True)
     (g / "packages/sort_platform/lib/src/l10n").mkdir(parents=True)
     facts = build_features.load_facts(ROOT)
-    axes = {f"a{i}": {} for i in range(facts["axes"] - 1)}
+    axes = {f"a{i}": {} for i in range(facts["axes"] - 3)}
     axes["highest_point_m"] = {"PT": float(facts["pt_highest_point_m"])}
+    axes["coastline_km"] = dict(EXAMPLE_COASTLINE_KM)
+    axes["coastline_per_land_area"] = dict(EXAMPLE_COASTLINE_PER_AREA)
     d = {"version": f"dataset-{facts['dataset_version']}-x", "axes": axes,
          "facets": {"continent": {f"C{i}": "x" for i in range(facts["countries"])}}}
     (g / "app/assets/data/dataset_runtime.json").write_text(json.dumps(d))
@@ -491,7 +497,19 @@ def deploy_case(name, mutate, expect_red, package=build_features.PACKAGE, links=
         print("     " + (r.stdout + r.stderr).strip().replace("\n", "\n     ")[:600])
 
 
+def set_fact(root: pathlib.Path, **updates) -> None:
+    p = root / "src/facts.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    data.update(updates)
+    p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    build_features.build(root)
+
+
 deploy_case("--game on today's site against a matching game", lambda r: None, False)
+deploy_case("--game refuses facts.json with NO above JP", lambda r: set_fact(
+    r, coastline_example_order=["CA", "ID", "NO", "JP", "CL"]), True)
+deploy_case("--game refuses facts.json with a wrong coastline_per_land_area leader", lambda r: set_fact(
+    r, coastline_example_leader="NO"), True)
 deploy_case("--game with a placeholder open in terms", lambda r: edit(
     r, "terms/index.html", "Empty Cup Media LLC", TODO), True)
 # 20.3b: the tester page's links are todo spans until Ra'uf has them.
@@ -509,10 +527,11 @@ def facts_case(name, game_over, expect_red):
     try:
         (g / "app/assets/data").mkdir(parents=True)
         (g / "packages/sort_platform/lib/src/l10n").mkdir(parents=True)
-        real = {"version": "dataset-v089-abc", "axes": {f"a{i}": {} for i in range(190)},
+        real = {"version": "dataset-v089-abc", "axes": {f"a{i}": {} for i in range(187)},
                 "facets": {"continent": {f"C{i}": "x" for i in range(195)}}}
         real["axes"]["highest_point_m"] = {"PT": 2351.0}
-        del real["axes"]["a0"]
+        real["axes"]["coastline_km"] = dict(EXAMPLE_COASTLINE_KM)
+        real["axes"]["coastline_per_land_area"] = dict(EXAMPLE_COASTLINE_PER_AREA)
         langs = ["en"]
         real, langs = game_over(real, langs)
         (g / "app/assets/data/dataset_runtime.json").write_text(json.dumps(real))
@@ -550,11 +569,50 @@ def pt_changes(d, l):
     return d, l
 
 
+def drop_coastline_country(d, l):
+    del d["axes"]["coastline_km"]["CL"]
+    return d, l
+
+
+def drop_density_country(d, l):
+    del d["axes"]["coastline_per_land_area"]["CL"]
+    return d, l
+
+
 facts_case("game matches facts.json", lambda d, l: (d, l), False)
 facts_case("game gains an axis", axes_plus_one, True)
 facts_case("game moves to v090", new_version, True)
 facts_case("German ships", german_ships, True)
 facts_case("Portugal's highest point changes", pt_changes, True)
+facts_case("example country missing from coastline_km: refuse, never skip", drop_coastline_country, True)
+facts_case("example country missing from coastline_per_land_area: refuse, never skip", drop_density_country, True)
+
+
+def example_order_renders_case():
+    """The home-page example list and {leader} render in the exact order from src/facts.json."""
+    root = copy_site()
+    try:
+        def rendered_items(page: str) -> list[str]:
+            m = re.search(r'<ol class="a-board-list">(.*?)</ol>', page, re.S)
+            return re.findall(r"<li>([^<]+)</li>", m.group(1)) if m else []
+
+        en = (root / "index.html").read_text(encoding="utf-8")
+        ok_default = (rendered_items(en) == ["Canada", "Indonesia", "Japan", "Norway", "Chile"]
+                      and "Among these five, Japan does." in en)
+        # Mutate facts.json order & leader, rebuild: page must follow facts.json, not a hard-coded list.
+        set_fact(root, coastline_example_order=["CL", "NO", "JP", "ID", "CA"], coastline_example_leader="NO")
+        rebuilt = (root / "index.html").read_text(encoding="utf-8")
+        ok_mutated = (rendered_items(rebuilt) == ["Chile", "Norway", "Japan", "Indonesia", "Canada"]
+                      and "Among these five, Norway does." in rebuilt)
+        ok = ok_default and ok_mutated
+    finally:
+        shutil.rmtree(root)
+    print(f"{'ok  ' if ok else 'FAIL'} example  {'green' if ok else 'red  '} the order and leader from facts.json render on the page")
+    if not ok:
+        failures.append("example: order and leader from facts.json render on the page")
+
+
+example_order_renders_case()
 
 # Ra'uf 2026-11-19: no streak claim either way.
 feature_case("'no streak to lose' typed into the home page", True, lambda r: edit(

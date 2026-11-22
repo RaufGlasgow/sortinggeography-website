@@ -52,9 +52,9 @@
   "@exampleQuestion": {
     "description": "A sample question; the five country names below come from CLDR."
   },
-  "exampleText": "You drag them into order and find out at once — not just whether you were right, but by how much, and which pairs you had the wrong way round. Then the harder version of the same fact: which has the most coastline <em>for its size</em>? Canada no longer wins. The Maldives does.",
+  "exampleText": "You drag them into order, then see the real numbers and how many you placed right. Then the harder version of the same fact: which has the most coastline <em>for its size</em>? Among these five, {leader} does.",
   "@exampleText": {
-    "description": "Keep the <em>…</em> around 'for its size'."
+    "description": "Keep the <em>…</em> around 'for its size'. {leader} is the localized name of the country among the five above with the most coastline for its size (from CLDR)."
   },
   "howToPlayTitle": "How to play",
   "@howToPlayTitle": {

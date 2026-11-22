@@ -3,5 +3,7 @@
   "axes": 190,
   "countries": 195,
   "languages": ["en"],
-  "pt_highest_point_m": 2351
+  "pt_highest_point_m": 2351,
+  "coastline_example_order": ["CA", "ID", "JP", "NO", "CL"],
+  "coastline_example_leader": "JP"
 }

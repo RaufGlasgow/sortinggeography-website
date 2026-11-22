@@ -229,9 +229,12 @@ html[data-launch="out"] .only-pre { display: none !important; }
 }
 .hd-links a:hover { border-color: var(--primary); }
 .hd-end {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 12px;
+}
+@media (min-width: 380px) {
+  .hd-end { display: flex; }
 }
 
 /* ---- Direction A home layout (phone <600 px base) ----------------------- */
