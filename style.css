@@ -19,7 +19,7 @@
   --secondary: #2C6E9E;
   --reward: #6A3FA0;
   --success: #1F9D5C;
-  --error: #C83D54;
+  --error: #C73C53; /* contrast fix, pending Sally sign-off */
   --bg: #F7F4EA;
   --surface: #F4F1E6;
   --surface-alt: #E7E1CE;
@@ -47,7 +47,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --primary: #2E8B57;
+    --primary: #287B4C; /* contrast fix, pending Sally sign-off */
     --on-primary: #F2F0E6;
     --secondary: #5B9BD5;
     --success: #5EE6A0;
@@ -58,7 +58,7 @@
     --border: #3A4A40;
     --ink: #F2F0E6;
     --muted: #A9B3AB;
-    --hi: #3DBB79;
+    --hi: #40C17D; /* contrast fix, pending Sally sign-off */
     --hi-pill: rgba(61, 187, 121, .16);
     --nav-bar: #14201A;
     --rule: #2C3A31;
@@ -76,7 +76,7 @@
 }
 
 :root[data-theme="dark"] {
-  --primary: #2E8B57;
+  --primary: #287B4C; /* contrast fix, pending Sally sign-off */
   --on-primary: #F2F0E6;
   --secondary: #5B9BD5;
   --success: #5EE6A0;
@@ -87,7 +87,7 @@
   --border: #3A4A40;
   --ink: #F2F0E6;
   --muted: #A9B3AB;
-  --hi: #3DBB79;
+  --hi: #40C17D; /* contrast fix, pending Sally sign-off */
   --hi-pill: rgba(61, 187, 121, .16);
   --nav-bar: #14201A;
   --rule: #2C3A31;
@@ -233,7 +233,7 @@ html[data-launch="out"] .only-pre { display: none !important; }
   align-items: center;
   gap: 12px;
 }
-@media (min-width: 380px) {
+@media (min-width: 460px) {
   .hd-end { display: flex; }
 }
 
@@ -296,7 +296,7 @@ html[data-launch="out"] .only-pre { display: none !important; }
 .da .countdown {
   order: 1;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
   margin-bottom: 10px;
 }
@@ -564,21 +564,13 @@ html[data-launch="out"] .only-pre { display: none !important; }
 
 /* =========================================================================
    SIZE CLASS 2: MIDDLE (600 px to 1023 px)
-   One centred 640 px reading column with 32 px sides (704 px outer),
-   under the single-row wide header. Never a stretched phone layout.
+   One centred 640 px reading column with 32 px sides (704 px outer).
+   Header goes single-row at 760 px so wordmark + links + 1.4x CTA never
+   overflow or wrap onto a third row. Never a stretched phone layout.
    ========================================================================= */
 @media (min-width: 600px) {
   .hd-in {
-    flex-wrap: nowrap;
-    gap: 20px;
-    padding: 14px 32px;
-  }
-  .hd-links {
-    order: 0;
-    flex: 0 0 auto;
-    margin-left: auto;
-    gap: 24px;
-    padding: 0;
+    padding: 12px 32px 0;
   }
 
   .a-wrap {
@@ -622,8 +614,21 @@ html[data-launch="out"] .only-pre { display: none !important; }
   .ft-in { max-width: 704px; padding: 28px 32px; gap: 12px; }
 }
 
-/* FAQ goes two-up from 760 px (Sally's medium rule) */
+/* Single-row header and two-up FAQ from 760 px (Sally's medium rule) */
 @media (min-width: 760px) {
+  .hd-in {
+    flex-wrap: nowrap;
+    gap: 20px;
+    padding: 14px 32px;
+  }
+  .hd-links {
+    order: 0;
+    flex: 0 0 auto;
+    margin-left: auto;
+    gap: 24px;
+    padding: 0;
+  }
+
   .a-faq {
     grid-template-columns: 1fr 1fr;
     column-gap: 32px;

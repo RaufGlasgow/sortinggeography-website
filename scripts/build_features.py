@@ -89,13 +89,13 @@ def load_facts(root: pathlib.Path = ROOT) -> dict:
     if unknown:
         raise SystemExit(f"src/facts.json: no display name for {unknown}; add it to LANG_NAMES")
     order = facts["coastline_example_order"]
-    if not (isinstance(order, list) and order
+    if not (isinstance(order, list) and len(order) == 5
             and all(isinstance(c, str) and re.fullmatch(r"[A-Z]{2}", c) for c in order)
-            and len(set(order)) == len(order)):
-        raise SystemExit("src/facts.json: coastline_example_order must be a list of distinct ISO-2 codes")
+            and len(set(order)) == 5):
+        raise SystemExit("src/facts.json: coastline_example_order must be 5 distinct ISO-2 codes")
     leader = facts["coastline_example_leader"]
-    if not (isinstance(leader, str) and re.fullmatch(r"[A-Z]{2}", leader)):
-        raise SystemExit("src/facts.json: coastline_example_leader must be an ISO-2 code")
+    if not (isinstance(leader, str) and re.fullmatch(r"[A-Z]{2}", leader) and leader in order):
+        raise SystemExit("src/facts.json: coastline_example_leader must be one of coastline_example_order")
     return facts
 
 

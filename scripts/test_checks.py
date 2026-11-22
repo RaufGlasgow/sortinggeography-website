@@ -614,6 +614,39 @@ def example_order_renders_case():
 
 example_order_renders_case()
 
+
+def facts_json_case(name: str, updates: dict, expect_red: bool) -> None:
+    root = copy_site()
+    try:
+        p = root / "src/facts.json"
+        data = json.loads(p.read_text(encoding="utf-8"))
+        data.update(updates)
+        p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        try:
+            build_features.load_facts(root)
+            red = False
+        except SystemExit:
+            red = True
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} facts    {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"facts: {name}")
+
+
+facts_json_case("load_facts accepts today's facts.json", {}, False)
+facts_json_case("load_facts refuses coastline_example_order with 4 codes",
+                {"coastline_example_order": ["CA", "ID", "JP", "NO"]}, True)
+facts_json_case("load_facts refuses coastline_example_order with 6 codes",
+                {"coastline_example_order": ["CA", "ID", "JP", "NO", "CL", "MV"]}, True)
+facts_json_case("load_facts refuses coastline_example_order with duplicate codes",
+                {"coastline_example_order": ["CA", "ID", "JP", "NO", "JP"]}, True)
+facts_json_case("load_facts refuses coastline_example_leader not in coastline_example_order",
+                {"coastline_example_leader": "MV"}, True)
+feature_case("home-example region hand-edited", True, lambda r: edit(
+    r, "index.html", "Among these five, Japan does.", "Among these five, Maldives does."))
+
 # Ra'uf 2026-11-19: no streak claim either way.
 feature_case("'no streak to lose' typed into the home page", True, lambda r: edit(
     r, "index.html", "<h1>Put the world in order</h1>", "<h1>Put the world in order</h1>\n  <p>No streak to lose.</p>"))

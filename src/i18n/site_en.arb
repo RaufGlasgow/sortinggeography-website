@@ -4,7 +4,7 @@
   "@pageTitle": {
     "description": "The browser tab title."
   },
-  "metaDescription": "A daily geography game for Android and iOS. Five countries, one question, one right order. Every figure is real and shows you where it came from.",
+  "metaDescription": "A geography game for Android and iOS. Five countries, one question, one right order. Every figure is real, from a named primary source.",
   "@metaDescription": {
     "description": "Search-result description. Android before iOS (platform rule)."
   },
@@ -44,7 +44,7 @@
   "@heroTitle": {
     "description": "The main heading."
   },
-  "heroLede": "Sorting Geography is a geography game for phones and tablets, on Android and iOS. You drag five countries into order by one fact, such as coastline, population or highest land, and every number comes from a named, dated source.",
+  "heroLede": "Sorting Geography is a geography game for phones and tablets, on Android and iOS. You drag five countries into order by one fact, such as coastline, population or highest point, and every number comes from a named, dated source.",
   "@heroLede": {
     "description": "Under the heading. Phones and tablets, Android before iOS (platform rule)."
   },
@@ -96,7 +96,7 @@
   "@card2Title": {
     "description": "Feature card 2 heading."
   },
-  "card2Text": "Each value names one primary source, the year it describes and a link to it. Where a source has no figure for a country, that country is left out of the question rather than guessed.",
+  "card2Text": "Every value comes from one named primary source. The data sources page lists each one. Where a source has no figure for a country, that country is left out of the question rather than guessed.",
   "@card2Text": {
     "description": "Feature card 2 text."
   },
@@ -108,27 +108,7 @@
   "@card3Text": {
     "description": "Feature card 3 text."
   },
-  "card4Title": "The world opens up",
-  "@card4Title": {
-    "description": "Card heading."
-  },
-  "card4Text": "You start with countries most people know and earn your way outward, unlocking new places and new questions as you play.",
-  "@card4Text": {
-    "description": "Card text."
-  },
-  "whyTitle": "Why sorting?",
-  "@whyTitle": {
-    "description": "Section heading."
-  },
-  "whyText": "\"What is the area of Kazakhstan?\" is a fact to memorise. \"Is Kazakhstan bigger than Argentina?\" is a judgement you can actually make — and get better at. Relative judgement is a skill people enjoy exercising, and one that improves with practice. That is what the game trains.",
-  "@whyText": {
-    "description": "Section text."
-  },
-  "honestyTitle": "Honesty, specifically",
-  "@honestyTitle": {
-    "description": "Section heading."
-  },
-  "honestyText": "From one named primary source per value. Each value shows its source, year and link, and the full list is on the <a href=\"credits.html\">data sources</a> page.",
+  "honestyText": "From one named primary source per value. The full list is on the <a href=\"credits.html\">data sources</a> page.",
   "@honestyText": {
     "description": "FAQ answer on data sources. Keep the <a href=\"credits.html\">…</a> link around 'data sources'."
   },
