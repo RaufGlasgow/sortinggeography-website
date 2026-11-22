@@ -340,7 +340,7 @@
   "@supportSourcesTitle": {
     "description": "Question."
   },
-  "supportSourcesText": "Every value comes from one named primary source, with its year and a link, shown in the game. The full list is on the <a href=\"credits.html\">data sources</a> page.",
+  "supportSourcesText": "Every value comes from one named primary source. The full list is on the <a href=\"credits.html\">data sources</a> page.",
   "@supportSourcesText": {
     "description": "Keep the link."
   },

@@ -385,8 +385,8 @@ def press_description(f):
 def press_honesty(f):
     m = f["facts"]["pt_highest_point_m"]
     return f"""<p>
-    Every value in the game names one primary source and the year it describes, and the
-    player can see it. Countries are counted whole: Portugal's highest point, {m:,} m, is
+    Every value in the game comes from one named primary source. The data sources page lists each one.
+    Countries are counted whole: Portugal's highest point, {m:,} m, is
     Mount Pico in the Azores, not on the mainland, so that is the number the game uses.
     Where a source has no figure for a country, the country is left out of that question
     rather than given a guess. A figure whose licence does not allow it to be used does
