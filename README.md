@@ -1,6 +1,6 @@
 # sortinggeography.com
 
-The marketing website for **Sorting Geography** — a daily geography game for Android
+The marketing website for **Sorting Geography** — a geography game for Android
 and iOS. Static HTML, no build step, no framework.
 
 **This repo is PUBLIC on purpose.** Public repositories get unlimited free GitHub

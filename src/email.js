@@ -34,7 +34,7 @@ const TEXT = {
     heading: 'You are on the list',
     paragraphs: [
       'Thank you for signing up for Sorting Geography.',
-      `It is a daily geography game: five countries, one question, put them in order. Tallest mountain, longest coastline, most rainfall: ${f.axes} ways to sort the world, all of it from named public sources, listed on our data sources page.`,
+      `It is a geography game: five countries, one question, put them in order. Tallest mountain, longest coastline, most rainfall: ${f.axes} ways to sort the world, all of it from named public sources, listed on our data sources page.`,
       // Ra'uf's own sentence, word for word, from the Sorting History welcome
       // email (sortinghistory-website-deploy/src/worker.js:266, his commit
       // 9dade19, 2026-02-11). Never reworded: it is his voice about his family.

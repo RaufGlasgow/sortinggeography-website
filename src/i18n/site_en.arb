@@ -304,7 +304,7 @@
   "@supportPlayTitle": {
     "description": "Question."
   },
-  "supportPlayText": "Each puzzle shows five countries and one question, such as which has the longest coastline. Drag them into order, then confirm. Your score fills in on the same board, with the real numbers and any pairs you had the wrong way round.",
+  "supportPlayText": "Each puzzle shows five countries and one question, such as which has the longest coastline. Drag them into order, then confirm. Your score fills in on the same board, with the real numbers.",
   "@supportPlayText": {
     "description": "Answer."
   },

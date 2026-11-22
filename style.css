@@ -48,6 +48,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --primary: #287B4C; /* contrast fix, pending Sally sign-off */
+    --primary-hover: #21663F; /* contrast fix, pending Sally sign-off */
     --on-primary: #F2F0E6;
     --secondary: #5B9BD5;
     --success: #5EE6A0;
@@ -77,6 +78,7 @@
 
 :root[data-theme="dark"] {
   --primary: #287B4C; /* contrast fix, pending Sally sign-off */
+  --primary-hover: #21663F; /* contrast fix, pending Sally sign-off */
   --on-primary: #F2F0E6;
   --secondary: #5B9BD5;
   --success: #5EE6A0;
@@ -157,7 +159,7 @@ html[data-launch="out"] .only-pre { display: none !important; }
   min-height: 48px;
   white-space: nowrap;
 }
-.btn:hover { background: var(--hi); }
+.btn:hover { background: var(--primary-hover, var(--hi)); }
 .btn:disabled { opacity: .6; cursor: default; }
 .btn-sm { padding: 8px 16px; font-size: 14px; min-height: 38px; }
 

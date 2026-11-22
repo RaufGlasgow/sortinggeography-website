@@ -337,7 +337,7 @@ def press_facts(f):
     rows = [
         ("Questions", f'{x["axes"]}'),
         ("Countries", f'{x["countries"]}: the 193 UN members and 2 observer states'),
-        ("Data", f'One named primary source per value, with its year and a link. '
+        ("Data", f'One named primary source per value; the full list is on the data sources page. '
                  f'Data version {x["dataset_version"]}'),
         ("Languages", languages_text(x["languages"])),
         ("Price", price),
@@ -365,12 +365,13 @@ def press_description(f):
   <p>
     There are {x["axes"]} questions across {x["countries"]} countries. Every value comes
     from one named primary source, such as the World Bank, the United Nations, FAO, Natural
-    Earth or the CIA World Factbook archive, with its year. Where a source has no figure for
+    Earth or the CIA World Factbook archive. Where a source has no figure for
     a country, the country is left out of that question rather than given a guess.
   </p>
   <p>
-    One new Daily puzzle a day: the same five countries and the same question for every
-    player, shared without giving the answer away. The Daily never shows an ad. Players start
+    Once you have played a while, the Daily opens: one new puzzle a day, the same five
+    countries and the same question for every player, shared without giving the answer away.
+    The Daily never shows an ad. Players start
     with countries most people know and unlock the rest as they play, across five levels from
     Beginner to Expert: the game moves a new player from Beginner to Easy once, and after
     that they choose when to move up.
