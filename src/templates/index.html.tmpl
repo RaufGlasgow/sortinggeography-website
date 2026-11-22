@@ -10,86 +10,162 @@
 <script src="{{@root}}countdown.js" defer></script>
 </head>
 <body>
-<header class="bar">
-  <a class="wordmark" href="{{@langroot}}./">Sorting&nbsp;Geography</a>
-  <nav><a href="{{@root}}credits.html">{{navDataSources}}</a> <a href="{{@langroot}}support/">{{navSupport}}</a> <a href="{{@langroot}}privacy/">{{navPrivacy}}</a></nav>
+<header class="hd">
+  <div class="hd-in">
+    <a class="wm" href="{{@langroot}}./"><svg class="ic wm-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9.5"></circle><path d="M2.5 12h19M12 2.5c2.6 2.8 3.9 6 3.9 9.5s-1.3 6.7-3.9 9.5c-2.6-2.8-3.9-6-3.9-9.5s1.3-6.7 3.9-9.5z"></path></svg><span>Sorting&nbsp;Geography</span></a>
+    <nav class="hd-links">
+      <a href="#how-to-play">{{navHowToPlay}}</a>
+      <a href="#daily">{{navDaily}}</a>
+      <a href="#faq">{{navFaq}}</a>
+    </nav>
+    <div class="hd-end">
+      <a class="btn btn-sm only-pre" href="#notify">{{navGetNotified}}</a>
+      <a class="btn btn-sm only-post" href="#launch">{{navGetTheApp}}</a>
+    </div>
+  </div>
 </header>
 
-<section class="hero">
-  <!-- launch:hero-chip --><!-- /launch:hero-chip -->
-  <h1>{{heroTitle}}</h1>
-  <p>{{heroLede}}</p>
-  <!-- launch:hero-countdown --><!-- /launch:hero-countdown -->
-</section>
-
-<main>
-  <div class="example">
-    <p class="q">{{exampleQuestion}}</p>
-    <ol>
-      <li>{{@country:CA}}</li>
-      <li>{{@country:ID}}</li>
-      <li>{{@country:NO}}</li>
-      <li>{{@country:JP}}</li>
-      <li>{{@country:CL}}</li>
-    </ol>
-    <p class="muted" style="margin-top:1rem">
-      {{exampleText}}
-    </p>
-  </div>
-
-  <div class="cards">
-    <div class="card">
-      <h3>{{card1Title}}</h3>
-      <p>{{card1Text}}</p>
-    </div>
-    <div class="card">
-      <h3>{{card2Title}}</h3>
-      <p>{{card2Text}}</p>
-    </div>
-    <div class="card">
-      <h3>{{card3Title}}</h3>
-      <p>{{card3Text}}</p>
-    </div>
-    <div class="card">
-      <h3>{{card4Title}}</h3>
-      <p>{{card4Text}}</p>
-    </div>
-  </div>
-
-  <div class="prose">
-    <h2>{{whyTitle}}</h2>
-    <p>
-      {{whyText}}
-    </p>
-
-    <h2>{{honestyTitle}}</h2>
-    <p>
-      {{honestyText}}
-    </p>
-
-    <!-- launch:when --><!-- /launch:when -->
-    <div class="only-pre">
-    <form class="notify" id="notify" method="post" action="/api/subscribe">
-      <label for="email">{{notifyLabel}}</label>
-      <div class="notify-row">
-        <input type="hidden" name="lang" value="{{@lang}}">
-        <input id="email" name="email" type="email" required autocomplete="email"
-               inputmode="email" placeholder="you@example.com">
-        <button type="submit">{{notifyButton}}</button>
+<main class="da">
+  <div class="a-wrap">
+    <section class="a-hero" id="launch">
+      <div class="a-copy">
+        <!-- launch:hero-chip --><!-- /launch:hero-chip -->
+        <h1>{{heroTitle}}</h1>
+        <p class="answer">{{heroLede}}</p>
+        <!-- launch:hero-countdown --><!-- /launch:hero-countdown -->
+        <div class="only-pre a-signup-wrap">
+          <form class="signup" id="notify" method="post" action="/api/subscribe">
+            <label class="su-label" for="email">{{notifyLabel}}</label>
+            <div class="su-row">
+              <input type="hidden" name="lang" value="{{@lang}}">
+              <input id="email" name="email" type="email" required autocomplete="email"
+                     inputmode="email" placeholder="you@example.com">
+              <button class="btn" type="submit">{{notifyButton}}</button>
+            </div>
+            <p class="notify-msg" id="notify-msg" role="status" aria-live="polite"></p>
+            <p class="su-note">{{notifyFine}}</p>
+          </form>
+          <script src="{{@root}}subscribe.js" defer></script>
+        </div>
       </div>
-      <p class="notify-msg" id="notify-msg" role="status" aria-live="polite"></p>
-      <p class="muted notify-fine">
-        {{notifyFine}}
-      </p>
-    </form>
-    <script src="{{@root}}subscribe.js" defer></script>
-    </div>
+
+      <div class="a-sample">
+        <figure class="a-board">
+          <figcaption><span class="a-bq">{{exampleQuestion}}</span></figcaption>
+          <ol class="a-board-list">
+            <li>{{@country:CA}}</li>
+            <li>{{@country:ID}}</li>
+            <li>{{@country:NO}}</li>
+            <li>{{@country:JP}}</li>
+            <li>{{@country:CL}}</li>
+          </ol>
+          <p class="a-board-note">{{exampleText}}</p>
+        </figure>
+      </div>
+    </section>
+
+    <section class="a-sec" id="how-to-play">
+      <h2>{{howToPlayTitle}}</h2>
+      <ol class="a-steps">
+        <li>
+          <span class="a-st-n" aria-hidden="true">1</span>
+          <div>
+            <h3>{{step1Title}}</h3>
+            <p>{{step1Text}}</p>
+          </div>
+        </li>
+        <li>
+          <span class="a-st-n" aria-hidden="true">2</span>
+          <div>
+            <h3>{{step2Title}}</h3>
+            <p>{{step2Text}}</p>
+          </div>
+        </li>
+        <li>
+          <span class="a-st-n" aria-hidden="true">3</span>
+          <div>
+            <h3>{{step3Title}}</h3>
+            <p>{{step3Text}}</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="a-sec" id="daily">
+      <div class="a-trio">
+        <div class="card a-c">
+          <span class="a-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2"></rect><path d="M3.5 9.5h17M8 3v4M16 3v4"></path></svg></span>
+          <div>
+            <h3>{{card1Title}}</h3>
+            <p>{{card1Text}}</p>
+          </div>
+        </div>
+        <div class="card a-c">
+          <span class="a-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l3 3v15H6z"></path><path d="M9 10h6M9 14h6M9 18h4"></path></svg></span>
+          <div>
+            <h3>{{card2Title}}</h3>
+            <p>{{card2Text}}</p>
+          </div>
+        </div>
+        <div class="card a-c">
+          <span class="a-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9.5"></circle><path d="M2.5 12h19M12 2.5c2.6 2.8 3.9 6 3.9 9.5s-1.3 6.7-3.9 9.5c-2.6-2.8-3.9-6-3.9-9.5s1.3-6.7 3.9-9.5z"></path></svg></span>
+          <div>
+            <h3>{{card3Title}}</h3>
+            <p>{{card3Text}}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="a-sec" id="faq">
+      <h2>{{faqTitle}}</h2>
+      <div class="a-faq">
+        <div class="a-qa">
+          <h3>{{faqFreeQuestion}}</h3>
+          <p>{{faqFreeAnswer}}</p>
+        </div>
+        <div class="a-qa">
+          <h3>{{faqOfflineQuestion}}</h3>
+          <p>{{faqOfflineAnswer}}</p>
+        </div>
+        <div class="a-qa">
+          <h3>{{faqSourcesQuestion}}</h3>
+          <p>{{honestyText}}</p>
+        </div>
+        <div class="a-qa">
+          <h3>{{faqAccountQuestion}}</h3>
+          <p>{{faqAccountAnswer}}</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="a-sec">
+      <div class="card a-when">
+        <div class="a-when-copy">
+          <!-- launch:when --><!-- /launch:when -->
+        </div>
+        <a class="btn only-pre" href="#notify">{{navGetNotified}}</a>
+        <a class="btn only-post" href="#launch">{{navGetTheApp}}</a>
+      </div>
+    </section>
   </div>
 </main>
 
-<footer class="bar foot">
-  <span>Sorting Geography</span>
-  <nav><a href="{{@langroot}}support/">{{navSupport}}</a> <a href="{{@langroot}}privacy/">{{navPrivacy}}</a> <a href="{{@root}}terms/">{{navTerms}}</a> <a href="{{@root}}press/">{{navPress}}</a> <a href="{{@root}}credits.html">{{navDataSources}}</a></nav>
+<footer class="ft">
+  <div class="ft-in">
+    <div class="ft-brand">
+      <a class="wm" href="{{@langroot}}./"><svg class="ic wm-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9.5"></circle><path d="M2.5 12h19M12 2.5c2.6 2.8 3.9 6 3.9 9.5s-1.3 6.7-3.9 9.5c-2.6-2.8-3.9-6-3.9-9.5s1.3-6.7 3.9-9.5z"></path></svg><span>Sorting&nbsp;Geography</span></a>
+    </div>
+    <nav class="ft-links">
+      <a href="#faq">{{navFaq}}</a>
+      <a href="{{@root}}credits.html">{{navDataSources}}</a>
+      <a href="{{@root}}press/">{{navPress}}</a>
+      <a href="{{@langroot}}support/">{{navSupport}}</a>
+      <a href="{{@langroot}}privacy/">{{navPrivacy}}</a>
+      <a href="{{@root}}terms/">{{navTerms}}</a>
+    </nav>
+    <p class="ft-fam">{{footerFamily}}</p>
+  </div>
 </footer>
 </body>
 </html>
