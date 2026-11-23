@@ -452,7 +452,8 @@ todo_case("a class merely containing 'todo' (todo-list) is not a placeholder", l
 # placeholder. Deleting `+ todos()` from the --game list must turn the second
 # case green and fail this suite.
 def matching_game(package: str = build_features.PACKAGE) -> pathlib.Path:
-    g = fake_game(False, False, False)
+    flags = build_features.load_flags(ROOT)
+    g = fake_game(flags["unlock"], flags["analytics"], flags["analytics_switch"], flags["age_screen"])
     (g / "app/assets/data").mkdir(parents=True)
     (g / "packages/sort_platform/lib/src/l10n").mkdir(parents=True)
     facts = build_features.load_facts(ROOT)
@@ -948,9 +949,19 @@ if not ok:
 
 
 # ---- 18.4: every game language on the site ---------------------------------------
+def _without_switch(root):
+    """German switch label is not wired yet (Story 18.4), so non-English page tests run with analytics_switch off."""
+    p = root / "src/features.json"
+    f = json.loads(p.read_text())
+    if f.get("analytics_switch"):
+        f["analytics_switch"] = False
+        p.write_text(json.dumps(f))
+
+
 def publish(root, lang="de", change=None):
     """Publish a language with stand-in strings ("DE· " + English, placeholders and
     tags kept), as the translation pipeline's output will be, then rebuild."""
+    _without_switch(root)
     en = json.loads((root / "src/i18n/site_en.arb").read_text())
     arb = {"@@locale": lang}
     for k, v in en.items():
@@ -1165,7 +1176,7 @@ def hold_case(name, game_kw, steps, expect_red, inspect=None):
         failures.append(f"hold: {name}")
 
 
-PULL = lambda g, r: build_i18n.pull(g, "main", r)
+PULL = lambda g, r: (_without_switch(r), build_i18n.pull(g, "main", r))
 
 
 def held_de(g, r):
@@ -1394,6 +1405,132 @@ age_text_case("age screen + analytics on: under 16 sends nothing", {**ALL_ON, "a
     ["There is no question about this when you start the app."])
 age_text_case("analytics on, age screen off: the old sentence stays", {**ALL_ON, "analytics_switch": False, "unlock": False, "age_screen": False},
     ["There is no question about this when you start the app."], ["The app does not ask whether it may send them."])
+
+
+# Story 6.12 without 20.10: Settings switch exists, no PostHog sink (analytics=false, analytics_switch=true).
+SWITCH_ONLY = {**OFF, "analytics_switch": True}
+SWITCH_SENTENCE = (
+    "Settings has a switch, <strong>Share anonymous usage numbers</strong>. "
+    "This version of the game does not send any usage numbers yet, whatever the switch is set to."
+)
+
+feature_case("switch without sink (analytics=false, analytics_switch=true): built text passes every guard", False,
+             flags=SWITCH_ONLY)
+game_case("main has the switch without PostHog, pages describe neither", (False, False, True), OFF, True)
+game_case("pages describe the switch without PostHog, main has no switch", (False, False, False), SWITCH_ONLY, True)
+game_case("switch without PostHog on both sides", (False, False, True), SWITCH_ONLY, False)
+
+
+def analytics_text_case(name, flags, page_rel, must, must_not, regions=None):
+    root = copy_site()
+    try:
+        (root / "src/features.json").write_text(json.dumps(flags))
+        build_features.build(root)
+        raw = (root / page_rel).read_text(encoding="utf-8")
+        visible = " ".join(re.sub(r"<!--.*?-->", " ", raw, flags=re.S).split())
+        missing = [m for m in must if m not in visible]
+        present = [m for m in must_not if m.lower() in visible.lower()]
+        for rname, want in (regions or {}).items():
+            m = re.search(rf"<!-- feature:{re.escape(rname)} -->(.*?)<!-- /feature:{re.escape(rname)} -->", raw, re.S)
+            rtext = " ".join(m.group(1).split()) if m else ""
+            if want not in rtext:
+                missing.append(f"[{rname}] {want}")
+    finally:
+        shutil.rmtree(root)
+    ok = not missing and not present
+    print(f"{'ok  ' if ok else 'FAIL'} switch   {'green' if ok else 'red  '} {name}"
+          + ("" if ok else f"  <- missing {missing} present {present}"))
+    if not ok:
+        failures.append(f"switch: {name}")
+
+
+analytics_text_case(
+    "switch without sink: privacy renders exact sentence in both regions, no analytics claims",
+    SWITCH_ONLY, "privacy/index.html",
+    ["The app sends no usage statistics of its own.",
+     "The app uses the internet only to show ads.",
+     SWITCH_SENTENCE],
+    ["sends anonymous usage numbers", "PostHog", "switch them off"],
+    regions={"privacy-summary": SWITCH_SENTENCE, "privacy-analytics": SWITCH_SENTENCE},
+)
+analytics_text_case(
+    "switch without sink: support renders exact sentence, no analytics claims",
+    SWITCH_ONLY, "support/index.html",
+    ["Does the app send usage numbers?",
+     "No. It sends no usage statistics of its own.",
+     SWITCH_SENTENCE],
+    ["sends anonymous usage numbers", "PostHog", "switch them off"],
+    regions={"support-analytics": SWITCH_SENTENCE},
+)
+analytics_text_case(
+    "regression: analytics=true, switch=true on privacy",
+    {**OFF, "analytics": True, "analytics_switch": True}, "privacy/index.html",
+    ["sends anonymous usage numbers", "PostHog", "You can switch them off in Settings.",
+     "They are on unless you switch them off: in Settings, turn off <strong>Share anonymous usage numbers</strong>, "
+     "and the app sends none from then on."],
+    ["does not send any usage numbers yet"],
+)
+analytics_text_case(
+    "regression: analytics=true, switch=true on support",
+    {**OFF, "analytics": True, "analytics_switch": True}, "support/index.html",
+    ["Can I stop the app sending usage numbers?", "Yes. The app sends anonymous usage numbers",
+     "To stop them, open Settings and turn off <strong>Share anonymous usage numbers</strong>."],
+    ["does not send any usage numbers yet"],
+)
+analytics_text_case(
+    "regression: analytics=true, switch=false on privacy",
+    {**OFF, "analytics": True, "analytics_switch": False}, "privacy/index.html",
+    ["sends anonymous usage numbers", "PostHog"],
+    ["Share anonymous usage numbers", "switch them off", "does not send any usage numbers yet"],
+)
+analytics_text_case(
+    "regression: analytics=true, switch=false on support",
+    {**OFF, "analytics": True, "analytics_switch": False}, "support/index.html",
+    ["Does the app send usage numbers?", "Yes. The app sends anonymous usage numbers"],
+    ["Share anonymous usage numbers", "Can I stop", "does not send any usage numbers yet"],
+)
+analytics_text_case(
+    "baseline: analytics=false, switch=false on privacy",
+    OFF, "privacy/index.html",
+    ["The app sends no usage statistics of its own."],
+    ["Share anonymous usage numbers", "does not send any usage numbers yet", "PostHog",
+     "sends anonymous usage numbers", "switch them off"],
+)
+analytics_text_case(
+    "baseline: analytics=false, switch=false on support",
+    OFF, "support/index.html",
+    ["Does the app send usage numbers?", "No. It sends no usage statistics of its own."],
+    ["Share anonymous usage numbers", "does not send any usage numbers yet", "PostHog",
+     "sends anonymous usage numbers", "switch them off"],
+)
+
+
+def non_english_switch_refused():
+    root = copy_site()
+    try:
+        (root / "src/features.json").write_text(json.dumps(SWITCH_ONLY))
+        en = json.loads((root / "src/i18n/site_en.arb").read_text(encoding="utf-8"))
+        arb = {"@@locale": "de", **{k: f"DE· {v}" for k, v in en.items() if not k.startswith("@")}}
+        site_i18n.arb_path("de", root).write_text(json.dumps(arb, ensure_ascii=False), encoding="utf-8")
+        langs = json.loads((root / "src/site_languages.json").read_text(encoding="utf-8"))
+        langs["published"] = ["de"]
+        langs["served"] = ["de"]
+        (root / "src/site_languages.json").write_text(json.dumps(langs), encoding="utf-8")
+        try:
+            build_i18n.build(root)
+            ok, msg = False, "build succeeded instead of refusing"
+        except SystemExit as e:
+            msg = str(e)
+            ok = "switch label is not wired yet" in msg
+    finally:
+        shutil.rmtree(root)
+    print(f"{'ok  ' if ok else 'FAIL'} switch   {'red  ' if ok else 'green'} non-English support page refused in switch-without-sink state"
+          + ("" if ok else f"  <- {msg}"))
+    if not ok:
+        failures.append("switch: non-English support page refused")
+
+
+non_english_switch_refused()
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")
