@@ -24,8 +24,8 @@
   "@navHowToPlay": {
     "description": "Header link to the How to play section."
   },
-  "navDaily": "Daily",
-  "@navDaily": {
+  "siteNavDaily": "Daily",
+  "@siteNavDaily": {
     "description": "Header link to the Daily feature section."
   },
   "navFaq": "FAQ",
