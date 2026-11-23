@@ -57,6 +57,8 @@ import site_i18n  # noqa: E402
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FEATURES = ("analytics", "analytics_switch", "unlock", "age_screen")
 SWITCH_LABEL = "Share anonymous usage numbers"
+SWITCH_NO_SINK = (f"Settings has a switch, <strong>{SWITCH_LABEL}</strong>. "
+                  "This version of the game does not send any usage numbers yet, whatever the switch is set to.")
 AGE_RECORD_KEY = r"""['"]age\.record['"]"""         # Story 6.17's kAgeRecordKey, the stored answer
 IP_LINE = "discarded on arrival, never stored"          # F4: the one wording
 
@@ -67,8 +69,6 @@ def load_flags(root: pathlib.Path = ROOT) -> dict[str, bool]:
     bad = [k for k, v in flags.items() if not isinstance(v, bool)]
     if bad:
         raise SystemExit(f"src/features.json: {', '.join(bad)} must be true or false")
-    if flags["analytics_switch"] and not flags["analytics"]:
-        raise SystemExit("src/features.json: analytics_switch needs analytics")
     return flags
 
 
@@ -212,7 +212,10 @@ def privacy_summary(f):
             line += " You can switch them off in Settings."
         out.append(f"<li>{line}</li>")
     else:
-        out.append("<li>The app sends no usage statistics of its own.</li>")
+        line = "The app sends no usage statistics of its own."
+        if f["analytics_switch"]:
+            line += " " + SWITCH_NO_SINK
+        out.append(f"<li>{line}</li>")
     if f["unlock"]:
         out.append("<li>If you buy the unlock that removes ads, Google Play or the App Store "
                    "takes the payment. We never see your payment details.</li>")
@@ -237,10 +240,11 @@ def privacy_connection(f):
 
 def privacy_analytics(f):
     if not f["analytics"]:
+        switch = f"\n  <p>\n    {SWITCH_NO_SINK}\n  </p>" if f["analytics_switch"] else ""
         return ("<h2>Usage statistics</h2>\n  <p>\n    The app sends no usage statistics of its own: "
                 "nothing about how you play is sent to us.\n    Apart from a result you choose to share, "
                 "the only data that leaves the device is what\n    Google's ad software receives, "
-                "described above.\n  </p>")
+                f"described above.\n  </p>{switch}")
     switch = ""
     if f["analytics_switch"]:
         switch = ("\n  <p>\n    They are on unless you switch them off: in Settings, turn off\n    "
@@ -312,18 +316,25 @@ def support_unlock(f):
             f"  <h3>{_w(s['supportUnlockCancelTitle'])}</h3>\n  <p>\n    {_w(s['supportUnlockCancelText'])}\n  </p>")
 
 
+def _switch_sentence(f, s: dict, key: str) -> str:
+    if f.get("lang", "en") != "en":
+        # the label must be the app's own Settings label in that language; refuse rather than guess
+        raise SystemExit(f"support-analytics: the {f['lang']} switch label is not wired yet (Story 18.4)")
+    return site_i18n.fill(s[key], switch=html.escape(SWITCH_LABEL))
+
+
 def support_analytics(f):
     s = _s(f)
     if not f["analytics"]:
         # the privacy link is relative to the support page: ../privacy/ is the page's own language
         off = s["supportAnalyticsOffText"].replace('href="privacy/"', 'href="../privacy/"')
+        if f["analytics_switch"]:
+            switch = _switch_sentence(f, s, "supportAnalyticsOffSwitchText")
+            return f"<h3>{_w(s['supportAnalyticsTitle'])}</h3>\n  <p>\n    {_w(off)}\n    {switch}\n  </p>"
         return f"<h3>{_w(s['supportAnalyticsTitle'])}</h3>\n  <p>\n    {_w(off)}\n  </p>"
     body = s["supportAnalyticsYes"] + " " + s["supportAnalyticsOnText"]
     if f["analytics_switch"]:
-        if f.get("lang", "en") != "en":
-            # the label must be the app's own Settings label in that language; refuse rather than guess
-            raise SystemExit(f"support-analytics: the {f['lang']} switch label is not wired yet (Story 18.4)")
-        switch = site_i18n.fill(s["supportAnalyticsSwitchText"], switch=html.escape(SWITCH_LABEL))
+        switch = _switch_sentence(f, s, "supportAnalyticsSwitchText")
         return f"<h3>{_w(s['supportAnalyticsSwitchTitle'])}</h3>\n  <p>\n    {_w(body)}\n    {switch}\n  </p>"
     return f"<h3>{_w(s['supportAnalyticsTitle'])}</h3>\n  <p>\n    {_w(body)}\n  </p>"
 

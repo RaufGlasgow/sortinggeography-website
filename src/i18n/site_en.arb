@@ -400,6 +400,10 @@
   "@supportAnalyticsOffText": {
     "description": "Answer while the app sends no usage numbers."
   },
+  "supportAnalyticsOffSwitchText": "Settings has a switch, <strong>{switch}</strong>. This version of the game does not send any usage numbers yet, whatever the switch is set to.",
+  "@supportAnalyticsOffSwitchText": {
+    "description": "Added when the Settings switch exists without an analytics sink. {switch} is the app's own Settings label in this language."
+  },
   "supportAnalyticsOnText": "The app sends anonymous usage numbers so we can see which questions are too hard. Your IP address is discarded on arrival, never stored; no advertising ID, nothing that identifies you.",
   "@supportAnalyticsOnText": {
     "description": "Answer once analytics ships (after 'Yes.'). Keep 'discarded on arrival, never stored' exact in meaning (review F4)."
