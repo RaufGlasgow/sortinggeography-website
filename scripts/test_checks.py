@@ -1667,7 +1667,8 @@ def half_reminders_case(name, reminders):
 feature_case("reminders on: built text passes every guard", False, flags=REMINDERS_ON)
 feature_case("'play reminders' typed by hand outside a region", True, add_para(REMINDERS_EXACT))
 feature_case("reminders flipped in features.json, pages not rebuilt", True,
-             lambda r: (r / "src/features.json").write_text(json.dumps(REMINDERS_ON)))
+             lambda r: (r / "src/features.json").write_text(
+                 json.dumps({**build_features.load_flags(r), "reminders": True})))
 feature_case("reminders region deleted", True, lambda r: edit(
     r, "privacy/index.html", "<!-- feature:privacy-reminders -->", "<!-- gone -->"))
 age_text_case("reminders on: approved sentence appears on privacy page", REMINDERS_ON,
