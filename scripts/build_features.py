@@ -55,7 +55,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import site_i18n  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-FEATURES = ("analytics", "analytics_switch", "unlock", "age_screen")
+FEATURES = ("analytics", "analytics_switch", "unlock", "age_screen", "reminders")
 SWITCH_LABEL = "Share anonymous usage numbers"
 SWITCH_NO_SINK = (f"Settings has a switch, <strong>{SWITCH_LABEL}</strong>. "
                   "This version of the game does not send any usage numbers yet, whatever the switch is set to.")
@@ -185,6 +185,18 @@ def languages_text(tags) -> str:
 # the app asks a date of birth once and keeps only whether the player is under 16. Off = today's page.
 AGE_BULLET = ("When you first open this version of the game, it asks for your date of birth. It keeps only whether you are "
               "under 16, on your phone or tablet, and never sends it anywhere.")
+
+# Story 12.7 (Ra'uf approved 2026-11-24): local play reminders, off until 12.7 ships.
+REMINDERS_SENTENCE = (
+    "If you turn on play reminders, they are scheduled on your phone or tablet and nothing is sent to us or anyone "
+    "else; you can turn them off at any time in Settings."
+)
+
+
+def privacy_reminders(f):
+    if not f["reminders"]:
+        return ""
+    return f"\n  <p>\n    {REMINDERS_SENTENCE}\n  </p>"
 
 
 def privacy_ads_age(f):
@@ -473,6 +485,7 @@ def home_example(f):
 FRAGMENTS = {
     "home-example": home_example,
     "privacy-ads-age": privacy_ads_age,
+    "privacy-reminders": privacy_reminders,
     "testers-why": testers_why,
     "testers-join": testers_join,
     "testers-do": testers_do,
@@ -505,6 +518,8 @@ CLAIMS = {
     # dataset itself.
     # Story 6.17: the age question is named only by its generated passages.
     "age_screen": [r"\bdate of birth\b", r"\bunder 16\b", r"\bdoes not ask\s+your age\b"],
+    # Story 12.7: play reminders are named only by their generated passage.
+    "reminders": [r"\bplay\s+reminders?\b"],
     # Google's closed-test numbers come from src/testers.json.
     "testers": [r"\b\d+\s+days in a row\b", r"\b\d+\s+testers\b"],
     "facts": [r"\b\d{2,3}\s+(?:questions|axes)\b", r"\b\d{3}\s+countries\b",
@@ -618,8 +633,17 @@ def game_features(game: pathlib.Path, ref: str = "origin/main") -> dict[str, boo
     if len(set(signals.values())) != 1:
         raise SystemExit(f"{ref}: 6.17's signals disagree ({', '.join(f'{n}: {v}' for n, v in signals.items())}): "
                          "cannot tell whether the age screen is on")
+    # Story 12.7: play reminders are on main when shell/reminder_service.dart exists AND main.dart references it.
+    # One without the other is a half-merged state, so refuse to guess (same as age_screen).
+    has_reminder_service = game_show(game, ref, "app/lib/shell/reminder_service.dart") is not None
+    main_refs_reminder = bool(re.search(r"\bReminderService\b|shell/reminder_service\.dart", main_dart))
+    reminder_signals = {"shell/reminder_service.dart": has_reminder_service,
+                        "main.dart referencing ReminderService": main_refs_reminder}
+    if len(set(reminder_signals.values())) != 1:
+        raise SystemExit(f"{ref}: 12.7's signals disagree ({', '.join(f'{n}: {v}' for n, v in reminder_signals.items())}): "
+                         "cannot tell whether play reminders are on")
     return {"analytics": posthog, "analytics_switch": bool(r.stdout.strip()), "unlock": m.group(1) == "true",
-            "age_screen": stored}
+            "age_screen": stored, "reminders": has_reminder_service}
 
 
 def _example_axis(axes: dict, axis: str) -> dict[str, float] | None:
@@ -723,7 +747,8 @@ def compare(flags: dict, real: dict) -> list[str]:
     what = {"analytics": "the PostHog sink (posthog_flutter dependency)",
             "analytics_switch": f"the Settings switch \"{SWITCH_LABEL}\"",
             "unlock": "the paid unlock (kPaidUnlockEnabled)",
-            "age_screen": "the age screen (Story 6.17: shell/age_screen.dart routed from main.dart)"}
+            "age_screen": "the age screen (Story 6.17: shell/age_screen.dart routed from main.dart)",
+            "reminders": "play reminders (Story 12.7: shell/reminder_service.dart wired in main.dart)"}
     for k in FEATURES:
         if flags[k] and not real[k]:
             bad.append(f"the pages claim {what[k]}, which the game's main does not have")
