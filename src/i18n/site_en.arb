@@ -44,7 +44,7 @@
   "@heroTitle": {
     "description": "The main heading."
   },
-  "heroLede": "Sorting Geography is a geography game for phones and tablets, on Android and iOS. You drag five countries into order by one fact, such as coastline, population or highest point, and every number comes from a named, dated source.",
+  "heroLede": "Sorting Geography is a geography game for phones and tablets, on Android and iOS. You drag five countries into order by one fact, such as coastline, population or highest point, and every number comes from a named source.",
   "@heroLede": {
     "description": "Under the heading. Phones and tablets, Android before iOS (platform rule)."
   },

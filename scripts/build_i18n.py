@@ -393,8 +393,9 @@ def check_game(game: pathlib.Path, ref: str, root: pathlib.Path = ROOT) -> list[
         p = site_i18n.arb_path(lg, root)
         if not p.exists() or p.read_text(encoding="utf-8") != state["arbs"][lg]:
             bad.append(f"{p.relative_to(root)} differs from the game's {GAME_SITE}/{site_i18n.arb_name(lg)}")
+    en_keys = set(site_i18n.strings("en", root))
     for lg in state["arbs"]:
-        if not passed(state, lg):
+        if _complete(state["arbs"][lg], en_keys) and not passed(state, lg):
             bad.append(f"the game's {GAME_SITE}/{site_i18n.arb_name(lg)} has no passing record in gates.json "
                        "(run `python -m translation site-gates` on the game side); the website will not read it")
     for lg in state["shipped"]:

@@ -1218,12 +1218,15 @@ def fake_site_game(root, de_status="in_progress", de_arb=True, en_override=None,
         if drop_key:
             de.pop(drop_key)
         (site / "site_de.arb").write_text(json.dumps(de, ensure_ascii=False))
-    if gate_record:
-        import hashlib
-        rec = {lg: {"sha256": hashlib.sha256((site / site_i18n.arb_name(lg)).read_bytes()).hexdigest()}
-               for lg in ("de",) if (site / site_i18n.arb_name(lg)).exists()}
-        if gate_record == "stale" and rec:
-            rec["de"]["sha256"] = "0" * 64
+    if gate_record is not None:
+        if gate_record:
+            import hashlib
+            rec = {lg: {"sha256": hashlib.sha256((site / site_i18n.arb_name(lg)).read_bytes()).hexdigest()}
+                   for lg in ("de",) if (site / site_i18n.arb_name(lg)).exists()}
+            if gate_record == "stale" and rec:
+                rec["de"]["sha256"] = "0" * 64
+        else:
+            rec = {}
         (site / "gates.json").write_text(json.dumps(rec))
     (g / "pipeline/translation/locales.json").write_text(json.dumps({"de": {"status": de_status}, "fr": {"status": "in_progress"}}))
     for cmd in (["init", "-q", "-b", "main"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
@@ -1306,15 +1309,18 @@ hold_case("the website's site_de.arb drifts from the game's", {}, [PULL, lambda 
 hold_case("a pull is needed (game has German, website never pulled)", {}, [], True)
 hold_case("the game ships German with no site strings", {"de_status": "shipped", "de_arb": False}, [], True)
 # 18.4a review M2: the website reads only a site file the game's CI gate passed.
-hold_case("German translated but with no gate record at all: --game red", {"gate_record": False}, [], True)
+hold_case("gates.json missing altogether: --game red", {"gate_record": None}, [], True)
+hold_case("German translated (complete) with no gate record in gates.json: --game red", {"gate_record": False}, [], True)
 hold_case("German's gate record is for another version of the file: --game red", {"gate_record": "stale"}, [], True)
 def not_built(g, r):
     assert not (r / "de/index.html").exists(), "an ungated site file was built into a page"
 
 
 hold_case("...and --pull will not build it", {"gate_record": "stale"}, [PULL, not_built], True)
-hold_case("an incomplete German site ARB is not built", {"drop_key": "heroTitle"}, [PULL], False,
+hold_case("an incomplete German site ARB is not built", {"drop_key": "heroTitle", "gate_record": False}, [PULL], False,
           lambda g, r: (lambda: None)() if not (r / "de/index.html").exists() else (_ for _ in ()).throw(AssertionError("built")))
+hold_case("an incomplete German site ARB still fails if the game ships German",
+          {"drop_key": "heroTitle", "gate_record": False, "de_status": "shipped"}, [], True)
 
 
 def bad_game_case(name, game_for, ref):
