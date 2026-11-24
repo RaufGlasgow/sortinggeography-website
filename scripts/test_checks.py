@@ -262,11 +262,11 @@ def feature_case(name: str, expect_red: bool, mutate=None, flags=None) -> None:
         failures.append(f"feature: {name}")
 
 
-ALL_ON = {"analytics": True, "analytics_switch": True, "unlock": True, "age_screen": True}
+ALL_ON = {"analytics": True, "analytics_switch": True, "unlock": True, "age_screen": True, "reminders": True}
 feature_case("the site as committed", False)
 feature_case("all features on: built text passes every guard", False, flags=ALL_ON)
 feature_case("analytics on, no switch: built text passes", False,
-             flags={"analytics": True, "analytics_switch": False, "unlock": False, "age_screen": False})
+             flags={"analytics": True, "analytics_switch": False, "unlock": False, "age_screen": False, "reminders": False})
 feature_case("features.json flipped, pages not rebuilt", True, lambda r: (r / "src/features.json").write_text(
     json.dumps(ALL_ON)))
 feature_case("PostHog typed into the privacy page by hand", True, add_para("Usage numbers go to PostHog."))
@@ -293,7 +293,7 @@ for name, cond in [
      on_text.count("discarded on arrival, never stored") >= 3 and "Never your IP" not in on_text),
     ("F5: no 'sends nothing anywhere' in any state",
      "sends nothing anywhere" not in on_text and "sends nothing anywhere" not in built_text(
-         {"analytics": False, "analytics_switch": False, "unlock": False, "age_screen": False})),
+         {"analytics": False, "analytics_switch": False, "unlock": False, "age_screen": False, "reminders": False})),
 ]:
     print(f"{'ok  ' if cond else 'FAIL'} wording  {name}")
     if not cond:
@@ -301,8 +301,10 @@ for name, cond in [
 
 
 # F3 --game: features.json against a fake game repo's main.
-def fake_game(unlock: bool, posthog: bool, switch: bool, age: str | bool = False) -> pathlib.Path:
-    """age: False, True (screen + route), "screen-only" or "route-only" (half-merged states)."""
+def fake_game(unlock: bool, posthog: bool, switch: bool, age: str | bool = False,
+              reminders: str | bool = False) -> pathlib.Path:
+    """age: False, True (screen + route), "screen-only" or "route-only" (half-merged states).
+    reminders: False, True (service + main ref), "service-only" or "main-only" (half-merged states)."""
     g = pathlib.Path(tempfile.mkdtemp(prefix="sg-game-"))
     (g / "app/lib/shell").mkdir(parents=True)
     (g / "packages/sort_platform").mkdir(parents=True)
@@ -314,11 +316,20 @@ def fake_game(unlock: bool, posthog: bool, switch: bool, age: str | bool = False
     (g / "app/lib/settings.dart").write_text(
         ("const label = 'Share anonymous usage numbers';\n" if switch else "const label = 'Sound';\n"))
     routed = age in (True, "route-only", "renamed-screen")
-    (g / "app/lib/main.dart").write_text("void main() {}\n" + ("// router\n      case AgeScreen.routeName:\n" if routed else ""))
+    main_refs_reminder = reminders in (True, "main-only")
+    (g / "app/lib/main.dart").write_text(
+        ("import 'shell/reminder_service.dart';\n" if main_refs_reminder else "")
+        + "void main() {"
+        + ("\n  ReminderService.install(ReminderService.forApp());\n" if main_refs_reminder else "")
+        + "}\n"
+        + ("// router\n      case AgeScreen.routeName:\n" if routed else "")
+    )
     if age in (True, "screen-only"):
         (g / "app/lib/shell/age_screen.dart").write_text("class AgeScreen {}\n")
     if age in (True, "store-only", "renamed-screen"):
         (g / "app/lib/shell/player_age.dart").write_text("const String kAgeRecordKey = 'age.record';\n")
+    if reminders in (True, "service-only"):
+        (g / "app/lib/shell/reminder_service.dart").write_text("class ReminderService {}\n")
     for cmd in (["init", "-q", "-b", "main"], ["add", "-A"],
                 ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
         subprocess.run(["git", "-C", str(g), *cmd], check=True)
@@ -337,16 +348,16 @@ def game_case(name, game_state, flags, expect_red):
         failures.append(f"game: {name}")
 
 
-OFF = {"analytics": False, "analytics_switch": False, "unlock": False, "age_screen": False}
+OFF = {"analytics": False, "analytics_switch": False, "unlock": False, "age_screen": False, "reminders": False}
 game_case("main has nothing, pages claim nothing", (False, False, False), OFF, False)
 game_case("pages claim the unlock, main has it off", (False, False, False), {**OFF, "unlock": True}, True)
 game_case("pages claim analytics, main has no posthog_flutter", (False, False, False),
           {**OFF, "analytics": True}, True)
 game_case("pages claim the switch, main has no such row", (False, True, False),
-          {"analytics": True, "analytics_switch": True, "unlock": False, "age_screen": False}, True)
+          {"analytics": True, "analytics_switch": True, "unlock": False, "age_screen": False, "reminders": False}, True)
 game_case("main turned the unlock on, pages say nothing", (True, False, False), OFF, True)
 game_case("main ships PostHog, pages say no numbers are sent", (False, True, False), OFF, True)
-game_case("everything on both sides", (True, True, True, True), ALL_ON, False)
+game_case("everything on both sides", (True, True, True, True, True), ALL_ON, False)
 # Story 6.17: the age screen.
 game_case("main ships the age screen, the page still says it does not ask", (False, False, False, True), OFF, True)
 game_case("the page describes the age screen, main does not have it", (False, False, False, False), {**OFF, "age_screen": True}, True)
@@ -457,7 +468,8 @@ EXAMPLE_COASTLINE_PER_AREA = {"CA": 22993.16, "ID": 28911.17, "JP": 81605.89, "N
 
 def matching_game(package: str = build_features.PACKAGE) -> pathlib.Path:
     flags = build_features.load_flags(ROOT)
-    g = fake_game(flags["unlock"], flags["analytics"], flags["analytics_switch"], flags["age_screen"])
+    g = fake_game(flags["unlock"], flags["analytics"], flags["analytics_switch"], flags["age_screen"],
+                  flags["reminders"])
     (g / "app/assets/data").mkdir(parents=True)
     (g / "packages/sort_platform/lib/src/l10n").mkdir(parents=True)
     facts = build_features.load_facts(ROOT)
@@ -1628,6 +1640,47 @@ def non_english_switch_refused():
 
 
 non_english_switch_refused()
+
+# Story 12.7: play reminders switch + approved sentence.
+REMINDERS_ON = {**OFF, "reminders": True}
+REMINDERS_EXACT = (
+    "If you turn on play reminders, they are scheduled on your phone or tablet and nothing is sent to us or anyone "
+    "else; you can turn them off at any time in Settings."
+)
+
+
+def half_reminders_case(name, reminders):
+    g = fake_game(False, False, False, False, reminders)
+    try:
+        try:
+            build_features.game_features(g, "main")
+            red = False
+        except SystemExit:
+            red = True
+    finally:
+        shutil.rmtree(g)
+    print(f"{'ok  ' if red else 'FAIL'} game     {'red  ' if red else 'green'} {name}")
+    if not red:
+        failures.append(f"game: {name}")
+
+
+feature_case("reminders on: built text passes every guard", False, flags=REMINDERS_ON)
+feature_case("'play reminders' typed by hand outside a region", True, add_para(REMINDERS_EXACT))
+feature_case("reminders flipped in features.json, pages not rebuilt", True,
+             lambda r: (r / "src/features.json").write_text(
+                 json.dumps({**build_features.load_flags(r), "reminders": True})))
+feature_case("reminders region deleted", True, lambda r: edit(
+    r, "privacy/index.html", "<!-- feature:privacy-reminders -->", "<!-- gone -->"))
+age_text_case("reminders on: approved sentence appears on privacy page", REMINDERS_ON,
+              [REMINDERS_EXACT], [])
+age_text_case("reminders off: approved sentence absent from privacy page", OFF,
+              ["Your progress stays on your device"], ["play reminders", REMINDERS_EXACT])
+game_case("main ships play reminders, switch is off", (False, False, False, False, True), OFF, True)
+game_case("switch is on for play reminders, main does not have them", (False, False, False, False, False),
+          REMINDERS_ON, True)
+game_case("play reminders on both sides", (False, False, False, False, True), REMINDERS_ON, False)
+half_reminders_case("reminder_service.dart on main but main.dart does not reference it: refuse to guess", "service-only")
+half_reminders_case("main.dart references ReminderService but no reminder_service.dart: refuse to guess", "main-only")
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")

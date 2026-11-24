@@ -2,5 +2,6 @@
   "analytics": false,
   "analytics_switch": true,
   "unlock": false,
-  "age_screen": false
+  "age_screen": false,
+  "reminders": false
 }
