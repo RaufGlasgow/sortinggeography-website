@@ -72,7 +72,9 @@ def load_flags(root: pathlib.Path = ROOT) -> dict[str, bool]:
     return flags
 
 
-FACT_KEYS = ("dataset_version", "axes", "countries", "languages", "pt_highest_point_m")
+EXAMPLE_COUNTRIES = ("CA", "ID", "JP", "NO", "CL")
+FACT_KEYS = ("dataset_version", "axes", "countries", "languages", "pt_highest_point_m",
+             "coastline_example_order", "coastline_example_leader")
 LANG_NAMES = {"en": "English", "de": "German", "pt-PT": "Portuguese (Portugal)", "nl": "Dutch",
               "es-419": "Spanish (Latin America)", "fr": "French", "ja": "Japanese",
               "it": "Italian", "ru": "Russian"}
@@ -86,6 +88,14 @@ def load_facts(root: pathlib.Path = ROOT) -> dict:
     unknown = [t for t in facts["languages"] if t not in LANG_NAMES]
     if unknown:
         raise SystemExit(f"src/facts.json: no display name for {unknown}; add it to LANG_NAMES")
+    order = facts["coastline_example_order"]
+    if not (isinstance(order, list) and len(order) == 5
+            and all(isinstance(c, str) and re.fullmatch(r"[A-Z]{2}", c) for c in order)
+            and len(set(order)) == 5):
+        raise SystemExit("src/facts.json: coastline_example_order must be 5 distinct ISO-2 codes")
+    leader = facts["coastline_example_leader"]
+    if not (isinstance(leader, str) and re.fullmatch(r"[A-Z]{2}", leader) and leader in order):
+        raise SystemExit("src/facts.json: coastline_example_leader must be one of coastline_example_order")
     return facts
 
 
@@ -338,7 +348,7 @@ def press_facts(f):
     rows = [
         ("Questions", f'{x["axes"]}'),
         ("Countries", f'{x["countries"]}: the 193 UN members and 2 observer states'),
-        ("Data", f'One named primary source per value, with its year and a link. '
+        ("Data", f'One named primary source per value; the full list is on the data sources page. '
                  f'Data version {x["dataset_version"]}'),
         ("Languages", languages_text(x["languages"])),
         ("Price", price),
@@ -366,12 +376,13 @@ def press_description(f):
   <p>
     There are {x["axes"]} questions across {x["countries"]} countries. Every value comes
     from one named primary source, such as the World Bank, the United Nations, FAO, Natural
-    Earth or the CIA World Factbook archive, with its year. Where a source has no figure for
+    Earth or the CIA World Factbook archive. Where a source has no figure for
     a country, the country is left out of that question rather than given a guess.
   </p>
   <p>
-    One new Daily puzzle a day: the same five countries and the same question for every
-    player, shared without giving the answer away. The Daily never shows an ad. Players start
+    Once you have played a while, the Daily opens: one new puzzle a day, the same five
+    countries and the same question for every player, shared without giving the answer away.
+    The Daily never shows an ad. Players start
     with countries most people know and unlock the rest as they play, across five levels from
     Beginner to Expert: the game moves a new player from Beginner to Easy once, and after
     that they choose when to move up.
@@ -386,8 +397,8 @@ def press_description(f):
 def press_honesty(f):
     m = f["facts"]["pt_highest_point_m"]
     return f"""<p>
-    Every value in the game names one primary source and the year it describes, and the
-    player can see it. Countries are counted whole: Portugal's highest point, {m:,} m, is
+    Every value in the game comes from one named primary source. The data sources page lists each one.
+    Countries are counted whole: Portugal's highest point, {m:,} m, is
     Mount Pico in the Azores, not on the mainland, so that is the number the game uses.
     Where a source has no figure for a country, the country is left out of that question
     rather than given a guess. A figure whose licence does not allow it to be used does
@@ -446,7 +457,21 @@ def testers_do(f):
   </ul>"""
 
 
+def home_example(f):
+    x = f["facts"]
+    order = x["coastline_example_order"]
+    leader = x["coastline_example_leader"]
+    lang = f.get("lang", "en")
+    isos = tuple(sorted(set(order) | {leader}))
+    names = site_i18n.cldr(lang, 0, isos)["countries"]
+    items = "\n".join(f"            <li>{html.escape(names[iso])}</li>" for iso in order)
+    note = site_i18n.fill(_w(_s(f)["exampleText"]), leader=html.escape(names[leader]))
+    return (f'<ol class="a-board-list">\n{items}\n          </ol>\n'
+            f'          <p class="a-board-note">{note}</p>')
+
+
 FRAGMENTS = {
+    "home-example": home_example,
     "privacy-ads-age": privacy_ads_age,
     "testers-why": testers_why,
     "testers-join": testers_join,
@@ -597,6 +622,20 @@ def game_features(game: pathlib.Path, ref: str = "origin/main") -> dict[str, boo
             "age_screen": stored}
 
 
+def _example_axis(axes: dict, axis: str) -> dict[str, float] | None:
+    """Numeric values for every country in EXAMPLE_COUNTRIES on `axis`, or None if any is missing."""
+    vals = axes.get(axis)
+    if not isinstance(vals, dict):
+        return None
+    out = {}
+    for iso in EXAMPLE_COUNTRIES:
+        v = vals.get(iso)
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            return None
+        out[iso] = float(v)
+    return out
+
+
 def game_facts(game: pathlib.Path, ref: str = "origin/main") -> dict:
     raw = game_show(game, ref, "app/assets/data/dataset_runtime.json")
     if raw is None:
@@ -613,9 +652,21 @@ def game_facts(game: pathlib.Path, ref: str = "origin/main") -> dict:
         raise SystemExit("shipped_locales.gen.dart: no kShippedLocaleTags list")
     langs = re.findall(r"'([^']+)'", body.group(1))
     pt = d["axes"].get("highest_point_m", {}).get("PT")
+    km = _example_axis(d["axes"], "coastline_km")
+    order = (sorted(EXAMPLE_COUNTRIES, key=lambda c: km[c], reverse=True)
+             if km is not None and len(set(km.values())) == len(EXAMPLE_COUNTRIES) else None)
+    per_area = _example_axis(d["axes"], "coastline_per_land_area")
+    leader = None
+    if per_area is not None:
+        top = max(per_area.values())
+        tops = [c for c in EXAMPLE_COUNTRIES if per_area[c] == top]
+        if len(tops) == 1:
+            leader = tops[0]
     return {"dataset_version": m.group(1), "axes": len(d["axes"]),
             "countries": len(d["facets"]["continent"]), "languages": langs,
-            "pt_highest_point_m": int(pt) if isinstance(pt, (int, float)) and pt == int(pt) else pt}
+            "pt_highest_point_m": int(pt) if isinstance(pt, (int, float)) and pt == int(pt) else pt,
+            "coastline_example_order": order,
+            "coastline_example_leader": leader}
 
 
 def compare_package(game: pathlib.Path, ref: str = "origin/main") -> list[str]:

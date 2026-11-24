@@ -4,7 +4,7 @@
   "@pageTitle": {
     "description": "The browser tab title."
   },
-  "metaDescription": "A daily geography game for Android and iOS. Five countries, one question, one right order. Every figure is real and shows you where it came from.",
+  "metaDescription": "A geography game for Android and iOS. Five countries, one question, one right order. Every figure is real, from a named primary source.",
   "@metaDescription": {
     "description": "Search-result description. Android before iOS (platform rule)."
   },
@@ -20,69 +20,133 @@
   "@navPrivacy": {
     "description": "Link."
   },
+  "navHowToPlay": "How to play",
+  "@navHowToPlay": {
+    "description": "Header link to the How to play section."
+  },
+  "siteNavDaily": "Daily",
+  "@siteNavDaily": {
+    "description": "Header link to the Daily feature section."
+  },
+  "navFaq": "FAQ",
+  "@navFaq": {
+    "description": "Header and footer link to the Questions section."
+  },
+  "navGetNotified": "Get notified",
+  "@navGetNotified": {
+    "description": "Header and closing button before launch, linking to the email signup form."
+  },
+  "navGetTheApp": "Get the app",
+  "@navGetTheApp": {
+    "description": "Header and closing button after launch, linking to the store badges."
+  },
   "heroTitle": "Put the world in order",
   "@heroTitle": {
     "description": "The main heading."
   },
-  "heroLede": "Five countries. One question. One right order. A daily geography game built entirely on real figures — each one showing you exactly where it came from.",
+  "heroLede": "Sorting Geography is a geography game for phones and tablets, on Android and iOS. You drag five countries into order by one fact, such as coastline, population or highest point, and every number comes from a named source.",
   "@heroLede": {
-    "description": "Under the heading."
+    "description": "Under the heading. Phones and tablets, Android before iOS (platform rule)."
   },
   "exampleQuestion": "Which of these has the longest coastline?",
   "@exampleQuestion": {
     "description": "A sample question; the five country names below come from CLDR."
   },
-  "exampleText": "You drag them into order and find out at once — not just whether you were right, but by how much, and which pairs you had the wrong way round. Then the harder version of the same fact: which has the most coastline <em>for its size</em>? Canada no longer wins. The Maldives does.",
+  "exampleText": "You drag them into order, then see the real numbers and how many you placed right. Then the harder version of the same fact: which has the most coastline <em>for its size</em>? Among these five, {leader} does.",
   "@exampleText": {
-    "description": "Keep the <em>…</em> around 'for its size'."
+    "description": "Keep the <em>…</em> around 'for its size'. {leader} is the localized name of the country among the five above with the most coastline for its size (from CLDR)."
   },
-  "card1Title": "A puzzle a day",
+  "howToPlayTitle": "How to play",
+  "@howToPlayTitle": {
+    "description": "Section heading above the three numbered steps."
+  },
+  "step1Title": "Read the question",
+  "@step1Title": {
+    "description": "Step 1 heading."
+  },
+  "step1Text": "Each round asks one thing, like Coastline (km). Five countries, one right order.",
+  "@step1Text": {
+    "description": "Step 1 explanation."
+  },
+  "step2Title": "Drag them into order",
+  "@step2Title": {
+    "description": "Step 2 heading."
+  },
+  "step2Text": "Longest at the top, shortest at the bottom. Move them until it looks right.",
+  "@step2Text": {
+    "description": "Step 2 explanation."
+  },
+  "step3Title": "Confirm and learn",
+  "@step3Title": {
+    "description": "Step 3 heading."
+  },
+  "step3Text": "Your score fills in on the same board, with the real numbers.",
+  "@step3Text": {
+    "description": "Step 3 explanation."
+  },
+  "card1Title": "One Daily, the same for everyone",
   "@card1Title": {
-    "description": "Card heading."
+    "description": "Feature card 1 heading."
   },
-  "card1Text": "One daily puzzle everyone in the world gets, the same for you and everyone else, playable offline. Plus endless play whenever you want more.",
+  "card1Text": "Once you have played a while, the Daily opens: one new puzzle a day, the same five countries and the same question for every player. Share your result without giving the answer away.",
   "@card1Text": {
-    "description": "Card text."
+    "description": "Feature card 1 text. No streak claims."
   },
-  "card2Title": "Real numbers, shown honestly",
+  "card2Title": "Every number has a source",
   "@card2Title": {
-    "description": "Card heading."
+    "description": "Feature card 2 heading."
   },
-  "card2Text": "Every figure names its source, its publication and its year. Your score is one number, and you can always see the arithmetic behind it.",
+  "card2Text": "Every value comes from one named primary source. The data sources page lists each one. Where a source has no figure for a country, that country is left out of the question rather than guessed.",
   "@card2Text": {
-    "description": "Card text."
+    "description": "Feature card 2 text."
   },
-  "card3Title": "It teaches while you play",
+  "card3Title": "Unlock the world as you play",
   "@card3Title": {
-    "description": "Card heading."
+    "description": "Feature card 3 heading."
   },
-  "card3Text": "Getting it wrong tells you something true: which country actually has more, and by how much. That is the whole point.",
+  "card3Text": "You start with countries most people know and unlock the rest as you play. Five levels, Beginner to Expert.",
   "@card3Text": {
-    "description": "Card text."
+    "description": "Feature card 3 text."
   },
-  "card4Title": "The world opens up",
-  "@card4Title": {
-    "description": "Card heading."
-  },
-  "card4Text": "You start with countries most people know and earn your way outward, unlocking new places and new questions as you play.",
-  "@card4Text": {
-    "description": "Card text."
-  },
-  "whyTitle": "Why sorting?",
-  "@whyTitle": {
-    "description": "Section heading."
-  },
-  "whyText": "\"What is the area of Kazakhstan?\" is a fact to memorise. \"Is Kazakhstan bigger than Argentina?\" is a judgement you can actually make — and get better at. Relative judgement is a skill people enjoy exercising, and one that improves with practice. That is what the game trains.",
-  "@whyText": {
-    "description": "Section text."
-  },
-  "honestyTitle": "Honesty, specifically",
-  "@honestyTitle": {
-    "description": "Section heading."
-  },
-  "honestyText": "Puzzle games can be loose with numbers. This one is not. Every value is traced to a single named publication with a date, and if a source has nothing to say about a country then that country is left out of the question rather than given a zero or a guess. Where the licence for a figure does not permit us to use it, the question does not ship — even when losing it hurts. The full list of sources is <a href=\"credits.html\">published here</a>, generated from the data the app itself carries.",
+  "honestyText": "From one named primary source per value. The full list is on the <a href=\"credits.html\">data sources</a> page.",
   "@honestyText": {
-    "description": "Keep the <a href=\"credits.html\">…</a> link around 'published here'."
+    "description": "FAQ answer on data sources. Keep the <a href=\"credits.html\">…</a> link around 'data sources'."
+  },
+  "faqTitle": "Questions",
+  "@faqTitle": {
+    "description": "Section heading above the home-page FAQ."
+  },
+  "faqFreeQuestion": "Is Sorting Geography free?",
+  "@faqFreeQuestion": {
+    "description": "Home-page FAQ question."
+  },
+  "faqFreeAnswer": "Yes, it is free to play. The Daily never shows ads. Endless play can show ads.",
+  "@faqFreeAnswer": {
+    "description": "Home-page FAQ answer. No purchase or unlock claims."
+  },
+  "faqOfflineQuestion": "Does it work offline?",
+  "@faqOfflineQuestion": {
+    "description": "Home-page FAQ question."
+  },
+  "faqOfflineAnswer": "Yes. The countries, flags and numbers are all in the app, so you can play without a connection.",
+  "@faqOfflineAnswer": {
+    "description": "Home-page FAQ answer."
+  },
+  "faqSourcesQuestion": "Where do the numbers come from?",
+  "@faqSourcesQuestion": {
+    "description": "Home-page FAQ question."
+  },
+  "faqAccountQuestion": "Do I need an account?",
+  "@faqAccountQuestion": {
+    "description": "Home-page FAQ question."
+  },
+  "faqAccountAnswer": "No. Open the app and play.",
+  "@faqAccountAnswer": {
+    "description": "Home-page FAQ answer."
+  },
+  "footerFamily": "Part of the Sorting family, with Sorting History.",
+  "@footerFamily": {
+    "description": "Footer line naming the sister game Sorting History."
   },
   "notifyLabel": "Leave an address and we will tell you when it ships.",
   "@notifyLabel": {
@@ -240,7 +304,7 @@
   "@supportPlayTitle": {
     "description": "Question."
   },
-  "supportPlayText": "Each puzzle shows five countries and one question, such as which has the longest coastline. Drag them into order, then confirm. Your score fills in on the same board, with the real numbers and any pairs you had the wrong way round.",
+  "supportPlayText": "Each puzzle shows five countries and one question, such as which has the longest coastline. Drag them into order, then confirm. Your score fills in on the same board, with the real numbers.",
   "@supportPlayText": {
     "description": "Answer."
   },
@@ -276,7 +340,7 @@
   "@supportSourcesTitle": {
     "description": "Question."
   },
-  "supportSourcesText": "Every value comes from one named primary source, with its year and a link, shown in the game. The full list is on the <a href=\"credits.html\">data sources</a> page.",
+  "supportSourcesText": "Every value comes from one named primary source. The full list is on the <a href=\"credits.html\">data sources</a> page.",
   "@supportSourcesText": {
     "description": "Keep the link."
   },

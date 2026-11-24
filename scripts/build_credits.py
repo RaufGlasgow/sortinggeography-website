@@ -82,9 +82,9 @@ TEMPLATE = """<!doctype html>
 <main class="prose">
   <h1>Where the numbers come from</h1>
   <p class="lede">
-    Sorting Geography is a game about real figures, so every value it shows carries
-    a receipt: the organisation that published it, a link to that publication, and
-    the year the figure describes. This page lists all of them.
+    Sorting Geography is a game about real figures, so every value in the game comes
+    from a published source. This page lists each one: the organisation that published
+    it and a link to that publication.
   </p>
   <p>
     It is generated from the dataset the app actually ships — currently

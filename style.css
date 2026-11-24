@@ -1,154 +1,847 @@
-/* Sorting Geography — website
-   Palette is the app's approved identity (ux-foundation.md, Ra'uf 2026-06-07):
-   Forest Green primary, Ocean Blue secondary, Violet for REWARDS ONLY,
-   parchment->ink neutrals. HARD RULE: no gold, no orange, anywhere.
-   Solid colours, no gradients; soft radii with a defined border. */
-:root {
-  --green:       #103A22;
-  --green-deep:  #0b2a18;
-  --green-soft:  #18552F;
-  --ocean:       #1c4f6b;
-  --violet:      #4c3a75;
-  --parchment:   #f5f1e6;
-  --card:        #fffdf7;
-  --ink:         #16150f;
-  --ink-soft:    #4a473c;
-  --rule:        #d9d2bf;
-  --radius:      20px;
+/* Sorting Geography — website, Direction A ("The Board", Story 18.3).
+   Palette = the app's approved colour tokens (ux-foundation.md):
+   Forest Green primary, Ocean Blue secondary, Violet for rewards only,
+   warm parchment->ink neutrals. Light and full dark token sets.
+   Three designed size classes: phone (<600 px), middle (600-1023 px,
+   640 px centred reading column), wide (>=1024 px). */
+
+@font-face {
+  font-family: "Comfortaa";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/comfortaa/comfortaa-latin-700-normal.woff2") format("woff2");
 }
+
+:root {
+  --primary: #103A22;
+  --on-primary: #F7F4EA;
+  --secondary: #2C6E9E;
+  --reward: #6A3FA0;
+  --success: #1F9D5C;
+  --error: #C73C53;
+  --bg: #F7F4EA;
+  --surface: #F4F1E6;
+  --surface-alt: #E7E1CE;
+  --border: #B1ABA0;
+  --ink: #103A22;
+  --muted: #536156; /* Same as the app's light inkMuted (#536156, Story 17.8): WCAG AA 5.00:1 on --surface-alt. Do not change it back to #5C6A5E (4.37:1). */
+  --hi: #146B3A;
+  --hi-pill: rgba(20, 107, 58, .14);
+  --nav-bar: #F4F1E6;
+  --rule: #CFC8B6;
+  --hair: #DDD6C4;
+  --map-sea: #E4EDF2;
+  --map-grid: #CBDAE3;
+  --map-land: #E7E1CE;
+  --map-edge: #B1ABA0;
+  --map-pt: #146B3A;
+  --map-ink: #3F4E44;
+  --tint: #EAF1EC;
+  --blue-tint: #E6EEF4;
+  --f-title: "Comfortaa", ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  --f-ui: ui-rounded, "SF Pro Rounded", -apple-system, system-ui, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+  --radius: 20px;
+  color-scheme: light;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
-    --green: #18552F; --green-deep: #0d2f1b; --green-soft: #1f6b3c;
-    --ocean: #2b6c8e; --violet: #6a52a3;
-    --parchment: #000000; --card: #131310; --ink: #f3efe2;
-    --ink-soft: #b0aa97; --rule: #2e2c24;
+  :root:not([data-theme="light"]) {
+    --primary: #287B4C;
+    --primary-hover: #21663F;
+    --on-primary: #F2F0E6;
+    --secondary: #5B9BD5;
+    --success: #5EE6A0;
+    --error: #F2738A;
+    --bg: #000000;
+    --surface: #243029;
+    --surface-alt: #14201A;
+    --border: #3A4A40;
+    --ink: #F2F0E6;
+    --muted: #A9B3AB;
+    --hi: #40C17D;
+    --hi-pill: rgba(61, 187, 121, .16);
+    --nav-bar: #14201A;
+    --rule: #2C3A31;
+    --hair: #1F2A23;
+    --map-sea: #0B1620;
+    --map-grid: #16283A;
+    --map-land: #1E2A22;
+    --map-edge: #3A4A40;
+    --map-pt: #3DBB79;
+    --map-ink: #C9D2CB;
+    --tint: #0F2218;
+    --blue-tint: #0E1B26;
+    color-scheme: dark;
   }
 }
+
+:root[data-theme="dark"] {
+  --primary: #287B4C;
+  --primary-hover: #21663F;
+  --on-primary: #F2F0E6;
+  --secondary: #5B9BD5;
+  --success: #5EE6A0;
+  --error: #F2738A;
+  --bg: #000000;
+  --surface: #243029;
+  --surface-alt: #14201A;
+  --border: #3A4A40;
+  --ink: #F2F0E6;
+  --muted: #A9B3AB;
+  --hi: #40C17D;
+  --hi-pill: rgba(61, 187, 121, .16);
+  --nav-bar: #14201A;
+  --rule: #2C3A31;
+  --hair: #1F2A23;
+  --map-sea: #0B1620;
+  --map-grid: #16283A;
+  --map-land: #1E2A22;
+  --map-edge: #3A4A40;
+  --map-pt: #3DBB79;
+  --map-ink: #C9D2CB;
+  --tint: #0F2218;
+  --blue-tint: #0E1B26;
+  color-scheme: dark;
+}
+
+/* ---- Base --------------------------------------------------------------- */
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
 body {
-  margin: 0; background: var(--parchment); color: var(--ink);
-  font: 17px/1.65 ui-rounded, "SF Pro Rounded", system-ui, -apple-system, Segoe UI, sans-serif;
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.55 var(--f-ui);
+  -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
 }
-a { color: var(--green-soft); text-underline-offset: 3px; }
-@media (prefers-color-scheme: dark) { a { color: #7fc99a; } }
 
-.bar {
-  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-  padding: 1rem clamp(1rem, 4vw, 2.5rem);
-  background: var(--green); color: #f5f1e6;
-}
-.bar a { color: #e9e3d2; text-decoration: none; }
-.bar nav a { margin-left: 1.1rem; font-size: .95rem; opacity: .9; }
-.bar nav a:hover { opacity: 1; text-decoration: underline; }
-.wordmark { font-weight: 700; letter-spacing: -.01em; font-size: 1.15rem; }
-.foot { margin-top: 4rem; font-size: .9rem; background: var(--green-deep); }
-
-.hero {
-  padding: clamp(3rem, 9vw, 6rem) clamp(1rem, 4vw, 2.5rem);
-  background: var(--green); color: #f5f1e6; text-align: center;
-}
-.hero h1 { font-size: clamp(2rem, 6vw, 3.2rem); margin: 0 0 .6rem; letter-spacing: -.02em; }
-.hero p { max-width: 34rem; margin: 0 auto; font-size: clamp(1.05rem, 2.4vw, 1.25rem); opacity: .93; }
-.tag {
-  display: inline-block; margin-bottom: 1.4rem; padding: .3rem .8rem;
-  border: 1px solid rgba(245,241,230,.45); border-radius: 999px;
-  font-size: .8rem; letter-spacing: .06em; text-transform: uppercase;
+a {
+  color: var(--hi);
+  text-underline-offset: 3px;
 }
 
-main { max-width: 62rem; margin: 0 auto; padding: clamp(2rem, 6vw, 3.5rem) clamp(1rem, 4vw, 2.5rem); }
-.prose { max-width: 46rem; }
-h2 { font-size: 1.5rem; margin: 2.6rem 0 .8rem; letter-spacing: -.01em; }
-.lede { font-size: 1.15rem; color: var(--ink-soft); }
-
-.cards { display: grid; gap: 1.1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin-top: 2rem; }
-.card {
-  background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius);
-  padding: 1.4rem 1.5rem;
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
 }
-.card h3 { margin: 0 0 .45rem; font-size: 1.1rem; }
-.card p  { margin: 0; color: var(--ink-soft); font-size: .97rem; }
 
-.example {
-  background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius);
-  padding: 1.5rem; margin-top: 1.6rem;
+.ic {
+  width: 22px;
+  height: 22px;
+  display: inline-block;
+  vertical-align: middle;
+  flex: none;
 }
-.example ol { margin: .6rem 0 0; padding-left: 1.3rem; }
-.example li { margin: .35rem 0; }
-.q { font-weight: 600; }
-.muted { color: var(--ink-soft); font-size: .95rem; }
 
-table.sources { width: 100%; border-collapse: collapse; margin-top: 1.6rem; font-size: .95rem; }
-table.sources th, table.sources td {
-  text-align: left; padding: .7rem .6rem; border-bottom: 1px solid var(--rule); vertical-align: top;
-}
-table.sources th { font-size: .8rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-soft); }
-td.axes { color: var(--ink-soft); }
-.table-wrap { overflow-x: auto; }
-code { background: var(--card); border: 1px solid var(--rule); border-radius: 6px; padding: .1rem .35rem; font-size: .9em; }
+/* ---- Launch state toggle (Story 18.8) ----------------------------------- */
+html:not([data-launch="out"]) .only-post { display: none !important; }
+html[data-launch="out"] .only-pre { display: none !important; }
 
-/* ---- Launch-email signup (the "When?" section) --------------------------
-   Palette only: forest green, ocean blue, parchment. No gold, no orange —
-   the identity reserves gold for one in-game reward moment and CI enforces
-   the ban here. */
-.notify { margin-top: 1.25rem; }
-.notify label { display: block; margin-bottom: .5rem; }
-.notify-row { display: flex; flex-wrap: wrap; gap: .5rem; }
-.notify input {
-  flex: 1 1 14rem; min-width: 0; padding: .7rem .85rem;
-  font: inherit; color: var(--ink);
-  background: var(--card); border: 1px solid var(--rule);
-  border-radius: calc(var(--radius) / 2);
-}
-.notify input:focus-visible { outline: 2px solid var(--ocean); outline-offset: 1px; }
-.notify button {
-  flex: 0 0 auto; padding: .7rem 1.1rem; font: inherit; font-weight: 600;
-  color: var(--parchment); background: var(--green);
-  border: 1px solid var(--green); border-radius: calc(var(--radius) / 2);
+/* ---- Shared Direction A primitives -------------------------------------- */
+.btn {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  color: var(--on-primary);
+  border: 0;
+  border-radius: 999px;
+  padding: 13px 22px;
+  font: 700 16px var(--f-ui);
+  text-decoration: none;
   cursor: pointer;
+  min-height: 48px;
+  white-space: nowrap;
 }
-.notify button:hover { background: var(--green-soft); border-color: var(--green-soft); }
-.notify button:disabled { opacity: .6; cursor: default; }
-.notify-msg { min-height: 1.4em; margin: .6rem 0 0; }
-.notify-msg.ok { color: var(--green); font-weight: 600; }
-.notify-msg.bad { color: var(--ocean); font-weight: 600; }
-.notify-fine { margin-top: .35rem; font-size: .9rem; }
+.btn:hover { background: var(--primary-hover, var(--hi)); }
+.btn:disabled { opacity: .6; cursor: default; }
+.btn-sm { padding: 8px 16px; font-size: 14px; min-height: 38px; }
 
-/* ---- Release countdown (Story 18.8) ---------------------------------------
-   Every page carries both launch states. The worker stamps <html data-launch>
-   from src/launch.js; countdown.js flips an open page at the moment. Without
-   either, the page shows the pre-launch state, which carries the date as text.
-   Palette only: no gold, no orange. The redesign (18.3) restyles this. */
-html:not([data-launch="out"]) .only-post { display: none; }
-html[data-launch="out"] .only-pre { display: none; }
-
-.launch { margin: 1.8rem auto 0; max-width: 34rem; }
-.launch-date { font-weight: 600; font-size: clamp(1.05rem, 2.4vw, 1.2rem); margin: 0; }
-.hero .launch-time { font-size: .95rem; opacity: .85; margin: .3rem auto 0; }
-.countdown { display: flex; justify-content: center; gap: .6rem; margin-top: 1.2rem; }
-.countdown[hidden] { display: none; }
-.cd-unit {
-  display: flex; flex-direction: column; align-items: center; min-width: 4.4rem;
-  padding: .6rem .5rem; border: 1px solid rgba(245,241,230,.45);
-  border-radius: calc(var(--radius) / 2);
+.card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
 }
-.cd-unit b { font-size: clamp(1.5rem, 5vw, 2rem); line-height: 1.1; font-variant-numeric: tabular-nums; }
-.cd-unit span { font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; opacity: .85; }
 
-/* Store badges: both always, Google Play then App Store, the SAME height.
+.tag {
+  display: inline-block;
+  font: 700 13px var(--f-ui);
+  letter-spacing: .04em;
+  color: var(--hi);
+  background: var(--hi-pill);
+  border-radius: 999px;
+  padding: 5px 14px;
+}
+
+/* ---- Direction A header (home page) ------------------------------------- */
+.hd {
+  border-bottom: 1.5px solid var(--border);
+  background: var(--bg);
+}
+.hd-in {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 12px;
+  padding: 12px 16px 0;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+.wm {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  text-decoration: none;
+  color: var(--ink);
+  font: 700 18px var(--f-title);
+}
+.wm-ic {
+  color: var(--primary);
+  width: 26px;
+  height: 26px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .wm-ic { color: var(--hi); }
+}
+:root[data-theme="dark"] .wm-ic { color: var(--hi); }
+
+.hd-links {
+  order: 3;
+  flex: 1 0 100%;
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  padding: 10px 0 12px;
+}
+.hd-links a {
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+  padding: 4px 0;
+  border-bottom: 2px solid transparent;
+}
+.hd-links a:hover { border-color: var(--primary); }
+.hd-end {
+  display: none;
+  align-items: center;
+  gap: 12px;
+}
+@media (min-width: 460px) {
+  .hd-end { display: flex; }
+}
+
+/* ---- Direction A home layout (phone <600 px base) ----------------------- */
+.da h1,
+.da h2,
+.da h3,
+.da p { margin: 0; }
+
+.da h1 {
+  font: 700 32px/1.15 var(--f-title);
+  text-align: center;
+  text-wrap: balance;
+  letter-spacing: -.01em;
+}
+.da h2 {
+  font: 700 24px/1.25 var(--f-title);
+  text-align: center;
+  text-wrap: balance;
+}
+.da h3 {
+  font: 700 17px/1.3 var(--f-title);
+}
+
+.a-wrap {
+  width: 100%;
+  margin: 0 auto;
+  padding-inline: 16px;
+}
+
+.a-hero {
+  display: grid;
+  gap: 24px;
+  padding: 28px 0 8px;
+}
+.a-copy {
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+  text-align: center;
+}
+.answer {
+  font-size: 17px;
+  line-height: 1.55;
+  text-align: center;
+  text-wrap: pretty;
+  max-width: 62ch;
+}
+
+/* Countdown board card (driven by <!-- launch:hero-countdown -->) */
+.da .launch { width: 100%; }
+.da .launch .only-pre {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-alt);
+  border: 1.5px solid var(--border);
+  border-radius: 24px;
+  padding: 12px 10px 14px;
+}
+.da .countdown {
+  order: 1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.da .cd-unit {
+  display: grid;
+  justify-items: center;
+  gap: 0;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 18px;
+  padding: 12px 4px 10px;
+}
+.da .cd-unit b {
+  font: 700 30px/1.05 var(--f-title);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.da .cd-unit span {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.da .cd-unit:first-child {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.da .cd-unit:first-child b,
+.da .cd-unit:first-child span {
+  color: var(--on-primary);
+}
+.da .launch .only-pre .launch-date {
+  order: 2;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+  text-wrap: balance;
+  padding-inline: 6px;
+}
+.da .launch .only-pre .launch-time {
+  order: 3;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 2px;
+  padding-inline: 6px;
+}
+.da .launch .only-post .launch-date {
+  font: 700 20px/1.3 var(--f-title);
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+/* Store badges: both always, Google Play then App Store, the SAME 48 px height.
    Google's artwork carries transparent clear space (41 px of its 250 px height
    on every side), so it is cropped by its frame, not by editing the file. */
-.badges { display: flex; flex-wrap: wrap; justify-content: center; gap: .8rem; margin-top: 1.2rem; }
-.badge { display: inline-flex; flex-direction: column; align-items: center; gap: .3rem; text-decoration: none; }
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+.badge {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  color: var(--ink);
+}
 .badge-art { display: block; height: 48px; overflow: hidden; }
 .badge-apple img { display: block; height: 48px; width: auto; }
 .badge-google { width: calc(48px * 564 / 168); }
-.badge-google img { display: block; height: calc(48px * 250 / 168); width: auto; margin: calc(-48px * 41 / 168) 0 0 calc(-48px * 41 / 168); }
+.badge-google img {
+  display: block;
+  height: calc(48px * 250 / 168);
+  width: auto;
+  margin: calc(-48px * 41 / 168) 0 0 calc(-48px * 41 / 168);
+}
 .badge-late .badge-art { opacity: .55; }
-.badge small { font-size: .8rem; }
+.badge small { font-size: 12px; font-weight: 700; color: var(--secondary); }
 
-/* ---- Placeholders (Story 18.9) ---------------------------------------------
-   Something only Ra'uf can supply. Visible on purpose, so a review sees it;
-   scripts/build_features.py --game refuses a deploy while any remains. */
-.todo { padding: 0 .3em; border: 1px dashed var(--ocean); border-radius: 4px; color: var(--ocean); }
-table.facts th { width: 9rem; text-transform: none; letter-spacing: 0; font-size: .95rem; color: var(--ink); }
+/* Launch signup form */
+.a-signup-wrap { width: 100%; }
+.signup {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  width: 100%;
+  margin-top: 4px;
+}
+.su-label { font-weight: 700; font-size: 15px; }
+.su-row { display: flex; flex-direction: column; gap: 8px; }
+.su-row input {
+  flex: none;
+  min-width: 0;
+  height: 48px;
+  border: 1.5px solid var(--muted);
+  border-radius: 999px;
+  padding: 0 18px;
+  font: 16px var(--f-ui);
+  background: var(--bg);
+  color: var(--ink);
+}
+.su-row input::placeholder { color: var(--muted); opacity: 1; }
+.notify-msg { font-size: 14px; min-height: 0; }
+.notify-msg:not(:empty) { margin-top: 2px; }
+.notify-msg.ok { color: var(--hi); font-weight: 700; }
+.notify-msg.bad { color: var(--error); font-weight: 700; }
+.su-note { font-size: 13px; color: var(--muted); line-height: 1.45; }
+
+/* Example board card (honest coastline example using CLDR countries) */
+.a-sample { width: 100%; }
+.a-board {
+  margin: 0;
+  background: var(--surface-alt);
+  border: 1.5px solid var(--border);
+  border-radius: 24px;
+  padding: 16px 12px 16px;
+}
+.a-board figcaption {
+  padding: 2px 8px 10px;
+}
+.a-bq {
+  display: block;
+  font: 700 18px/1.3 var(--f-title);
+  color: var(--ink);
+}
+.a-board-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  counter-reset: board-row;
+}
+.a-board-list li {
+  counter-increment: board-row;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 18px;
+  padding: 11px 14px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.a-board-list li::before {
+  content: counter(board-row);
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--hi-pill);
+  color: var(--hi);
+  display: grid;
+  place-items: center;
+  font: 700 13px var(--f-title);
+  font-variant-numeric: tabular-nums;
+}
+.a-board-note {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+  padding: 12px 8px 0;
+  text-wrap: pretty;
+}
+
+/* Home sections */
+.a-sec { padding-top: 40px; }
+.a-sec > h2 { margin-bottom: 16px; }
+
+.a-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.a-steps li {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.a-st-n {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--on-primary);
+  display: grid;
+  place-items: center;
+  font: 700 16px var(--f-title);
+}
+.a-steps p {
+  color: var(--muted);
+  font-size: 15px;
+  margin-top: 4px;
+}
+
+.a-trio { display: grid; gap: 12px; }
+.a-c p { color: var(--muted); font-size: 15px; margin-top: 6px; }
+.a-ic {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--hi-pill);
+  color: var(--hi);
+  margin-bottom: 10px;
+  flex: none;
+}
+
+.a-faq { display: grid; gap: 0; }
+.a-qa { border-top: 1.5px solid var(--border); padding: 14px 0; }
+.a-qa h3 { font: 700 16px/1.3 var(--f-ui); }
+.a-qa p { color: var(--muted); font-size: 15px; margin-top: 4px; }
+
+.a-when {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  text-align: center;
+}
+.a-when-copy { display: grid; gap: 8px; }
+.a-when-copy h2 { font-size: 22px; }
+.a-when-copy p { color: var(--muted); font-size: 15px; max-width: 52ch; }
+
+/* ---- Direction A footer (home page) ------------------------------------- */
+.ft {
+  border-top: 1.5px solid var(--border);
+  background: var(--surface-alt);
+  margin-top: 48px;
+}
+.ft-in {
+  display: grid;
+  gap: 14px;
+  padding: 28px 16px;
+  justify-items: center;
+  text-align: center;
+  margin: 0 auto;
+}
+.ft-brand { display: grid; gap: 6px; justify-items: center; }
+.ft-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  justify-content: center;
+}
+.ft-links a {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.ft-links a:hover { text-decoration: underline; }
+.ft-fam { color: var(--muted); font-size: 14px; margin: 0; }
+
+/* =========================================================================
+   SIZE CLASS 2: MIDDLE (600 px to 1023 px)
+   One centred 640 px reading column with 32 px sides (704 px outer).
+   Header goes single-row at 760 px so wordmark + links + 1.4x CTA never
+   overflow or wrap onto a third row. Never a stretched phone layout.
+   ========================================================================= */
+@media (min-width: 600px) {
+  .hd-in {
+    padding: 12px 32px 0;
+  }
+
+  .a-wrap {
+    max-width: 704px;
+    padding-inline: 32px;
+  }
+  .a-hero {
+    gap: 28px;
+    padding: 48px 0 0;
+  }
+  .a-copy { gap: 18px; }
+  .da h1 { font-size: 44px; line-height: 1.12; }
+  .answer { font-size: 18px; }
+
+  .da .launch .only-pre { padding: 14px 12px 16px; }
+  .da .countdown { gap: 8px; }
+  .da .cd-unit { padding: 14px 4px 12px; }
+  .da .cd-unit b { font-size: 38px; }
+
+  .su-row { flex-direction: row; }
+  .su-row input { flex: 1; }
+
+  .a-sec { padding-top: 56px; }
+  .da h2 { font-size: 28px; }
+
+  .a-steps li { gap: 16px; padding: 18px; }
+  .a-st-n { width: 36px; height: 36px; }
+  .a-steps h3,
+  .a-c h3 { font-size: 18px; }
+
+  .a-c {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    padding: 18px;
+  }
+  .a-c .a-ic { margin-bottom: 0; }
+  .a-c p { margin-top: 4px; }
+
+  .ft { margin-top: 56px; }
+  .ft-in { max-width: 704px; padding: 28px 32px; gap: 12px; }
+}
+
+/* Single-row header and two-up FAQ from 760 px (Sally's medium rule) */
+@media (min-width: 760px) {
+  .hd-in {
+    flex-wrap: nowrap;
+    gap: 20px;
+    padding: 14px 32px;
+  }
+  .hd-links {
+    order: 0;
+    flex: 0 0 auto;
+    margin-left: auto;
+    gap: 24px;
+    padding: 0;
+  }
+
+  .a-faq {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 32px;
+  }
+}
+
+/* =========================================================================
+   SIZE CLASS 3: WIDE (>= 1024 px)
+   1180 px container with 40 px gutters; two-column hero; three-column
+   steps and feature cards; two-column FAQ and footer.
+   ========================================================================= */
+@media (min-width: 1024px) {
+  .hd-in { padding: 16px 40px; }
+  .hd-links { gap: 30px; }
+
+  .a-wrap {
+    max-width: 1180px;
+    padding-inline: 40px;
+  }
+
+  .a-hero {
+    grid-template-columns: 1fr 390px;
+    gap: 64px;
+    align-items: center;
+    padding: 64px 0 24px;
+  }
+  .a-copy {
+    justify-items: start;
+    text-align: left;
+  }
+  .da h1 {
+    font-size: 52px;
+    text-align: left;
+  }
+  .answer {
+    font-size: 19px;
+    text-align: left;
+  }
+  .da .launch .only-pre .launch-date,
+  .da .launch .only-pre .launch-time,
+  .da .launch .only-post .launch-date {
+    text-align: left;
+  }
+  .a-copy .badges { justify-content: flex-start; }
+  .da .cd-unit b { font-size: 40px; }
+  .signup { max-width: 560px; }
+
+  .a-sec { padding-top: 64px; }
+  .da h2 { font-size: 30px; }
+
+  .a-steps {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .a-steps li {
+    flex-direction: column;
+    padding: 22px;
+  }
+
+  .a-trio {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .a-c {
+    display: block;
+    padding: 20px;
+  }
+  .a-c .a-ic { margin-bottom: 10px; }
+  .a-c p { margin-top: 6px; }
+
+  .a-faq { column-gap: 48px; }
+
+  .a-when {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    padding: 24px 28px;
+  }
+  .a-when-copy h2 { text-align: left; }
+
+  .ft-in {
+    max-width: 1180px;
+    padding: 28px 40px;
+    grid-template-columns: 1fr auto;
+    justify-items: start;
+    text-align: left;
+    row-gap: 10px;
+  }
+  .ft-brand { justify-items: start; }
+  .ft-links { justify-content: flex-end; grid-column: 2; grid-row: 1; }
+  .ft-fam { grid-column: 1 / -1; }
+}
+
+/* =========================================================================
+   SECONDARY PAGES (support, privacy, terms, press, credits, testers)
+   They keep their existing semantic markup (.bar, main.prose, .bar.foot,
+   table.sources, .todo) and inherit Direction A's palette, type and column.
+   ========================================================================= */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 20px;
+  padding: 14px clamp(16px, 4vw, 40px);
+  background: var(--bg);
+  color: var(--ink);
+  border-bottom: 1.5px solid var(--border);
+}
+.bar a {
+  color: var(--ink);
+  text-decoration: none;
+}
+.bar nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+.bar nav a {
+  font-size: 15px;
+  font-weight: 600;
+  padding: 2px 0;
+  border-bottom: 2px solid transparent;
+}
+.bar nav a:hover { border-color: var(--primary); }
+.wordmark {
+  font: 700 18px var(--f-title);
+  letter-spacing: -.01em;
+}
+.foot {
+  margin-top: 56px;
+  font-size: 14px;
+  background: var(--surface-alt);
+  border-top: 1.5px solid var(--border);
+  border-bottom: 0;
+}
+.foot > span {
+  font: 700 17px var(--f-title);
+}
+
+main.prose {
+  max-width: 704px;
+  margin: 0 auto;
+  padding: 32px 16px 24px;
+}
+@media (min-width: 600px) {
+  main.prose { padding: 48px 32px 24px; }
+}
+main.prose h1 {
+  font: 700 clamp(28px, 5vw, 40px)/1.15 var(--f-title);
+  margin: 0 0 12px;
+  letter-spacing: -.01em;
+}
+main.prose h2 {
+  font: 700 22px/1.25 var(--f-title);
+  margin: 2.2rem 0 .65rem;
+}
+main.prose h3 {
+  font: 700 17px/1.3 var(--f-title);
+  margin: 1.5rem 0 .4rem;
+}
+main.prose p { margin: 0 0 14px; }
+main.prose ul,
+main.prose ol { margin: 0 0 16px; padding-left: 22px; }
+main.prose li { margin: 5px 0; }
+.lede { font-size: 18px; color: var(--muted); line-height: 1.55; }
+.muted { color: var(--muted); font-size: 14px; }
+
+table.sources {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1.4rem;
+  font-size: 15px;
+}
+table.sources th,
+table.sources td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+table.sources th {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+td.axes { color: var(--muted); }
+.table-wrap { overflow-x: auto; }
+code {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: .9em;
+}
+
+/* Placeholders (Story 18.9): visible on purpose; --game refuses deploy while any remain. */
+.todo {
+  padding: 0 .3em;
+  border: 1.5px dashed var(--secondary);
+  border-radius: 6px;
+  color: var(--secondary);
+}
+table.facts th {
+  width: 9rem;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 15px;
+  color: var(--ink);
+}
