@@ -1,7 +1,7 @@
 {
-  "analytics": false,
+  "analytics": true,
   "analytics_switch": true,
   "unlock": false,
-  "age_screen": false,
+  "age_screen": true,
   "reminders": true
 }
