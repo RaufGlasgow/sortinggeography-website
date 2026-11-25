@@ -257,7 +257,7 @@ def privacy_children(f):
                 "    personal information, and the ad settings described above for every player.\n  </p>")
     return ("<p>\n    The game is suitable for children and is built for them as well as for adults: no\n"
             "    chat, no content from other players, no social features, and the ad settings described\n"
-            "    above for every player. The app asks for a date of birth once, keeps only whether the\n"
+            "    above for every player. The app asks for a date of birth, keeps only whether the\n"
             "    player is under 16 or 16 and over on the device, forgets the date itself, and sends\n"
             "    neither anywhere; nothing else in the game asks for personal information.\n  </p>")
 
@@ -272,7 +272,8 @@ def privacy_analytics(f):
     switch = ""
     if f["analytics_switch"]:
         switch = ("\n  <p>\n    They are on unless you switch them off: in Settings, turn off\n    "
-                  f"<strong>{SWITCH_LABEL}</strong>, and the app sends none from then on.\n  </p>")
+                  f"<strong>{SWITCH_LABEL}</strong>. Switching off stops the app recording usage numbers;\n    "
+                  "any recorded just before that and not yet sent (for example while offline) may still be sent.\n  </p>")
     age = ""
     if f["age_screen"]:
         age = ("\n  <p>\n    If you are under 16, or the app does not know your age, it sends no usage statistics\n"
@@ -363,10 +364,17 @@ def support_analytics(f):
             switch = _switch_sentence(f, s, "supportAnalyticsOffSwitchText")
             return f"<h3>{_w(s['supportAnalyticsTitle'])}</h3>\n  <p>\n    {_w(off)}\n    {switch}\n  </p>"
         return f"<h3>{_w(s['supportAnalyticsTitle'])}</h3>\n  <p>\n    {_w(off)}\n  </p>"
-    if f["age_screen"] and f.get("lang", "en") == "en":
-        body = (f"{s['supportAnalyticsYes']} If you are 16 or over, the app sends anonymous usage numbers so we can "
-                f"see which questions are too hard; if you are under 16, or the app does not know your age, it sends "
-                f"none. Your IP address is {IP_LINE}; no advertising ID, nothing that identifies you.")
+    if f["age_screen"]:
+        if f.get("lang", "en") == "en":
+            body = (f"{s['supportAnalyticsYes']} If you are 16 or over, the app sends anonymous usage numbers so we can "
+                    f"see which questions are too hard; if you are under 16, or the app does not know your age, it sends "
+                    f"none. Your IP address is {IP_LINE}; no advertising ID, nothing that identifies you.")
+        elif "supportAnalyticsOnAgeGatedText" in s:
+            body = s["supportAnalyticsYes"] + " " + s["supportAnalyticsOnAgeGatedText"]
+        else:
+            raise SystemExit(
+                f"support-analytics: missing supportAnalyticsOnAgeGatedText for {f['lang']} while age_screen is on"
+            )
     else:
         body = s["supportAnalyticsYes"] + " " + s["supportAnalyticsOnText"]
     if f["analytics_switch"]:
@@ -647,8 +655,7 @@ def game_features(game: pathlib.Path, ref: str = "origin/main") -> dict[str, boo
     main_dart = game_show(game, ref, "app/lib/main.dart")
     if main_dart is None:
         raise SystemExit(f"{game}: cannot read app/lib/main.dart at {ref}")
-    main_code = re.sub(r"//[^\n]*|/\*.*?\*/", "", main_dart, flags=re.S)
-    routed = bool(re.search(r"^\s*case\s+AgeScreen\.routeName(?:\s+when\s+[^;:\s][^;:]*)?\s*:", main_code, re.M))
+    routed = bool(re.search(r"^\s*case\s+AgeScreen\.routeName(?:\s+when\s+[^;:\s][^;:]*)?\s*:", main_dart, re.M))
     k = subprocess.run(["git", "-C", str(game), "grep", "-l", "-E", AGE_RECORD_KEY, ref, "--", "app/lib", "packages"],
                        capture_output=True, text=True)
     if k.returncode not in (0, 1):
@@ -662,7 +669,7 @@ def game_features(game: pathlib.Path, ref: str = "origin/main") -> dict[str, boo
     # Story 12.7: play reminders are on main when shell/reminder_service.dart exists AND main.dart references it.
     # One without the other is a half-merged state, so refuse to guess (same as age_screen).
     has_reminder_service = game_show(game, ref, "app/lib/shell/reminder_service.dart") is not None
-    main_refs_reminder = bool(re.search(r"\bReminderService\b|shell/reminder_service\.dart", main_code))
+    main_refs_reminder = bool(re.search(r"\bReminderService\b|shell/reminder_service\.dart", main_dart))
     reminder_signals = {"shell/reminder_service.dart": has_reminder_service,
                         "main.dart referencing ReminderService": main_refs_reminder}
     if len(set(reminder_signals.values())) != 1:

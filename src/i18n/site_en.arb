@@ -416,7 +416,7 @@
   "@supportAnalyticsSwitchTitle": {
     "description": "Question once the Settings switch ships."
   },
-  "supportAnalyticsSwitchText": "To stop them, open Settings and turn off <strong>{switch}</strong>.",
+  "supportAnalyticsSwitchText": "Open Settings and turn off <strong>{switch}</strong>. Switching off stops the app recording usage numbers; any recorded just before that and not yet sent (for example while offline) may still be sent.",
   "@supportAnalyticsSwitchText": {
     "description": "{switch} is the app's own Settings label in this language."
   },

@@ -1066,11 +1066,15 @@ if not ok:
 
 # ---- 18.4: every game language on the site ---------------------------------------
 def _without_switch(root):
-    """German switch label is not wired yet (Story 18.4), so non-English page tests run with analytics_switch off."""
+    """German switch label and age-gated analytics copy are not wired yet (Story 18.4), so generic non-English page tests run with both off."""
     p = root / "src/features.json"
     f = json.loads(p.read_text())
-    if f.get("analytics_switch"):
-        f["analytics_switch"] = False
+    changed = False
+    for k in ("analytics_switch", "age_screen"):
+        if f.get(k):
+            f[k] = False
+            changed = True
+    if changed:
         p.write_text(json.dumps(f))
 
 
@@ -1517,7 +1521,7 @@ age_text_case("age screen on: the short-version bullet and the new Ads paragraph
      "are under 16, on your phone or tablet, and never sends it anywhere.</li>",
      "When you first open this version of the game, it asks for your date of birth. It uses the date only",
      "The answer is never sent to us, to Google or to anyone else."],
-    ["The app does not ask your age.", "date of birth, once", "The first time you open the game"])
+    ["The app does not ask your age.", "date of birth, once", "date of birth once", "The first time you open the game"])
 age_text_case("age screen off: today's page, word for word", OFF,
     ["The app does not ask your age. Instead, every ad request tells Google"], ["date of birth"])
 age_text_case("age screen + analytics on: under 16 sends nothing", {**ALL_ON, "analytics_switch": False, "unlock": False},
@@ -1588,9 +1592,10 @@ analytics_text_case(
     "regression: analytics=true, switch=true on privacy",
     {**OFF, "analytics": True, "analytics_switch": True}, "privacy/index.html",
     ["sends anonymous usage numbers", "PostHog", "You can switch them off in Settings.",
-     "They are on unless you switch them off: in Settings, turn off <strong>Share anonymous usage numbers</strong>, "
-     "and the app sends none from then on."],
-    ["does not send any usage numbers yet"],
+     "They are on unless you switch them off: in Settings, turn off <strong>Share anonymous usage numbers</strong>. "
+     "Switching off stops the app recording usage numbers; any recorded just before that and not yet sent "
+     "(for example while offline) may still be sent."],
+    ["does not send any usage numbers yet", "sends none from then on"],
 )
 analytics_text_case(
     "PostHog region: US cloud (owner 2026-11-25), never European Union",
@@ -1602,7 +1607,9 @@ analytics_text_case(
     "regression: analytics=true, switch=true on support",
     {**OFF, "analytics": True, "analytics_switch": True}, "support/index.html",
     ["Can I stop the app sending usage numbers?", "Yes. The app sends anonymous usage numbers",
-     "To stop them, open Settings and turn off <strong>Share anonymous usage numbers</strong>."],
+     "Open Settings and turn off <strong>Share anonymous usage numbers</strong>. Switching off stops the app "
+     "recording usage numbers; any recorded just before that and not yet sent (for example while offline) may "
+     "still be sent."],
     ["does not send any usage numbers yet"],
 )
 analytics_text_case(
@@ -1659,6 +1666,34 @@ def non_english_switch_refused():
 
 
 non_english_switch_refused()
+
+
+def non_english_age_analytics_refused():
+    root = copy_site()
+    try:
+        (root / "src/features.json").write_text(json.dumps({**OFF, "analytics": True, "age_screen": True}))
+        en = json.loads((root / "src/i18n/site_en.arb").read_text(encoding="utf-8"))
+        arb = {"@@locale": "de", **{k: f"DE· {v}" for k, v in en.items() if not k.startswith("@")}}
+        site_i18n.arb_path("de", root).write_text(json.dumps(arb, ensure_ascii=False), encoding="utf-8")
+        langs = json.loads((root / "src/site_languages.json").read_text(encoding="utf-8"))
+        langs["published"] = ["de"]
+        langs["served"] = ["de"]
+        (root / "src/site_languages.json").write_text(json.dumps(langs), encoding="utf-8")
+        try:
+            build_i18n.build(root)
+            ok, msg = False, "build succeeded instead of refusing"
+        except SystemExit as e:
+            msg = str(e)
+            ok = "supportAnalyticsOnAgeGatedText" in msg
+    finally:
+        shutil.rmtree(root)
+    print(f"{'ok  ' if ok else 'FAIL'} age      {'red  ' if ok else 'green'} non-English support page refused when age_screen + analytics on without translated gated key"
+          + ("" if ok else f"  <- {msg}"))
+    if not ok:
+        failures.append("age: non-English support page refused")
+
+
+non_english_age_analytics_refused()
 
 # Story 12.7: play reminders switch + approved sentence.
 REMINDERS_ON = {**OFF, "reminders": True}
