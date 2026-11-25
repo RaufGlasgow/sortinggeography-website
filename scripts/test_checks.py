@@ -1580,6 +1580,12 @@ analytics_text_case(
     ["does not send any usage numbers yet"],
 )
 analytics_text_case(
+    "PostHog region: US cloud (owner 2026-11-25), never European Union",
+    {**OFF, "analytics": True, "analytics_switch": True}, "privacy/index.html",
+    ["They go to PostHog, an analytics service, in its United States region."],
+    ["European Union"],
+)
+analytics_text_case(
     "regression: analytics=true, switch=true on support",
     {**OFF, "analytics": True, "analytics_switch": True}, "support/index.html",
     ["Can I stop the app sending usage numbers?", "Yes. The app sends anonymous usage numbers",
