@@ -278,7 +278,7 @@ def privacy_analytics(f):
     whether the device runs Android or iOS.
   </p>
   <p>
-    They go to PostHog, an analytics service, in its European Union region. They are
+    They go to PostHog, an analytics service, in its United States region. They are
     anonymous: they carry no name, no email, no advertising ID, no location and no
     other personal data. Your IP address is {IP_LINE}, and every event also asks
     PostHog not to work out a location from it. {no_question} The only link between one event and the next is a random
