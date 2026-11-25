@@ -268,7 +268,7 @@ feature_case("all features on: built text passes every guard", False, flags=ALL_
 feature_case("analytics on, no switch: built text passes", False,
              flags={"analytics": True, "analytics_switch": False, "unlock": False, "age_screen": False, "reminders": False})
 feature_case("features.json flipped, pages not rebuilt", True, lambda r: (r / "src/features.json").write_text(
-    json.dumps(ALL_ON)))
+    json.dumps({k: not v for k, v in build_features.load_flags(r).items()})))
 feature_case("PostHog typed into the privacy page by hand", True, add_para("Usage numbers go to PostHog."))
 feature_case("Restore purchases typed into support by hand", True, add_para(
     "Use Restore purchases in Settings.", page="support/index.html", anchor="<h1>Support</h1>"))
@@ -1674,7 +1674,8 @@ feature_case("reminders on: built text passes every guard", False, flags=REMINDE
 feature_case("'play reminders' typed by hand outside a region", True, add_para(REMINDERS_EXACT))
 feature_case("reminders flipped in features.json, pages not rebuilt", True,
              lambda r: (r / "src/features.json").write_text(
-                 json.dumps({**build_features.load_flags(r), "reminders": True})))
+                 json.dumps({**build_features.load_flags(r),
+                             "reminders": not build_features.load_flags(r)["reminders"]})))
 feature_case("reminders region deleted", True, lambda r: edit(
     r, "privacy/index.html", "<!-- feature:privacy-reminders -->", "<!-- gone -->"))
 age_text_case("reminders on: approved sentence appears on privacy page", REMINDERS_ON,

@@ -3,5 +3,5 @@
   "analytics_switch": true,
   "unlock": false,
   "age_screen": false,
-  "reminders": false
+  "reminders": true
 }
