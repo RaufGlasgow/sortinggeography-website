@@ -250,6 +250,18 @@ def privacy_connection(f):
             f"nothing you do waits on one.\n    The app uses the internet only {tail}.\n  </p>")
 
 
+def privacy_children(f):
+    if not f["age_screen"]:
+        return ("<p>\n    The game is suitable for children and is built for them as well as for adults: no\n"
+                "    chat, no content from other players, no social features, nothing that asks for\n"
+                "    personal information, and the ad settings described above for every player.\n  </p>")
+    return ("<p>\n    The game is suitable for children and is built for them as well as for adults: no\n"
+            "    chat, no content from other players, no social features, and the ad settings described\n"
+            "    above for every player. The app asks for a date of birth, keeps only whether the\n"
+            "    player is under 16 or 16 and over on the device, forgets the date itself, and sends\n"
+            "    neither anywhere; nothing else in the game asks for personal information.\n  </p>")
+
+
 def privacy_analytics(f):
     if not f["analytics"]:
         switch = f"\n  <p>\n    {SWITCH_NO_SINK}\n  </p>" if f["analytics_switch"] else ""
@@ -260,7 +272,8 @@ def privacy_analytics(f):
     switch = ""
     if f["analytics_switch"]:
         switch = ("\n  <p>\n    They are on unless you switch them off: in Settings, turn off\n    "
-                  f"<strong>{SWITCH_LABEL}</strong>, and the app sends none from then on.\n  </p>")
+                  f"<strong>{SWITCH_LABEL}</strong>. Switching off stops the app recording usage numbers;\n    "
+                  "any recorded just before that and not yet sent (for example while offline) may still be sent.\n  </p>")
     age = ""
     if f["age_screen"]:
         age = ("\n  <p>\n    If you are under 16, or the app does not know your age, it sends no usage statistics\n"
@@ -269,11 +282,18 @@ def privacy_analytics(f):
     # contradict it; the point it makes is that the app does not ask permission to send.
     no_question = ("The app does not ask whether it may send them." if f["age_screen"] else
                    "There is no question about this when\n    you start the app.")
+    never_parts = []
+    if f["age_screen"]:
+        never_parts.append("for under-16 players")
+    if f["analytics_switch"]:
+        never_parts.append("if switched off")
+    never = f" (never {' or '.join(never_parts)})" if never_parts else ""
     return f"""<h2>Anonymous usage statistics</h2>{age}
   <p>
     To understand which questions are too hard and where people give up, the app
-    sends anonymous usage numbers: for example that a puzzle was finished, on which
-    question, at which difficulty and with what score, and whether an ad was shown.
+    sends anonymous usage numbers: for example that a puzzle was finished, which
+    question it was, the score, how many moves it took, whether it was the Daily,
+    and whether an ad was shown.
     Each one also carries the app's version, the version of its country data, and
     whether the device runs Android or iOS.
   </p>
@@ -282,7 +302,7 @@ def privacy_analytics(f):
     anonymous: they carry no name, no email, no advertising ID, no location and no
     other personal data. Your IP address is {IP_LINE}, and every event also asks
     PostHog not to work out a location from it. {no_question} The only link between one event and the next is a random
-    number the app makes up when it is first installed, which is not tied to you,
+    number the app makes up the first time it sends usage numbers{never}, which is not tied to you,
     your device's advertising ID or anything outside this app. We look at them only
     as totals, never at one player.
   </p>{switch}"""
@@ -344,7 +364,19 @@ def support_analytics(f):
             switch = _switch_sentence(f, s, "supportAnalyticsOffSwitchText")
             return f"<h3>{_w(s['supportAnalyticsTitle'])}</h3>\n  <p>\n    {_w(off)}\n    {switch}\n  </p>"
         return f"<h3>{_w(s['supportAnalyticsTitle'])}</h3>\n  <p>\n    {_w(off)}\n  </p>"
-    body = s["supportAnalyticsYes"] + " " + s["supportAnalyticsOnText"]
+    if f["age_screen"]:
+        if f.get("lang", "en") == "en":
+            body = (f"{s['supportAnalyticsYes']} If you are 16 or over, the app sends anonymous usage numbers so we can "
+                    f"see which questions are too hard; if you are under 16, or the app does not know your age, it sends "
+                    f"none. Your IP address is {IP_LINE}; no advertising ID, nothing that identifies you.")
+        elif "supportAnalyticsOnAgeGatedText" in s:
+            body = s["supportAnalyticsYes"] + " " + s["supportAnalyticsOnAgeGatedText"]
+        else:
+            raise SystemExit(
+                f"support-analytics: missing supportAnalyticsOnAgeGatedText for {f['lang']} while age_screen is on"
+            )
+    else:
+        body = s["supportAnalyticsYes"] + " " + s["supportAnalyticsOnText"]
     if f["analytics_switch"]:
         switch = _switch_sentence(f, s, "supportAnalyticsSwitchText")
         return f"<h3>{_w(s['supportAnalyticsSwitchTitle'])}</h3>\n  <p>\n    {_w(body)}\n    {switch}\n  </p>"
@@ -496,6 +528,7 @@ FRAGMENTS = {
     "privacy-summary": privacy_summary,
     "privacy-connection": privacy_connection,
     "privacy-analytics": privacy_analytics,
+    "privacy-children": privacy_children,
     "privacy-unlock": privacy_unlock,
     "support-free": support_free,
     "support-unlock": support_unlock,
@@ -622,7 +655,7 @@ def game_features(game: pathlib.Path, ref: str = "origin/main") -> dict[str, boo
     main_dart = game_show(game, ref, "app/lib/main.dart")
     if main_dart is None:
         raise SystemExit(f"{game}: cannot read app/lib/main.dart at {ref}")
-    routed = bool(re.search(r"\bcase\s+AgeScreen\.routeName\s*:", main_dart))
+    routed = bool(re.search(r"^\s*case\s+AgeScreen\.routeName(?:\s+when\s+[^;:\s][^;:]*)?\s*:", main_dart, re.M))
     k = subprocess.run(["git", "-C", str(game), "grep", "-l", "-E", AGE_RECORD_KEY, ref, "--", "app/lib", "packages"],
                        capture_output=True, text=True)
     if k.returncode not in (0, 1):

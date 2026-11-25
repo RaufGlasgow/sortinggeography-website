@@ -316,17 +316,24 @@ def fake_game(unlock: bool, posthog: bool, switch: bool, age: str | bool = False
     (g / "app/lib/settings.dart").write_text(
         ("const label = 'Share anonymous usage numbers';\n" if switch else "const label = 'Sound';\n"))
     routed = age in (True, "route-only", "renamed-screen")
+    guarded = age == "guarded"
+    commented = age == "commented"
     main_refs_reminder = reminders in (True, "main-only")
+    age_route_line = (
+        "// router\n      case AgeScreen.routeName when !ageAnswered(widget.store):\n" if guarded else
+        "// router\n      // case AgeScreen.routeName when !ageAnswered(widget.store):\n" if commented else
+        "// router\n      case AgeScreen.routeName:\n" if routed else ""
+    )
     (g / "app/lib/main.dart").write_text(
         ("import 'shell/reminder_service.dart';\n" if main_refs_reminder else "")
         + "void main() {"
         + ("\n  ReminderService.install(ReminderService.forApp());\n" if main_refs_reminder else "")
         + "}\n"
-        + ("// router\n      case AgeScreen.routeName:\n" if routed else "")
+        + age_route_line
     )
-    if age in (True, "screen-only"):
+    if age in (True, "screen-only", "guarded", "commented", "no-route"):
         (g / "app/lib/shell/age_screen.dart").write_text("class AgeScreen {}\n")
-    if age in (True, "store-only", "renamed-screen"):
+    if age in (True, "store-only", "renamed-screen", "guarded", "commented", "no-route"):
         (g / "app/lib/shell/player_age.dart").write_text("const String kAgeRecordKey = 'age.record';\n")
     if reminders in (True, "service-only"):
         (g / "app/lib/shell/reminder_service.dart").write_text("class ReminderService {}\n")
@@ -362,6 +369,8 @@ game_case("everything on both sides", (True, True, True, True, True), ALL_ON, Fa
 game_case("main ships the age screen, the page still says it does not ask", (False, False, False, True), OFF, True)
 game_case("the page describes the age screen, main does not have it", (False, False, False, False), {**OFF, "age_screen": True}, True)
 game_case("the age screen on both sides", (False, False, False, True), {**OFF, "age_screen": True}, False)
+game_case("the age screen with a Dart when-guard reads as routed", (False, False, False, "guarded"),
+          {**OFF, "age_screen": True}, False)
 
 
 def half_age_case(name, age):
@@ -383,6 +392,8 @@ half_age_case("age_screen.dart on main but not routed: refuse to guess", "screen
 half_age_case("routed to AgeScreen but no age_screen.dart: refuse to guess", "route-only")
 half_age_case("A3: screen AND route renamed, the stored age record still there: refuse, never 'off'", "store-only")
 half_age_case("the stored record and the route, the screen file renamed: refuse", "renamed-screen")
+half_age_case("missing AgeScreen case in main.dart reads as not routed: refuse to guess", "no-route")
+half_age_case("commented-out AgeScreen case reads as not routed: refuse to guess", "commented")
 feature_case("'date of birth' typed by hand outside a region", True, add_para("We ask your date of birth."))
 feature_case("'does not ask your age' typed by hand", True, add_para("The app does not ask your age."))
 feature_case("age screen on: built text passes every guard", False, flags={**OFF, "age_screen": True})
@@ -540,12 +551,14 @@ def facts_case(name, game_over, expect_red):
     try:
         (g / "app/assets/data").mkdir(parents=True)
         (g / "packages/sort_platform/lib/src/l10n").mkdir(parents=True)
-        real = {"version": "dataset-v089-abc", "axes": {f"a{i}": {} for i in range(187)},
-                "facets": {"continent": {f"C{i}": "x" for i in range(195)}}}
-        real["axes"]["highest_point_m"] = {"PT": 2351.0}
+        facts = build_features.load_facts(ROOT)
+        real = {"version": f"dataset-{facts['dataset_version']}-abc",
+                "axes": {f"a{i}": {} for i in range(facts["axes"] - 3)},
+                "facets": {"continent": {f"C{i}": "x" for i in range(facts["countries"])}}}
+        real["axes"]["highest_point_m"] = {"PT": float(facts["pt_highest_point_m"])}
         real["axes"]["coastline_km"] = dict(EXAMPLE_COASTLINE_KM)
         real["axes"]["coastline_per_land_area"] = dict(EXAMPLE_COASTLINE_PER_AREA)
-        langs = ["en"]
+        langs = list(facts["languages"])
         real, langs = game_over(real, langs)
         (g / "app/assets/data/dataset_runtime.json").write_text(json.dumps(real))
         (g / "packages/sort_platform/lib/src/l10n/shipped_locales.gen.dart").write_text(
@@ -1053,11 +1066,15 @@ if not ok:
 
 # ---- 18.4: every game language on the site ---------------------------------------
 def _without_switch(root):
-    """German switch label is not wired yet (Story 18.4), so non-English page tests run with analytics_switch off."""
+    """German switch label and age-gated analytics copy are not wired yet (Story 18.4), so generic non-English page tests run with both off."""
     p = root / "src/features.json"
     f = json.loads(p.read_text())
-    if f.get("analytics_switch"):
-        f["analytics_switch"] = False
+    changed = False
+    for k in ("analytics_switch", "age_screen"):
+        if f.get(k):
+            f[k] = False
+            changed = True
+    if changed:
         p.write_text(json.dumps(f))
 
 
@@ -1504,7 +1521,7 @@ age_text_case("age screen on: the short-version bullet and the new Ads paragraph
      "are under 16, on your phone or tablet, and never sends it anywhere.</li>",
      "When you first open this version of the game, it asks for your date of birth. It uses the date only",
      "The answer is never sent to us, to Google or to anyone else."],
-    ["The app does not ask your age.", "date of birth, once", "The first time you open the game"])
+    ["The app does not ask your age.", "date of birth, once", "date of birth once", "The first time you open the game"])
 age_text_case("age screen off: today's page, word for word", OFF,
     ["The app does not ask your age. Instead, every ad request tells Google"], ["date of birth"])
 age_text_case("age screen + analytics on: under 16 sends nothing", {**ALL_ON, "analytics_switch": False, "unlock": False},
@@ -1575,9 +1592,10 @@ analytics_text_case(
     "regression: analytics=true, switch=true on privacy",
     {**OFF, "analytics": True, "analytics_switch": True}, "privacy/index.html",
     ["sends anonymous usage numbers", "PostHog", "You can switch them off in Settings.",
-     "They are on unless you switch them off: in Settings, turn off <strong>Share anonymous usage numbers</strong>, "
-     "and the app sends none from then on."],
-    ["does not send any usage numbers yet"],
+     "They are on unless you switch them off: in Settings, turn off <strong>Share anonymous usage numbers</strong>. "
+     "Switching off stops the app recording usage numbers; any recorded just before that and not yet sent "
+     "(for example while offline) may still be sent."],
+    ["does not send any usage numbers yet", "sends none from then on"],
 )
 analytics_text_case(
     "PostHog region: US cloud (owner 2026-11-25), never European Union",
@@ -1589,7 +1607,9 @@ analytics_text_case(
     "regression: analytics=true, switch=true on support",
     {**OFF, "analytics": True, "analytics_switch": True}, "support/index.html",
     ["Can I stop the app sending usage numbers?", "Yes. The app sends anonymous usage numbers",
-     "To stop them, open Settings and turn off <strong>Share anonymous usage numbers</strong>."],
+     "Open Settings and turn off <strong>Share anonymous usage numbers</strong>. Switching off stops the app "
+     "recording usage numbers; any recorded just before that and not yet sent (for example while offline) may "
+     "still be sent."],
     ["does not send any usage numbers yet"],
 )
 analytics_text_case(
@@ -1646,6 +1666,34 @@ def non_english_switch_refused():
 
 
 non_english_switch_refused()
+
+
+def non_english_age_analytics_refused():
+    root = copy_site()
+    try:
+        (root / "src/features.json").write_text(json.dumps({**OFF, "analytics": True, "age_screen": True}))
+        en = json.loads((root / "src/i18n/site_en.arb").read_text(encoding="utf-8"))
+        arb = {"@@locale": "de", **{k: f"DE· {v}" for k, v in en.items() if not k.startswith("@")}}
+        site_i18n.arb_path("de", root).write_text(json.dumps(arb, ensure_ascii=False), encoding="utf-8")
+        langs = json.loads((root / "src/site_languages.json").read_text(encoding="utf-8"))
+        langs["published"] = ["de"]
+        langs["served"] = ["de"]
+        (root / "src/site_languages.json").write_text(json.dumps(langs), encoding="utf-8")
+        try:
+            build_i18n.build(root)
+            ok, msg = False, "build succeeded instead of refusing"
+        except SystemExit as e:
+            msg = str(e)
+            ok = "supportAnalyticsOnAgeGatedText" in msg
+    finally:
+        shutil.rmtree(root)
+    print(f"{'ok  ' if ok else 'FAIL'} age      {'red  ' if ok else 'green'} non-English support page refused when age_screen + analytics on without translated gated key"
+          + ("" if ok else f"  <- {msg}"))
+    if not ok:
+        failures.append("age: non-English support page refused")
+
+
+non_english_age_analytics_refused()
 
 # Story 12.7: play reminders switch + approved sentence.
 REMINDERS_ON = {**OFF, "reminders": True}
