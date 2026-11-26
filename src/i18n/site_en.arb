@@ -408,6 +408,10 @@
   "@supportAnalyticsOnText": {
     "description": "Answer once analytics ships (after 'Yes.'). Keep 'discarded on arrival, never stored' exact in meaning (review F4)."
   },
+  "supportAnalyticsOnAgeGatedText": "If you are 16 or over, the app sends anonymous usage numbers so we can see which questions are too hard; if you are under 16, or the app does not know your age, it sends none. Your IP address is discarded on arrival, never stored; no advertising ID, nothing that identifies you.",
+  "@supportAnalyticsOnAgeGatedText": {
+    "description": "Answer once analytics and the age screen ship (after 'Yes.'). Keep 'discarded on arrival, never stored' exact in meaning (review F4)."
+  },
   "supportAnalyticsYes": "Yes.",
   "@supportAnalyticsYes": {
     "description": "Before the answer."
