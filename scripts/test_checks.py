@@ -1713,6 +1713,7 @@ def non_english_age_analytics_refused():
         (root / "src/features.json").write_text(json.dumps({**OFF, "analytics": True, "age_screen": True}))
         en = json.loads((root / "src/i18n/site_en.arb").read_text(encoding="utf-8"))
         arb = {"@@locale": "de", **{k: f"DE· {v}" for k, v in en.items() if not k.startswith("@")}}
+        arb.pop("supportAnalyticsOnAgeGatedText", None)
         site_i18n.arb_path("de", root).write_text(json.dumps(arb, ensure_ascii=False), encoding="utf-8")
         langs = json.loads((root / "src/site_languages.json").read_text(encoding="utf-8"))
         langs["published"] = ["de"]
@@ -1733,6 +1734,30 @@ def non_english_age_analytics_refused():
 
 
 non_english_age_analytics_refused()
+
+
+def non_english_age_analytics_wired():
+    root = copy_site()
+    g = fake_site_game(root)
+    try:
+        (root / "src/features.json").write_text(json.dumps({**OFF, "analytics": True, "age_screen": True}))
+        build_i18n.pull(g, "main", root)
+        sup = (root / "de/support/index.html").read_text(encoding="utf-8")
+        en = json.loads((root / "src/i18n/site_en.arb").read_text(encoding="utf-8"))
+        ok = f"DE· {en['supportAnalyticsOnAgeGatedText']}" in sup and not build_features.check(root)
+        msg = "rendered age-gated analytics text missing or build_features.check failed"
+    except (SystemExit, build_i18n.GameError) as e:
+        ok, msg = False, str(e)
+    finally:
+        shutil.rmtree(g)
+        shutil.rmtree(root)
+    print(f"{'ok  ' if ok else 'FAIL'} age      {'green' if ok else 'red  '} non-English support page renders age-gated analytics text when key is present"
+          + ("" if ok else f"  <- {msg}"))
+    if not ok:
+        failures.append("age: non-English support page wired")
+
+
+non_english_age_analytics_wired()
 
 # Story 12.7: play reminders switch + approved sentence.
 REMINDERS_ON = {**OFF, "reminders": True}
