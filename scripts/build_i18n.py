@@ -291,6 +291,7 @@ def build(root: pathlib.Path = ROOT) -> None:
 import subprocess  # noqa: E402
 
 GAME_SITE = "pipeline/translation/site"
+GAME_APP_L10N = "packages/sort_platform/l10n"
 GAME_LOCALES_JSON = "pipeline/translation/locales.json"
 
 
@@ -319,10 +320,20 @@ def game_state(game: pathlib.Path, ref: str) -> dict:
         raise GameError(f"{game}: no {GAME_LOCALES_JSON} at {ref}")
     locales = json.loads(loc)
     arbs = {}
+    switch_labels = {}
     for lg in site_i18n.GAME_LOCALES:
         text = game_show(game, ref, f"{GAME_SITE}/{site_i18n.arb_name(lg)}")
         if text is not None:
             arbs[lg] = text
+        app_path = f"{GAME_APP_L10N}/{site_i18n.app_arb_name(lg)}"
+        app_text = game_show(game, ref, app_path)
+        if app_text is not None:
+            try:
+                val = json.loads(app_text).get(site_i18n.SWITCH_ARB_KEY)
+            except json.JSONDecodeError as e:
+                raise GameError(f"{game}: invalid JSON in {app_path} at {ref}: {e}")
+            if isinstance(val, str) and val.strip():
+                switch_labels[lg] = val
     shipped = [lg for lg in site_i18n.GAME_LOCALES if locales.get(lg, {}).get("status") == "shipped"]
     # 18.4a review M2: only a site file the game's CI gate passed may be read: its sha256 must be in
     # pipeline/translation/site/gates.json (python -m translation site-gates).
@@ -330,7 +341,7 @@ def game_state(game: pathlib.Path, ref: str) -> dict:
     if rec_text is None:
         raise GameError(f"{game}: no {GAME_SITE}/gates.json at {ref} (the site gate record, Story 18.4a)")
     record = json.loads(rec_text)
-    return {"en": en, "arbs": arbs, "shipped": shipped, "record": record}
+    return {"en": en, "arbs": arbs, "shipped": shipped, "record": record, "switch_labels": switch_labels}
 
 
 def passed(state: dict, lang: str) -> bool:
@@ -361,6 +372,15 @@ def pull(game: pathlib.Path, ref: str, root: pathlib.Path = ROOT) -> None:
         raise GameError("the game's site_en.arb differs from src/i18n/site_en.arb: copy the website's English "
                         "into the game (pipeline/translation/site/site_en.arb) first; the website is its author")
     published, served_ = plan(state, root)
+    pulled_switches = {}
+    for lg in published:
+        label = state["switch_labels"].get(lg)
+        if not label:
+            raise GameError(
+                f"the game's {GAME_APP_L10N}/{site_i18n.app_arb_name(lg)} at {ref} is missing "
+                f"{site_i18n.SWITCH_ARB_KEY!r} (required for {lg} Settings switch label, Story 18.4)"
+            )
+        pulled_switches[lg] = label
     for lg in published:
         p = site_i18n.arb_path(lg, root)
         if not p.exists() or p.read_text(encoding="utf-8") != state["arbs"][lg]:
@@ -369,6 +389,10 @@ def pull(game: pathlib.Path, ref: str, root: pathlib.Path = ROOT) -> None:
     f = root / site_i18n.LANGS_FILE
     data = json.loads(f.read_text(encoding="utf-8"))
     data["published"], data["served"] = published, served_
+    if pulled_switches:
+        data["switch_labels"] = pulled_switches
+    else:
+        data.pop("switch_labels", None)
     f.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     site_i18n._load.cache_clear()
     build(root)
@@ -393,6 +417,23 @@ def check_game(game: pathlib.Path, ref: str, root: pathlib.Path = ROOT) -> list[
         p = site_i18n.arb_path(lg, root)
         if not p.exists() or p.read_text(encoding="utf-8") != state["arbs"][lg]:
             bad.append(f"{p.relative_to(root)} differs from the game's {GAME_SITE}/{site_i18n.arb_name(lg)}")
+    site_switches = site_i18n.switch_labels(root)
+    for lg in published:
+        game_label = state["switch_labels"].get(lg)
+        if not game_label:
+            bad.append(
+                f"the game's {GAME_APP_L10N}/{site_i18n.app_arb_name(lg)} is missing {site_i18n.SWITCH_ARB_KEY!r} "
+                f"(required for {lg} Settings switch label, Story 18.4)"
+            )
+        elif site_switches.get(lg) != game_label:
+            bad.append(
+                f"{site_i18n.LANGS_FILE}: switch_labels[{lg!r}] ({site_switches.get(lg)!r}) differs from "
+                f"the game's {GAME_APP_L10N}/{site_i18n.app_arb_name(lg)} ({game_label!r}); "
+                "run scripts/build_i18n.py --pull"
+            )
+    extra_switches = sorted(set(site_switches) - set(published))
+    if extra_switches:
+        bad.append(f"{site_i18n.LANGS_FILE}: switch_labels has unpublished language(s) {extra_switches}")
     en_keys = set(site_i18n.strings("en", root))
     for lg in state["arbs"]:
         if _complete(state["arbs"][lg], en_keys) and not passed(state, lg):

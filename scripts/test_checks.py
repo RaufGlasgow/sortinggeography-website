@@ -1235,7 +1235,8 @@ i18n_unit("published() alone refuses a bad language tag", bad_tag)
 
 
 # ---- 18.4 pull-and-hold (pm-release 2026-11-20): a page is SERVED only once the game ships its language
-def fake_site_game(root, de_status="in_progress", de_arb=True, en_override=None, drop_key=None, gate_record=True):
+def fake_site_game(root, de_status="in_progress", de_arb=True, en_override=None, drop_key=None, gate_record=True,
+                   de_switch="DE· Share anonymous usage numbers"):
     g = pathlib.Path(tempfile.mkdtemp(prefix="sg-game-"))
     site = g / "pipeline/translation/site"
     site.mkdir(parents=True)
@@ -1247,6 +1248,13 @@ def fake_site_game(root, de_status="in_progress", de_arb=True, en_override=None,
         if drop_key:
             de.pop(drop_key)
         (site / "site_de.arb").write_text(json.dumps(de, ensure_ascii=False))
+    if de_switch is not None:
+        l10n = g / "packages/sort_platform/l10n"
+        l10n.mkdir(parents=True)
+        app_de = {"@@locale": "de"}
+        if isinstance(de_switch, str):
+            app_de[site_i18n.SWITCH_ARB_KEY] = de_switch
+        (l10n / "app_de.arb").write_text(json.dumps(app_de, ensure_ascii=False))
     if gate_record is not None:
         if gate_record:
             import hashlib
@@ -1350,6 +1358,14 @@ hold_case("an incomplete German site ARB is not built", {"drop_key": "heroTitle"
           lambda g, r: (lambda: None)() if not (r / "de/index.html").exists() else (_ for _ in ()).throw(AssertionError("built")))
 hold_case("an incomplete German site ARB still fails if the game ships German",
           {"drop_key": "heroTitle", "gate_record": False, "de_status": "shipped"}, [], True)
+hold_case("German app_de.arb missing settingsShareUsage: --pull fails loudly",
+          {"de_switch": False}, [PULL], True)
+hold_case("German app_de.arb missing altogether: --pull fails loudly",
+          {"de_switch": None}, [PULL], True)
+hold_case("switch_labels drifts from game app_de.arb: --game red", {}, [PULL, lambda g, r: (
+    (r / "src/site_languages.json").write_text(json.dumps({
+        "published": ["de"], "served": [], "switch_labels": {"de": "Wrong label"},
+    })))], True)
 
 
 def bad_game_case(name, game_for, ref):
@@ -1656,10 +1672,10 @@ def non_english_switch_refused():
             ok, msg = False, "build succeeded instead of refusing"
         except SystemExit as e:
             msg = str(e)
-            ok = "switch label is not wired yet" in msg
+            ok = site_i18n.SWITCH_ARB_KEY in msg and "app_de.arb" in msg
     finally:
         shutil.rmtree(root)
-    print(f"{'ok  ' if ok else 'FAIL'} switch   {'red  ' if ok else 'green'} non-English support page refused in switch-without-sink state"
+    print(f"{'ok  ' if ok else 'FAIL'} switch   {'red  ' if ok else 'green'} non-English support page refused when switch label is missing"
           + ("" if ok else f"  <- {msg}"))
     if not ok:
         failures.append("switch: non-English support page refused")
@@ -1668,12 +1684,36 @@ def non_english_switch_refused():
 non_english_switch_refused()
 
 
+def non_english_switch_wired():
+    root = copy_site()
+    g = fake_site_game(root, de_switch="Anonyme Nutzungszahlen teilen")
+    try:
+        (root / "src/features.json").write_text(json.dumps({**OFF, "analytics": True, "analytics_switch": True}))
+        build_i18n.pull(g, "main", root)
+        sup = (root / "de/support/index.html").read_text(encoding="utf-8")
+        ok = "<strong>Anonyme Nutzungszahlen teilen</strong>" in sup and not build_features.check(root)
+        msg = "rendered switch label missing or build_features.check failed"
+    except (SystemExit, build_i18n.GameError) as e:
+        ok, msg = False, str(e)
+    finally:
+        shutil.rmtree(g)
+        shutil.rmtree(root)
+    print(f"{'ok  ' if ok else 'FAIL'} switch   {'green' if ok else 'red  '} non-English support page renders switch label pulled from game app_de.arb"
+          + ("" if ok else f"  <- {msg}"))
+    if not ok:
+        failures.append("switch: non-English support page wired")
+
+
+non_english_switch_wired()
+
+
 def non_english_age_analytics_refused():
     root = copy_site()
     try:
         (root / "src/features.json").write_text(json.dumps({**OFF, "analytics": True, "age_screen": True}))
         en = json.loads((root / "src/i18n/site_en.arb").read_text(encoding="utf-8"))
         arb = {"@@locale": "de", **{k: f"DE· {v}" for k, v in en.items() if not k.startswith("@")}}
+        arb.pop("supportAnalyticsOnAgeGatedText", None)
         site_i18n.arb_path("de", root).write_text(json.dumps(arb, ensure_ascii=False), encoding="utf-8")
         langs = json.loads((root / "src/site_languages.json").read_text(encoding="utf-8"))
         langs["published"] = ["de"]
@@ -1694,6 +1734,30 @@ def non_english_age_analytics_refused():
 
 
 non_english_age_analytics_refused()
+
+
+def non_english_age_analytics_wired():
+    root = copy_site()
+    g = fake_site_game(root)
+    try:
+        (root / "src/features.json").write_text(json.dumps({**OFF, "analytics": True, "age_screen": True}))
+        build_i18n.pull(g, "main", root)
+        sup = (root / "de/support/index.html").read_text(encoding="utf-8")
+        en = json.loads((root / "src/i18n/site_en.arb").read_text(encoding="utf-8"))
+        ok = f"DE· {en['supportAnalyticsOnAgeGatedText']}" in sup and not build_features.check(root)
+        msg = "rendered age-gated analytics text missing or build_features.check failed"
+    except (SystemExit, build_i18n.GameError) as e:
+        ok, msg = False, str(e)
+    finally:
+        shutil.rmtree(g)
+        shutil.rmtree(root)
+    print(f"{'ok  ' if ok else 'FAIL'} age      {'green' if ok else 'red  '} non-English support page renders age-gated analytics text when key is present"
+          + ("" if ok else f"  <- {msg}"))
+    if not ok:
+        failures.append("age: non-English support page wired")
+
+
+non_english_age_analytics_wired()
 
 # Story 12.7: play reminders switch + approved sentence.
 REMINDERS_ON = {**OFF, "reminders": True}

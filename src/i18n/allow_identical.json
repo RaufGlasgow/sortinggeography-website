@@ -1,0 +1,9 @@
+{
+  "_note": "Site ARB keys whose value in a language is legitimately identical to English (Story 18.4). Read by scripts/build_i18n.py.",
+  "de": [
+    "navFaq",
+    "navSupport",
+    "supportPageTitle",
+    "supportTitle"
+  ]
+}
