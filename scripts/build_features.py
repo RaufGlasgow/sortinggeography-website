@@ -349,10 +349,20 @@ def support_unlock(f):
 
 
 def _switch_sentence(f, s: dict, key: str) -> str:
-    if f.get("lang", "en") != "en":
-        # the label must be the app's own Settings label in that language; refuse rather than guess
-        raise SystemExit(f"support-analytics: the {f['lang']} switch label is not wired yet (Story 18.4)")
-    return site_i18n.fill(s[key], switch=html.escape(SWITCH_LABEL))
+    lang = f.get("lang", "en")
+    if lang == "en":
+        label = SWITCH_LABEL
+    else:
+        # Story 18.4: the label must come from the game's packages/sort_platform/l10n/app_<tag>.arb
+        # (settingsShareUsage), pulled into src/site_languages.json by build_i18n.py --pull; refuse rather than guess.
+        label = site_i18n.switch_label(lang, f.get("root", ROOT))
+        if not label:
+            raise SystemExit(
+                f"support-analytics: missing {lang} Settings switch label ({site_i18n.SWITCH_ARB_KEY}) "
+                f"from the game's packages/sort_platform/l10n/{site_i18n.app_arb_name(lang)}; "
+                "run scripts/build_i18n.py --pull"
+            )
+    return site_i18n.fill(s[key], switch=html.escape(label))
 
 
 def support_analytics(f):
@@ -744,6 +754,30 @@ def compare_facts(facts: dict, real: dict) -> list[str]:
             for k in FACT_KEYS if facts[k] != real[k]]
 
 
+def compare_switch_labels(game: pathlib.Path, ref: str = "origin/main", root: pathlib.Path = ROOT) -> list[str]:
+    """Every published language's Settings switch label matches the game's app_<tag>.arb (Story 18.4)."""
+    bad = []
+    labels = site_i18n.switch_labels(root)
+    for lg in site_i18n.published(root):
+        path = f"packages/sort_platform/l10n/{site_i18n.app_arb_name(lg)}"
+        raw = game_show(game, ref, path)
+        if raw is None:
+            bad.append(f"{game}: cannot read {path} at {ref} (needed for {lg} Settings switch label)")
+            continue
+        try:
+            val = json.loads(raw).get(site_i18n.SWITCH_ARB_KEY)
+        except json.JSONDecodeError as e:
+            bad.append(f"{path} at {ref}: invalid JSON ({e})")
+            continue
+        if not isinstance(val, str) or not val.strip():
+            bad.append(f"{path} at {ref}: missing {site_i18n.SWITCH_ARB_KEY!r}")
+            continue
+        if labels.get(lg) != val:
+            bad.append(f"{site_i18n.LANGS_FILE}: switch_labels[{lg!r}] = {labels.get(lg)!r}, "
+                       f"but the game's {path} has {val!r}; run scripts/build_i18n.py --pull")
+    return bad
+
+
 # A placeholder is refused in every form review-share found getting through
 # (18.9b B2, B3): the class token `todo` in any quotes or next to any other
 # class, and the placeholder words themselves in case the tags are stripped.
@@ -830,7 +864,7 @@ if __name__ == "__main__":
         ref = args[args.index("--ref") + 1] if "--ref" in args else "origin/main"
         real = game_features(game, ref)
         problems = (compare(load_flags(), real) + compare_facts(load_facts(), game_facts(game, ref))
-                    + compare_package(game, ref) + check() + todos())
+                    + compare_package(game, ref) + compare_switch_labels(game, ref) + check() + todos())
         if problems:
             print(f"feature check FAILED against {ref}:")
             for b in problems:

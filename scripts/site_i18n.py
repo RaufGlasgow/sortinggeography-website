@@ -22,12 +22,18 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 I18N = "src/i18n"
 LANGS_FILE = "src/site_languages.json"
+SWITCH_ARB_KEY = "settingsShareUsage"
 
 
 def arb_name(lang: str) -> str:
     """site_pt_PT.arb: the app's underscore form, the same rule as the game's config.site_arb_path
     (team-lead + pm-release 2026-11-20)."""
     return f"site_{lang.replace('-', '_')}.arb"
+
+
+def app_arb_name(lang: str) -> str:
+    """app_pt_PT.arb: the game's app ARB name in packages/sort_platform/l10n/ (Story 18.4)."""
+    return f"app_{lang.replace('-', '_')}.arb"
 
 
 def arb_path(lang: str, root: pathlib.Path = ROOT) -> pathlib.Path:
@@ -82,6 +88,27 @@ def served(root: pathlib.Path = ROOT) -> list[str]:
     if not_built:
         raise SystemExit(f"{LANGS_FILE}: served {not_built} but not published (no pages built)")
     return s
+
+
+def switch_labels(root: pathlib.Path = ROOT) -> dict[str, str]:
+    """Localized Settings switch labels pulled from the game's packages/sort_platform/l10n/app_<tag>.arb
+    (key settingsShareUsage, Story 18.4)."""
+    f = root / LANGS_FILE
+    raw = json.loads(f.read_text(encoding="utf-8")).get("switch_labels", {}) if f.exists() else {}
+    if not isinstance(raw, dict):
+        raise SystemExit(f"{LANGS_FILE}: switch_labels must be an object")
+    out = {}
+    for lang, val in raw.items():
+        if lang not in GAME_LOCALES:
+            raise SystemExit(f"{LANGS_FILE}: switch_labels has {lang!r}, not one of the game's locales {GAME_LOCALES}")
+        if not isinstance(val, str) or not val.strip():
+            raise SystemExit(f"{LANGS_FILE}: switch_labels[{lang!r}] must be a non-empty string")
+        out[lang] = val
+    return out
+
+
+def switch_label(lang: str, root: pathlib.Path = ROOT) -> str | None:
+    return switch_labels(root).get(lang)
 
 
 def folder(lang: str) -> str:
