@@ -1,5 +1,7 @@
 .git
 .github
+.gitignore
+.neon-test.sh
 .wrangler
 node_modules
 src

@@ -1,0 +1,13 @@
+{
+  "_comment": "Story 18.6: axes excluded from country sheets due to an open data defect. scripts/build_sheets.py refuses to publish any axis listed here.",
+  "denied": [
+    {
+      "axis": "latitude",
+      "reason": "Open territory defect (Sally 2026-11-19)"
+    },
+    {
+      "axis": "north_south_extent",
+      "reason": "Open territory defect (Sally 2026-11-19)"
+    }
+  ]
+}

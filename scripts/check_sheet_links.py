@@ -2,22 +2,26 @@
 """The game never links to a country sheet the site does not have (Story 20.9).
 
 The app links a country to https://sortinggeography.com/countries/<iso>/ (en)
-or /<lang>/countries/<iso>/, but only for the languages in one constant on the
-game's main, agreed with dev-sheet 2026-11-20, written exactly so:
+or /<lang>/countries/<iso>/, but only for the languages and countries in two
+constants on the game's main, written exactly so:
 
     app/lib/play/country_sheet_url.dart
         const Set<String> kCountrySheetLanguages = <String>{'en', 'de'};
+        const Set<String> kCountrySheetCountries = <String>{'au', 'br', ...};
 
-Tags are single-quoted, lowercased locale tags (de, pt-pt, es-419 ...). It
-starts EMPTY (no sheet link) until the English sheets are live. iso is each key
-of pipeline/roster/countries.json → "countries", lowercased: 195 of them.
+Tags are single-quoted, lowercased locale tags (de, pt-pt, es-419 ...).
+Country codes are single-quoted, lowercased ISO 3166-1 alpha-2 codes from
+pipeline/roster/countries.json -> "countries".
 
-For every tag, every one of the 195 sheets must exist here
-(countries/<iso>/index.html for en, <lang>/countries/<iso>/index.html
-otherwise), or this fails. A file on main whose constant does not parse fails
-too: a check that cannot read the set must not wave it through. No file on
-main means the app links nowhere yet, which is the one passing absence, and only when no other file in the app names a
-sortinggeography.com/countries link (a renamed file cannot slip past).
+For every tag in kCountrySheetLanguages and every iso in kCountrySheetCountries,
+both the summary sheet (countries/<iso>/index.html for en,
+<lang>/countries/<iso>/index.html otherwise) and its full sheet
+(countries/<iso>/all/index.html or <lang>/countries/<iso>/all/index.html) must
+exist here and link to each other (./all/ and ../), or this fails. A file on main
+whose constant does not parse fails too: a check that cannot read either set
+must not wave it through. No file on main means the app links nowhere yet,
+which is the one passing absence, and only when no other file in the app names
+a sortinggeography.com/countries link (a renamed file cannot slip past).
 
 It reads the game repo's origin/main (git show, nothing checked out), so it
 cannot run in this public repo's CI; it is a deploy step next to
@@ -27,6 +31,7 @@ build_features.py --game (docs/DEPLOY-RUNBOOK.md Step 4).
 """
 from __future__ import annotations
 
+from html.parser import HTMLParser
 import json
 import pathlib
 import re
@@ -37,7 +42,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SHEET_URL_DART = "app/lib/play/country_sheet_url.dart"
 ROSTER = "pipeline/roster/countries.json"
 CONST = re.compile(r"^\s*const\s+Set<String>\s+kCountrySheetLanguages\s*=\s*<String>\{([^}]*)\}\s*;", re.M)
+COUNTRIES_CONST = re.compile(r"^\s*const\s+Set<String>\s+kCountrySheetCountries\s*=\s*<String>\{([^}]*)\}\s*;", re.M)
 TAG = re.compile(r"[a-z]{2,3}(?:-[a-z0-9]{2,4})?")
+ISO = re.compile(r"[a-z]{2}")
 
 
 def game_show(game: pathlib.Path, ref: str, path: str) -> str | None:
@@ -45,26 +52,61 @@ def game_show(game: pathlib.Path, ref: str, path: str) -> str | None:
     return r.stdout if r.returncode == 0 else None
 
 
-def sheet_languages(dart: str) -> list[str] | None:
-    """The tags, or None when the constant is missing or malformed."""
-    found = CONST.findall(dart)
+def _parse_set_const(dart: str, pattern: re.Pattern, item_pat: re.Pattern) -> list[str] | None:
+    """Parse a single-line Dart `const Set<String> ... = <String>{...};`, or None if missing/malformed."""
+    found = pattern.findall(dart)
     if len(found) != 1:
         return None
     body = found[0].strip()
     if not body:
         return []
     parts = [p.strip() for p in body.rstrip(",").split(",")]
-    tags = []
+    items: list[str] = []
     for p in parts:
         m = re.fullmatch(r"'([^']*)'", p)
-        if not m or not TAG.fullmatch(m.group(1)) or m.group(1) in tags:
+        if not m or not item_pat.fullmatch(m.group(1)) or m.group(1) in items:
             return None
-        tags.append(m.group(1))
-    return tags
+        items.append(m.group(1))
+    return items
+
+
+def sheet_languages(dart: str) -> list[str] | None:
+    """The language tags, or None when the constant is missing or malformed."""
+    return _parse_set_const(dart, CONST, TAG)
+
+
+def sheet_countries(dart: str) -> list[str] | None:
+    """The country ISO codes, or None when the constant is missing or malformed."""
+    return _parse_set_const(dart, COUNTRIES_CONST, ISO)
 
 
 def sheet_path(lang: str, iso: str) -> str:
     return f"countries/{iso}/index.html" if lang == "en" else f"{lang}/countries/{iso}/index.html"
+
+
+def full_sheet_path(lang: str, iso: str) -> str:
+    return f"countries/{iso}/all/index.html" if lang == "en" else f"{lang}/countries/{iso}/all/index.html"
+
+
+class _AnchorHrefs(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.hrefs: set[str] = set()
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() == "a":
+            for k, v in attrs:
+                if k.lower() == "href" and v is not None:
+                    self.hrefs.add(v.strip())
+
+    handle_startendtag = handle_starttag
+
+
+def _page_hrefs(path: pathlib.Path) -> set[str]:
+    p = _AnchorHrefs()
+    p.feed(path.read_text(encoding="utf-8"))
+    p.close()
+    return p.hrefs
 
 
 class GitFailed(Exception):
@@ -85,9 +127,6 @@ def sheet_link_files(game: pathlib.Path, ref: str) -> list[str]:
     Uri.https('sortinggeography.com', '/countries/...') (review S2); and any "/countries/"
     path, wherever the host comes from (review S3)."""
     r = subprocess.run(["git", "-C", str(game), "grep", "-l", "-i", "-E",
-                        # ...or a "/countries/" path at all, so a host constant on one
-                        # line and '$kHost/countries/$iso/' on the next is caught too
-                        # (review S3): in the app such a path only means a sheet.
                         r"sortinggeography\.com.*countries|countries.*sortinggeography\.com|/countries/",
                         ref, "--", "app/lib", "packages"], capture_output=True, text=True)
     if r.returncode not in (0, 1):      # 1 = no match; anything else is git failing
@@ -104,11 +143,12 @@ def check(game: pathlib.Path, ref: str = "origin/main", root: pathlib.Path = ROO
 
 def _check(game: pathlib.Path, ref: str, root: pathlib.Path) -> list[str]:
     require_ref(game, ref)
-    if game_show(game, ref, ROSTER) is None:
+    roster = game_show(game, ref, ROSTER)
+    if roster is None:
         return [f"{game}: no {ROSTER} at {ref}; this is not the game repo"]
     elsewhere = [f for f in sheet_link_files(game, ref) if f != SHEET_URL_DART]
     if elsewhere:
-        # A link built anywhere else escapes the constant this check reads.
+        # A link built anywhere else escapes the constants this check reads.
         return [f"{f} at {ref} names a /countries/ link; only {SHEET_URL_DART} may" for f in elsewhere]
     dart = game_show(game, ref, SHEET_URL_DART)
     if dart is None:
@@ -118,18 +158,39 @@ def _check(game: pathlib.Path, ref: str, root: pathlib.Path) -> list[str]:
     if langs is None:
         return [f"{SHEET_URL_DART} at {ref}: no single `const Set<String> kCountrySheetLanguages = "
                 "<String>{'en', ...};` with single-quoted lowercase tags"]
-    roster = game_show(game, ref, ROSTER)
-    if roster is None:
-        return [f"{game}: cannot read {ROSTER} at {ref}"]
-    isos = sorted(k.lower() for k in json.loads(roster)["countries"])
+    countries = sheet_countries(dart)
+    if countries is None:
+        return [f"{SHEET_URL_DART} at {ref}: no single `const Set<String> kCountrySheetCountries = "
+                "<String>{'au', ...};` with single-quoted lowercase ISO2 codes"]
+    roster_isos = {k.lower() for k in json.loads(roster)["countries"]}
+    unknown = sorted(set(countries) - roster_isos)
+    if unknown:
+        return [f"{SHEET_URL_DART} at {ref}: kCountrySheetCountries names unknown roster code(s): {unknown}"]
+    isos = sorted(countries)
     bad = []
     for lang in langs:
         missing = [iso for iso in isos if not (root / sheet_path(lang, iso)).is_file()]
         if missing:
             bad.append(f"the game links {lang} sheets, but {len(missing)} of {len(isos)} are not on the "
                        f"site (first: /{sheet_path(lang, missing[0]).removesuffix('index.html')})")
+        missing_all = [iso for iso in isos if not (root / full_sheet_path(lang, iso)).is_file()]
+        if missing_all:
+            bad.append(f"the game links {lang} sheets, but {len(missing_all)} of {len(isos)} full (all/) pages "
+                       f"are not on the site (first: /{full_sheet_path(lang, missing_all[0]).removesuffix('index.html')})")
+        broken_to_all = [
+            iso for iso in isos
+            if (root / sheet_path(lang, iso)).is_file() and "./all/" not in _page_hrefs(root / sheet_path(lang, iso))
+        ]
+        if broken_to_all:
+            bad.append(f"{lang} summary sheet(s) missing link to './all/' (first: /{sheet_path(lang, broken_to_all[0]).removesuffix('index.html')})")
+        broken_to_short = [
+            iso for iso in isos
+            if (root / full_sheet_path(lang, iso)).is_file() and "../" not in _page_hrefs(root / full_sheet_path(lang, iso))
+        ]
+        if broken_to_short:
+            bad.append(f"{lang} full sheet(s) missing link to '../' (first: /{full_sheet_path(lang, broken_to_short[0]).removesuffix('index.html')})")
     if not bad:
-        print(f"ok   sheet links: {langs or 'none'} x {len(isos)} countries all on the site")
+        print(f"ok   sheet links: {langs or 'none'} x {len(isos)} countries (summary + all/) on the site")
     return bad
 
 

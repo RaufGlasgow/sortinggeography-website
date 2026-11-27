@@ -617,6 +617,10 @@ def check(root: pathlib.Path = ROOT, flags: dict | None = None) -> list[str]:
         for feature, pats in CLAIMS.items():
             if str(rel) in CLAIMS_EXEMPT:
                 break
+            # Country sheets (Story 18.6) are generated from dataset.json by
+            # scripts/build_sheets.py and checked there; no-streaks still applies.
+            if rel.parts[0] == "countries" and feature != "no-streaks":
+                continue
             for pat in pats:
                 for m in re.finditer(pat, rest, re.I):
                     bad.append(f"{rel}: '{m.group(0)}' outside a feature region "
