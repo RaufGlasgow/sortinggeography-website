@@ -26,6 +26,7 @@ import check_store_pages  # noqa: E402
 import check_sheet_links  # noqa: E402
 import build_i18n  # noqa: E402
 import build_seo  # noqa: E402
+import build_sheets  # noqa: E402
 import site_i18n  # noqa: E402
 import build_features  # noqa: E402
 import check_comments  # noqa: E402
@@ -784,20 +785,22 @@ def sheet_game(files: dict[str, str]) -> pathlib.Path:
     return g
 
 
-def sheets(root, langs):
+def sheets(root, langs, isos=("ad", "ae", "fr")):
     for lang in langs:
-        for iso in ("ad", "ae", "fr"):
+        for iso in isos:
             p = root / check_sheet_links.sheet_path(lang, iso)
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text("<!doctype html><html><body><h1>x</h1></body></html>")
 
 
-def sheet_case(name, dart, expect_red, have=(), extra=None):
+def sheet_case(name, dart, expect_red, have=(), have_isos=("ad", "ae", "fr"), extra=None):
     files = {} if dart is None else {check_sheet_links.SHEET_URL_DART: dart}
     files.update(extra or {})
     g, root = sheet_game(files), copy_site()
     try:
-        sheets(root, have)
+        if (root / "countries").exists():
+            shutil.rmtree(root / "countries")
+        sheets(root, have, have_isos)
         red = bool(check_sheet_links.check(g, "main", root))
     finally:
         shutil.rmtree(g)
@@ -808,24 +811,37 @@ def sheet_case(name, dart, expect_red, have=(), extra=None):
         failures.append(f"sheets: {name}")
 
 
-def const(body):
-    return f"const Set<String> kCountrySheetLanguages = <String>{{{body}}};\n"
+def const(body, countries="'ad', 'ae', 'fr'"):
+    return (
+        f"const Set<String> kCountrySheetLanguages = <String>{{{body}}};\n"
+        f"const Set<String> kCountrySheetCountries = <String>{{{countries}}};\n"
+    )
 
 
 URL_LINE = "const kSheetBase = 'https://sortinggeography.com/countries/';\n"
 sheet_case("no sheet file on main, nothing links: no link yet", None, False)
 sheet_case("the set empty: no link", URL_LINE + const(""), False)
-sheet_case("en linked, every en sheet on the site", URL_LINE + const("'en'"), False, have=["en"])
+sheet_case("en linked, every listed en sheet on the site", URL_LINE + const("'en'"), False, have=["en"])
+sheet_case("en linked, subset of roster in kCountrySheetCountries, only those sheets on site",
+           URL_LINE + const("'en'", "'ad', 'fr'"), False, have=["en"], have_isos=("ad", "fr"))
 sheet_case("en linked, no sheets on the site", URL_LINE + const("'en'"), True)
-sheet_case("en linked, one sheet missing", URL_LINE + const("'en'"), True, have=["en"],
-           extra={"pipeline/roster/countries.json": json.dumps({"countries": {"AD": {}, "AE": {}, "FR": {}, "ZW": {}}})})
+sheet_case("en linked, one listed country sheet missing", URL_LINE + const("'en'"), True, have=["en"],
+           have_isos=("ad", "ae"))
 sheet_case("de linked, only en sheets on the site", URL_LINE + const("'en', 'de'"), True, have=["en"])
 sheet_case("en and pt-pt linked, both on the site", URL_LINE + const("'en', 'pt-pt'"), False, have=["en", "pt-pt"])
 sheet_case("a tag in upper case", URL_LINE + const("'pt-PT'"), True, have=["pt-PT"])
 sheet_case("a double-quoted tag", URL_LINE + const('"en"'), True, have=["en"])
 sheet_case("a tag twice", URL_LINE + const("'en', 'en'"), True, have=["en"])
-sheet_case("the constant written another way", URL_LINE + "final kCountrySheetLanguages = {'en'};\n", True, have=["en"])
-sheet_case("the constant twice", URL_LINE + const("") + const("'en'"), True, have=["en"])
+sheet_case("the languages constant written another way",
+           URL_LINE + "final kCountrySheetLanguages = {'en'};\nconst Set<String> kCountrySheetCountries = <String>{'ad'};\n",
+           True, have=["en"])
+sheet_case("the languages constant twice",
+           URL_LINE + "const Set<String> kCountrySheetLanguages = <String>{};\n" + const("'en'"), True, have=["en"])
+sheet_case("kCountrySheetCountries missing from dart file",
+           URL_LINE + "const Set<String> kCountrySheetLanguages = <String>{'en'};\n", True, have=["en"])
+sheet_case("kCountrySheetCountries has uppercase ISO", URL_LINE + const("'en'", "'AD'"), True, have=["en"])
+sheet_case("kCountrySheetCountries has duplicate ISO", URL_LINE + const("'en'", "'ad', 'ad'"), True, have=["en"])
+sheet_case("kCountrySheetCountries names unknown ISO not in roster", URL_LINE + const("'en'", "'ad', 'xx'"), True, have=["en"])
 sheet_case("an interpolated $lang/countries link in another file", None, True,
            extra={"app/lib/play/other.dart": "String u(l, i) => 'https://sortinggeography.com/$l/countries/$i/';\n"})
 sheet_case("Uri.https('sortinggeography.com', '/countries/...') in another file", None, True,
@@ -1800,6 +1816,138 @@ game_case("switch is on for play reminders, main does not have them", (False, Fa
 game_case("play reminders on both sides", (False, False, False, False, True), REMINDERS_ON, False)
 half_reminders_case("reminder_service.dart on main but main.dart does not reference it: refuse to guess", "service-only")
 half_reminders_case("main.dart references ReminderService but no reminder_service.dart: refuse to guess", "main-only")
+
+# ---- 18.6: country sheets (launch slice, 20 English pages) ---------------------
+def sheet_guard_case(name: str, expect_red: bool, mutate=None) -> None:
+    root = copy_site()
+    try:
+        if mutate:
+            mutate(root)
+        red = bool(build_sheets.check(root))
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"sheet186: {name}")
+
+
+def _edit_population_value(root: pathlib.Path) -> None:
+    p = root / "countries/us/index.html"
+    txt = p.read_text(encoding="utf-8")
+    m = re.search(r'(<div class="band a-f" data-axis="population">.*?<div class="a-f-r"><b>)([0-9,]+)(<small>)', txt, re.S)
+    if not m:
+        raise SystemExit("test setup: population card not found in countries/us/index.html")
+    bumped = f"{int(m.group(2).replace(',', '')) + 1:,}"
+    p.write_text(txt[:m.start(2)] + bumped + txt[m.end(2):], encoding="utf-8")
+
+
+def _remove_consistency_note(root: pathlib.Path, rel: str, rule_id: str) -> None:
+    p = root / rel
+    txt = p.read_text(encoding="utf-8")
+    new = re.sub(rf'<p class="a-cnote" data-consistency-rule="{re.escape(rule_id)}"[^>]*>.*?</p>', "", txt, count=1, flags=re.S)
+    if new == txt:
+        raise SystemExit(f"test setup: note {rule_id!r} not found in {rel}")
+    p.write_text(new, encoding="utf-8")
+
+
+sheet_guard_case("the 20 country sheets as built", False)
+sheet_guard_case("forbidden axis (wine_lpc) injected onto a page", True, lambda r: edit(
+    r, "countries/us/index.html", '<div class="band a-f" data-axis="population">',
+    '<div class="band a-f" data-axis="wine_lpc"><div class="a-f-l"><span class="a-f-n">Wine</span></div>'
+    '<div class="a-f-r"><b>10</b><span class="a-rk">1st of 10</span></div></div>'
+    '<div class="band a-f" data-axis="population">'))
+sheet_guard_case("published axis flipped to 'flag' in manifest", True, lambda r: edit(
+    r, "src/sheets_manifest.json", '"population": "allowed"', '"population": "flag"'))
+sheet_guard_case("denied axis (latitude) injected onto a page", True, lambda r: edit(
+    r, "countries/us/index.html", '<div class="band a-f" data-axis="population">',
+    '<div class="band a-f" data-axis="latitude"><div class="a-f-l"><span class="a-f-n">Latitude</span></div>'
+    '<div class="a-f-r"><b>39.0</b><span class="a-rk">1st of 195</span></div></div>'
+    '<div class="band a-f" data-axis="population">'))
+sheet_guard_case("value edited by hand differs from dataset", True, _edit_population_value)
+sheet_guard_case("no-data axis edited to 0 instead of 'No data' / 'Not ranked'", True, lambda r: edit(
+    r, "countries/ch/index.html",
+    '<div class="band a-f" data-axis="mangrove_area_km2">',
+    '<div class="band a-f" data-axis="mangrove_area_km2">').__class__ if False else (
+        (r / "countries/ch/index.html").write_text(
+            re.sub(
+                r'(<div class="band a-f" data-axis="mangrove_area_km2">.*?<div class="a-f-r">)<b class="a-nd">No data</b><span class="a-rk a-rk-nd">Not ranked</span>',
+                r'\g<1><b>0</b><span class="a-rk">97th of 96</span>',
+                (r / "countries/ch/index.html").read_text(encoding="utf-8"),
+                count=1,
+                flags=re.S,
+            ),
+            encoding="utf-8",
+        )
+    ))
+sheet_guard_case("FR-55 DEFINITION pair without its note (ZA land use vs land cover)", True,
+                 lambda r: _remove_consistency_note(r, "countries/za/index.html", "forest_plus_agri_plus_barren_gt_102"))
+sheet_guard_case("FR-55 YEAR pair without its note (AU pop growth vs components)", True,
+                 lambda r: _remove_consistency_note(r, "countries/au/index.html", "pop_growth_vs_components"))
+sheet_guard_case("third-party script added to a country sheet", True, lambda r: edit(
+    r, "countries/us/index.html", "</head>", '<script src="https://cdn.example.com/tracker.js"></script>\n</head>'))
+sheet_guard_case("Google Fonts stylesheet added to a country sheet", True, lambda r: edit(
+    r, "countries/eg/index.html", "</head>", '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter">\n</head>'))
+sheet_guard_case("inline script added to a country sheet", True, lambda r: edit(
+    r, "countries/ch/index.html", "</body>", "<script>alert(1)</script>\n</body>"))
+sheet_guard_case("missing country sheet on disk (countries/eg deleted)", True,
+                 lambda r: (r / "countries/eg/index.html").unlink())
+sheet_guard_case("noindex,follow removed from a country sheet", True, lambda r: edit(
+    r, "countries/us/index.html", '<meta name="robots" content="noindex,follow">\n', ""))
+sheet_guard_case("country sheet added to sitemap.xml", True, lambda r: edit(
+    r, "sitemap.xml", "</urlset>", "  <url><loc>https://sortinggeography.com/countries/us/</loc></url>\n</urlset>"))
+sheet_guard_case("Daily question/answer leaked onto a country sheet", True, lambda r: edit(
+    r, "countries/us/index.html", "</main>", "<p>Today's Daily question is Population.</p>\n</main>"))
+sheet_guard_case("overflow: fixed width > 360px added to country-sheet CSS", True, lambda r: edit(
+    r, "style.css", ".a-shw {\n  display: grid;", ".a-shw {\n  width: 420px;\n  display: grid;"))
+sheet_guard_case("overflow: grid columns without minmax(0, ...) in country-sheet CSS", True, lambda r: edit(
+    r, "style.css", "grid-template-columns: repeat(2, minmax(0, 1fr));", "grid-template-columns: 1fr 1fr;"))
+sheet_guard_case("overflow: display: grid without grid-template-columns in country-sheet CSS", True, lambda r: edit(
+    r, "style.css", ".a-sh {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);", ".a-sh {\n  display: grid;"))
+sheet_guard_case("overflow: white-space: nowrap added to fact values in country-sheet CSS", True, lambda r: edit(
+    r, "style.css", ".a-f-r b {\n  font: 700 17px/1.2 var(--f-ui);",
+    ".a-f-r b {\n  white-space: nowrap;\n  font: 700 17px/1.2 var(--f-ui);"))
+sheet_guard_case("overflow: inline fixed width > 360px injected into a country sheet", True, lambda r: edit(
+    r, "countries/us/index.html", '<div class="card a-sh">', '<div class="card a-sh" style="width: 500px">'))
+sheet_guard_case("overflow: non-breaking &nbsp; unit glue in fact value", True, lambda r: edit(
+    r, "countries/us/index.html", "<small> thousand barrels a day</small>", "<small>&nbsp;thousand barrels a day</small>"))
+
+
+def sheet_game_countries_case(name: str, game_countries: list[str] | None, expect_red: bool) -> None:
+    """Compare COUNTRIES in build_sheets.py against kCountrySheetCountries in a fake game repo."""
+    g = pathlib.Path(tempfile.mkdtemp(prefix="sg-s186-"))
+    try:
+        if game_countries is not None:
+            p = g / build_sheets.SHEET_URL_DART
+            p.parent.mkdir(parents=True, exist_ok=True)
+            body = ", ".join(f"'{c}'" for c in game_countries)
+            p.write_text(
+                "const Set<String> kCountrySheetLanguages = <String>{'en'};\n"
+                f"const Set<String> kCountrySheetCountries = <String>{{{body}}};\n",
+                encoding="utf-8",
+            )
+        else:
+            (g / "README").write_text("x", encoding="utf-8")
+        for cmd in (["init", "-q", "-b", "main"], ["add", "-A"],
+                    ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
+            subprocess.run(["git", "-C", str(g), *cmd], check=True)
+        dart = build_sheets.game_show(g, "main", build_sheets.SHEET_URL_DART)
+        parsed = build_sheets.parse_game_countries(dart) if dart is not None else None
+        red = parsed is None or sorted(parsed) != sorted(build_sheets.COUNTRIES)
+    finally:
+        shutil.rmtree(g)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"sheet186: {name}")
+
+
+sheet_game_countries_case("game kCountrySheetCountries matches build_sheets.COUNTRIES", list(build_sheets.COUNTRIES), False)
+sheet_game_countries_case("game kCountrySheetCountries adds an extra country (missing on site)",
+                          [*build_sheets.COUNTRIES, "pt"], True)
+sheet_game_countries_case("game kCountrySheetCountries drops a country (mismatch vs site)",
+                          [c for c in build_sheets.COUNTRIES if c != "za"], True)
+sheet_game_countries_case("country_sheet_url.dart missing from game repo", None, True)
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")

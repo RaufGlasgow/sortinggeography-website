@@ -120,7 +120,8 @@ def out_platforms(stores=STORES) -> str:
     return f" on {PLATFORMS_SHORT}" if all_linked(stores) else ""
 
 
-def regions(ms: int, stores=STORES, lang: str = "en", root: pathlib.Path = ROOT) -> dict[str, str]:
+def regions(ms: int, stores=STORES, lang: str = "en", root: pathlib.Path = ROOT,
+            root_prefix: str | None = None) -> dict[str, str]:
     """name -> generated HTML, in the page's language (Story 18.4). Every launch
     word comes from src/i18n/site_<lang>.arb; dates and times from CLDR."""
     s = site_i18n.strings(lang, root)
@@ -128,7 +129,7 @@ def regions(ms: int, stores=STORES, lang: str = "en", root: pathlib.Path = ROOT)
     e = html.escape
     plat = s["platformsShort"]
     linked = all_linked(stores)
-    rp = "../" if lang != "en" else ""
+    rp = root_prefix if root_prefix is not None else ("../" if lang != "en" else "")
     units = [("d", s["countdownDays"]), ("h", s["countdownHours"]), ("m", s["countdownMinutes"]),
              ("s", s["countdownSeconds"])]
     tiles = "".join(f'<span class="cd-unit"><b data-u="{k}">0</b><span>{e(n)}</span></span>'
@@ -161,6 +162,17 @@ def regions(ms: int, stores=STORES, lang: str = "en", root: pathlib.Path = ROOT)
             # Ra'uf's pick 2026-11-20, "Platforms first", word for word.
             f'<p class="only-pre">{e(f(s["whenPre"], platforms=plat, date=c["date"]))}</p>'
             f'<p class="only-post">{e(f(s["whenPostOn"], platforms=plat) if linked else s["whenPost"])}</p>'),
+        "sheet-play": (
+            '<div class="launch a-play-ls">'
+            '<div class="only-pre">'
+            f'<p class="a-cd-line">{e(f(s["launchDateLine"], platforms=plat, date=c["date"]))}</p>'
+            f'<p class="a-play-cta"><a class="btn btn-sm" href="{rp}#notify">{e(s["navGetNotified"])}</a></p>'
+            '</div>'
+            '<div class="only-post">'
+            f'<p class="ls-out">{e(out_line)}.</p>'
+            f'{badges(stores, s, rp)}'
+            '</div>'
+            '</div>'),
     }
 
 
@@ -247,7 +259,8 @@ def check(root: pathlib.Path = ROOT, now_ms: int | None = None) -> list[str]:
     for p in served_pages(root):
         rel = p.relative_to(root)
         text = p.read_text(encoding="utf-8")
-        gen = regions(ms, lang=site_i18n.page_lang(text), root=root)   # 18.4: each page in its language
+        rp = "../" * (len(rel.parts) - 1)
+        gen = regions(ms, lang=site_i18n.page_lang(text), root=root, root_prefix=rp)   # 18.4: each page in its language
         if render(text, gen, str(rel)) != text:
             bad.append(f"{rel}: a launch region is stale or hand-edited; run scripts/build_launch.py")
         seen.update(m.group(2) for m in REGION.finditer(text))
@@ -333,7 +346,9 @@ def build(root: pathlib.Path = ROOT) -> None:
     ms = release_ms(root)
     for p in served_pages(root):
         text = p.read_text(encoding="utf-8")
-        new = render(text, regions(ms, lang=site_i18n.page_lang(text), root=root), str(p.relative_to(root)))
+        rel = p.relative_to(root)
+        rp = "../" * (len(rel.parts) - 1)
+        new = render(text, regions(ms, lang=site_i18n.page_lang(text), root=root, root_prefix=rp), str(rel))
         if new != text:
             p.write_text(new, encoding="utf-8")
             print(f"wrote {p.relative_to(root)}")

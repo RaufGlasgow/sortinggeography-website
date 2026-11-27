@@ -103,6 +103,7 @@ different versions; change both together.
 git -C ../Sorting-Geography fetch origin
 python3 scripts/build_features.py --game ../Sorting-Geography
 python3 scripts/build_i18n.py --game ../Sorting-Geography     # site languages match the game; prints what it serves (18.4)
+python3 scripts/build_sheets.py --check --game ../Sorting-Geography   # country sheets match dataset, licences and kCountrySheetCountries (18.6)
 python3 scripts/check_sheet_links.py --game ../Sorting-Geography   # the app links only to sheets the site has (20.9)
 npx --yes wrangler@4.74.0 deploy
 python3 scripts/check_live.py          # after: pages 200, no HTML comment served, MX
