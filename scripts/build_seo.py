@@ -29,7 +29,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SITE = "https://sortinggeography.com"
-IGNORED = {"docs", "src", "scripts", "node_modules", ".git", ".github", ".wrangler", "functions", "_preview-short"}
+IGNORED = {"docs", "src", "scripts", "node_modules", ".git", ".github", ".wrangler", "functions"}
 REGION = re.compile(r"(<!-- seo:head -->)(.*?)(<!-- /seo:head -->)", re.S)
 PUBLISHER = "Empty Cup Media LLC"        # terms/index.html (Ra'uf 2026-11-19)
 

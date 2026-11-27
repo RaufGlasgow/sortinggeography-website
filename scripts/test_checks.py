@@ -42,7 +42,7 @@ failures: list[str] = []
 def copy_site() -> pathlib.Path:
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="sg-site-"))
     for item in ROOT.iterdir():
-        if item.name in {".git", ".wrangler", "node_modules", "_preview-short"}:
+        if item.name in {".git", ".wrangler", "node_modules"}:
             continue
         if item.is_dir():
             shutil.copytree(item, tmp / item.name)
@@ -790,10 +790,13 @@ def sheets(root, langs, isos=("ad", "ae", "fr")):
         for iso in isos:
             p = root / check_sheet_links.sheet_path(lang, iso)
             p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text("<!doctype html><html><body><h1>x</h1></body></html>")
+            p.write_text('<!doctype html><html><body><h1>x</h1><a href="./all/">See all</a></body></html>')
+            pa = root / check_sheet_links.full_sheet_path(lang, iso)
+            pa.parent.mkdir(parents=True, exist_ok=True)
+            pa.write_text('<!doctype html><html><body><h1>x</h1><a href="../">Back to the summary</a></body></html>')
 
 
-def sheet_case(name, dart, expect_red, have=(), have_isos=("ad", "ae", "fr"), extra=None):
+def sheet_case(name, dart, expect_red, have=(), have_isos=("ad", "ae", "fr"), extra=None, mutate_site=None):
     files = {} if dart is None else {check_sheet_links.SHEET_URL_DART: dart}
     files.update(extra or {})
     g, root = sheet_game(files), copy_site()
@@ -801,6 +804,8 @@ def sheet_case(name, dart, expect_red, have=(), have_isos=("ad", "ae", "fr"), ex
         if (root / "countries").exists():
             shutil.rmtree(root / "countries")
         sheets(root, have, have_isos)
+        if mutate_site:
+            mutate_site(root)
         red = bool(check_sheet_links.check(g, "main", root))
     finally:
         shutil.rmtree(g)
@@ -827,6 +832,12 @@ sheet_case("en linked, subset of roster in kCountrySheetCountries, only those sh
 sheet_case("en linked, no sheets on the site", URL_LINE + const("'en'"), True)
 sheet_case("en linked, one listed country sheet missing", URL_LINE + const("'en'"), True, have=["en"],
            have_isos=("ad", "ae"))
+sheet_case("en linked, one country's all/ page missing", URL_LINE + const("'en'"), True, have=["en"],
+           mutate_site=lambda r: (r / "countries/fr/all/index.html").unlink())
+sheet_case("en linked, summary page missing ./all/ link", URL_LINE + const("'en'"), True, have=["en"],
+           mutate_site=lambda r: edit(r, "countries/fr/index.html", '<a href="./all/">See all</a>', ""))
+sheet_case("en linked, full page missing ../ link", URL_LINE + const("'en'"), True, have=["en"],
+           mutate_site=lambda r: edit(r, "countries/fr/all/index.html", '<a href="../">Back to the summary</a>', ""))
 sheet_case("de linked, only en sheets on the site", URL_LINE + const("'en', 'de'"), True, have=["en"])
 sheet_case("en and pt-pt linked, both on the site", URL_LINE + const("'en', 'pt-pt'"), False, have=["en", "pt-pt"])
 sheet_case("a tag in upper case", URL_LINE + const("'pt-PT'"), True, have=["pt-PT"])
@@ -1118,7 +1129,7 @@ def broken_links(root):
     from urllib.parse import urlparse
     bad = []
     for p in sorted(root.rglob("*.html")):
-        if set(p.relative_to(root).parts) & {"docs", "src", "scripts", "node_modules", ".git", ".github", ".wrangler", "_preview-short"}:
+        if set(p.relative_to(root).parts) & {"docs", "src", "scripts", "node_modules", ".git", ".github", ".wrangler"}:
             continue
         for target in re.findall(r'(?:href|src)\s*=\s*"([^"]+)"', p.read_text(encoding="utf-8")):
             u = urlparse(target)
@@ -1846,7 +1857,7 @@ def _edit_population_value(root: pathlib.Path) -> None:
 
 
 def _edit_nodata_to_zero(root: pathlib.Path) -> None:
-    p = root / "countries/ch/index.html"
+    p = root / "countries/ch/all/index.html"
     txt = p.read_text(encoding="utf-8")
     new, n = re.subn(
         r'(<div class="band a-f" data-axis="mangrove_area_km2">.*?<div class="a-f-r">)<b class="a-nd">No data</b><span class="a-rk a-rk-nd">Not ranked</span>',
@@ -1856,7 +1867,7 @@ def _edit_nodata_to_zero(root: pathlib.Path) -> None:
         flags=re.S,
     )
     if n != 1:
-        raise SystemExit("test setup: mangrove_area_km2 no-data card not found in countries/ch/index.html")
+        raise SystemExit("test setup: mangrove_area_km2 no-data card not found in countries/ch/all/index.html")
     p.write_text(new, encoding="utf-8")
 
 
@@ -1907,18 +1918,18 @@ def _mutate_manifest(root: pathlib.Path, fn) -> None:
     p.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
-sheet_guard_case("the 20 country sheets as built", False)
-sheet_guard_case(
-    "assetsignore: _preview-short removed from .assetsignore goes red",
-    True,
-    lambda r: _remove_assetsignore_line(r, "_preview-short"),
-    must_match="'_preview-short' is not ignored",
-)
+sheet_guard_case("the 20 country sheets (short + all/) as built", False)
 sheet_guard_case(
     "assetsignore: .gitignore removed from .assetsignore goes red",
     True,
     lambda r: _remove_assetsignore_line(r, ".gitignore"),
     must_match="'.gitignore' is not ignored",
+)
+sheet_guard_case(
+    "assetsignore: .neon-test.sh removed from .assetsignore goes red",
+    True,
+    lambda r: _remove_assetsignore_line(r, ".neon-test.sh"),
+    must_match="'.neon-test.sh' is not ignored",
 )
 sheet_guard_case(
     "forbidden axis (wine_lpc) injected onto a page",
@@ -2007,13 +2018,13 @@ sheet_guard_case(
 sheet_guard_case(
     "FR-55 DEFINITION pair without its note (ZA land use vs land cover)",
     True,
-    lambda r: _remove_consistency_note(r, "countries/za/index.html", "forest_plus_agri_plus_barren_gt_102"),
+    lambda r: _remove_consistency_note(r, "countries/za/all/index.html", "forest_plus_agri_plus_barren_gt_102"),
     must_match="FR-55 consistency rule 'forest_plus_agri_plus_barren_gt_102'",
 )
 sheet_guard_case(
     "FR-55 YEAR pair without its note (AU pop growth vs components)",
     True,
-    lambda r: _remove_consistency_note(r, "countries/au/index.html", "pop_growth_vs_components"),
+    lambda r: _remove_consistency_note(r, "countries/au/all/index.html", "pop_growth_vs_components"),
     must_match="FR-55 consistency rule 'pop_growth_vs_components'",
 )
 sheet_guard_case(
@@ -2052,31 +2063,31 @@ sheet_guard_case(
 sheet_guard_case(
     "manifest missing boards fails closed",
     True,
-    lambda r: _mutate_manifest(r, lambda m: m["countries"]["us"].pop("boards")),
+    lambda r: _mutate_manifest(r, lambda m: m["countries"]["us"]["short"].pop("boards")),
     must_match="is missing mini-boards ('boards')",
 )
 sheet_guard_case(
     "manifest missing rendered axis values entry fails closed",
     True,
-    lambda r: _mutate_manifest(r, lambda m: m["countries"]["us"]["values"].pop("population")),
+    lambda r: _mutate_manifest(r, lambda m: m["countries"]["us"]["short"]["values"].pop("population")),
     must_match="is missing values entry for rendered axis 'population'",
 )
 sheet_guard_case(
     "manifest card entry missing 'unit' fails closed",
     True,
-    lambda r: _mutate_manifest(r, lambda m: m["countries"]["us"]["values"]["population"].pop("unit")),
+    lambda r: _mutate_manifest(r, lambda m: m["countries"]["us"]["short"]["values"]["population"].pop("unit")),
     must_match="population dataset entry is missing required field 'unit'",
 )
 sheet_guard_case(
     "manifest card entry missing 'src_text' fails closed",
     True,
-    lambda r: _mutate_manifest(r, lambda m: m["countries"]["us"]["values"]["population"].pop("src_text")),
+    lambda r: _mutate_manifest(r, lambda m: m["countries"]["us"]["short"]["values"]["population"].pop("src_text")),
     must_match="population dataset entry is missing required field 'src_text'",
 )
 sheet_guard_case(
     "manifest card entry missing 'url' fails closed",
     True,
-    lambda r: _mutate_manifest(r, lambda m: m["countries"]["us"]["values"]["population"].pop("url")),
+    lambda r: _mutate_manifest(r, lambda m: m["countries"]["us"]["short"]["values"]["population"].pop("url")),
     must_match="population dataset entry is missing required field 'url'",
 )
 sheet_guard_case(
@@ -2125,7 +2136,7 @@ sheet_guard_case(
 sheet_guard_case(
     "always-expanded abbreviation (ha) injected onto a page goes red",
     True,
-    lambda r: edit(r, "countries/us/index.html", "<small> hectares</small>", "<small> ha</small>"),
+    lambda r: edit(r, "countries/us/all/index.html", "<small> hectares</small>", "<small> ha</small>"),
     must_match="unexpanded abbreviation 'ha'",
 )
 sheet_guard_case(
@@ -2185,93 +2196,145 @@ sheet_guard_case(
 )
 
 
-def _make_short_fixture(root: pathlib.Path, count_for_us: int = 20) -> pathlib.Path:
-    """Build a valid short-layout fixture in `<root>/_tmp_short` from the site's full sheets."""
-    out = root / "_tmp_short"
+def _add_six_extra_short_facts(root: pathlib.Path) -> None:
+    """Copy 6 extra allowed fact cards from countries/us/all/index.html into countries/us/index.html (26 total)."""
     manifest = json.loads((root / build_sheets.MANIFEST_FILE).read_text(encoding="utf-8"))
-    manifest["layout"] = "short"
+    short_axes = set(manifest["countries"]["us"]["short"]["shown_axes"])
+    full_page = (root / "countries/us/all/index.html").read_text(encoding="utf-8")
     card_re = re.compile(r'<div class="band a-f" data-axis="([^"]+)">.*?</div></div>', re.S)
-    for iso in build_sheets.COUNTRIES:
-        src = root / "countries" / iso / "index.html"
-        page = src.read_text(encoding="utf-8")
-        limit = count_for_us if iso == "us" else 20
-        kept_axes: list[str] = []
-        idx = 0
-
-        def _keep_first(m: re.Match[str]) -> str:
-            nonlocal idx
-            idx += 1
-            if idx <= limit:
-                kept_axes.append(m.group(1))
-                return m.group(0)
-            return ""
-
-        trimmed = card_re.sub(_keep_first, page)
-        dest = out / "countries" / iso / "index.html"
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(trimmed, encoding="utf-8")
-        manifest["countries"][iso]["shown_axes"] = sorted(kept_axes)
-    (out / "sheets_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    return out
+    extras: list[tuple[str, str]] = []
+    for m in card_re.finditer(full_page):
+        ax = m.group(1)
+        if ax not in short_axes:
+            extras.append((ax, m.group(0)))
+            if len(extras) == 6:
+                break
+    if len(extras) != 6:
+        raise SystemExit("test setup: could not find 6 extra fact cards in countries/us/all/index.html")
+    edit(
+        root,
+        "countries/us/index.html",
+        '<div class="a-closing">',
+        "".join(html_chunk for _, html_chunk in extras) + '<div class="a-closing">',
+    )
+    for ax, _ in extras:
+        manifest["countries"]["us"]["short"]["shown_axes"].append(ax)
+        manifest["countries"]["us"]["short"]["values"][ax] = manifest["countries"]["us"]["full"]["values"][ax]
+    manifest["countries"]["us"]["short"]["shown_axes"].sort()
+    (root / build_sheets.MANIFEST_FILE).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
 
-def short_sheet_guard_case(
-    name: str,
-    expect_red: bool,
-    mutate=None,
-    count_for_us: int = 20,
-    must_match: str | None = None,
-) -> None:
+def _out_dir_missing_manifest_case() -> None:
     root = copy_site()
     try:
-        out = _make_short_fixture(root, count_for_us=count_for_us)
-        if mutate:
-            mutate(out)
-        problems = build_sheets.check(root, out_dir=out, layout="short")
+        out = root / "_tmp_out"
+        shutil.copytree(root / "countries", out / "countries")
+        problems = build_sheets.check(root, out_dir=out)
         red = bool(problems)
     finally:
         shutil.rmtree(root)
-    matched = True if (must_match is None or not expect_red) else any(must_match in p for p in problems)
-    ok = (red == expect_red) and matched
+    must_match = "sheets_manifest.json is missing"
+    ok = red and any(must_match in p for p in problems)
     extra = "" if ok else f"  <- got {problems[:3]!r}, want match {must_match!r}"
-    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'red  ' if red else 'green'} {name}{extra}")
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'red  ' if red else 'green'} missing manifest in --out dir fails closed (no fallback to src/){extra}")
     if not ok:
-        failures.append(f"sheet186: {name}")
+        failures.append("sheet186: missing manifest in --out dir fails closed")
 
 
-short_sheet_guard_case("short layout: clean 20-fact short sheets pass", False)
-short_sheet_guard_case(
-    "short layout: missing manifest in --out dir fails closed (no fallback to src/)",
+_out_dir_missing_manifest_case()
+sheet_guard_case(
+    "short page without the link to ./all/ goes red",
     True,
-    lambda o: (o / "sheets_manifest.json").unlink(),
-    must_match="sheets_manifest.json is missing",
-)
-short_sheet_guard_case(
-    "short layout: forbidden axis (wine_lpc) injected onto a short page",
-    True,
-    lambda o: edit(
-        o, "countries/us/index.html", '<div class="band a-f" data-axis="land_area_km2">',
-        '<div class="band a-f" data-axis="wine_lpc"><div class="a-f-l"><span class="a-f-n">Wine</span></div>'
-        '<div class="a-f-r"><b>10</b><span class="a-rk">1st of 10</span></div></div>'
-        '<div class="band a-f" data-axis="land_area_km2">',
+    lambda r: edit(
+        r, "countries/us/index.html",
+        '<a class="a-more-link" href="./all/">See all 140 facts about United States</a>',
+        "",
     ),
-    must_match="axis 'wine_lpc' has web_republish='forbidden'",
+    must_match="short page closing area is missing link to './all/'",
 )
-short_sheet_guard_case(
-    "short layout: more than 25 facts (26 allowed facts) goes red",
+sheet_guard_case(
+    "short page closing link pointing elsewhere (external URL) goes red",
     True,
-    count_for_us=26,
-    must_match="short layout has 26 facts (max 25)",
+    lambda r: edit(r, "countries/us/index.html", 'href="./all/"', 'href="https://example.com/"'),
+    must_match="short page closing link href 'https://example.com/' must be './all/'",
 )
-short_sheet_guard_case(
-    "short layout: closing line with a link goes red",
+sheet_guard_case(
+    "short page closing link pointing elsewhere (relative ../) goes red",
     True,
-    lambda o: edit(
-        o, "countries/us/index.html",
+    lambda r: edit(r, "countries/us/index.html", 'href="./all/"', 'href="../"'),
+    must_match="short page closing link href '../' must be './all/'",
+)
+sheet_guard_case(
+    "short page closing area with extra external link goes red",
+    True,
+    lambda r: edit(
+        r, "countries/us/index.html",
         '<p class="a-how">',
-        '<p class="a-how"><a href="../../">See all facts</a> ',
+        '<p class="a-how"><a href="https://example.com/">More</a> ',
     ),
-    must_match="must not contain a link",
+    must_match="short page closing area must contain exactly one link to './all/'",
+)
+sheet_guard_case(
+    "short page closing link with wrong fact count goes red",
+    True,
+    lambda r: edit(
+        r, "countries/us/index.html",
+        "See all 140 facts about United States",
+        "See all 139 facts about United States",
+    ),
+    must_match="short page closing link text 'See all 139 facts about United States' != 'See all 140 facts about United States'",
+)
+sheet_guard_case(
+    "missing all/ page on disk (countries/eg/all/index.html deleted) goes red",
+    True,
+    lambda r: (r / "countries/eg/all/index.html").unlink(),
+    must_match="missing full sheet(s) (all/) for ['eg']",
+)
+sheet_guard_case(
+    "full page without 'Back to the summary' link goes red",
+    True,
+    lambda r: edit(
+        r, "countries/us/all/index.html",
+        '<a class="a-back-summary" href="../"><svg viewBox="0 0 24 24" class="ic" aria-hidden="true">'
+        '<path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" '
+        'stroke-linecap="round" stroke-linejoin="round"></path></svg>Back to the summary</a>',
+        "",
+    ),
+    must_match="full page is missing 'Back to the summary' link to '../'",
+)
+sheet_guard_case(
+    "full page 'Back to the summary' link pointing elsewhere goes red",
+    True,
+    lambda r: edit(r, "countries/us/all/index.html", '<a class="a-back-summary" href="../">', '<a class="a-back-summary" href="../../">'),
+    must_match="full page back-to-summary link href '../../' must be '../'",
+)
+sheet_guard_case(
+    "full page wrong canonical (pointing to short URL) goes red",
+    True,
+    lambda r: edit(
+        r, "countries/us/all/index.html",
+        '<link rel="canonical" href="https://sortinggeography.com/countries/us/all/">',
+        '<link rel="canonical" href="https://sortinggeography.com/countries/us/">',
+    ),
+    must_match="missing or wrong self-canonical https://sortinggeography.com/countries/us/all/",
+)
+sheet_guard_case(
+    "full page noindex,follow removed goes red",
+    True,
+    lambda r: edit(r, "countries/us/all/index.html", '<meta name="robots" content="noindex,follow">\n', ""),
+    must_match='missing <meta name="robots" content="noindex,follow">',
+)
+sheet_guard_case(
+    "full page added to sitemap.xml goes red",
+    True,
+    lambda r: edit(r, "sitemap.xml", "</urlset>", "  <url><loc>https://sortinggeography.com/countries/us/all/</loc></url>\n</urlset>"),
+    must_match="sitemap.xml: lists /countries/",
+)
+sheet_guard_case(
+    "short page with more than 25 facts (26 allowed facts) goes red",
+    True,
+    _add_six_extra_short_facts,
+    must_match="short page has 26 facts (max 25)",
 )
 
 
@@ -2510,6 +2573,22 @@ sheet_game_fixture_case(
         '<div class="band a-f" data-axis="population">',
     ),
     must_match="axis 'wine_lpc' is web_republish='forbidden' at main (refusing non-allowed axis)",
+)
+sheet_game_fixture_case(
+    "fixture check_game(): missing all/ page goes red",
+    list(build_sheets.COUNTRIES),
+    True,
+    pop_policy="allowed",
+    mutate_built=lambda r: (r / "countries/eg/all/index.html").unlink(),
+    must_match="countries/eg/all/index.html: missing",
+)
+sheet_game_fixture_case(
+    "fixture check_game(): short page link pointing elsewhere goes red",
+    list(build_sheets.COUNTRIES),
+    True,
+    pop_policy="allowed",
+    mutate_built=lambda r: edit(r, "countries/us/index.html", 'href="./all/"', 'href="https://example.com/"'),
+    must_match="short page closing link href 'https://example.com/' must be './all/'",
 )
 
 if failures:

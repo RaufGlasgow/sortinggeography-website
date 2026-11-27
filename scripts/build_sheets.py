@@ -2,30 +2,35 @@
 """Generate and verify the English country sheets (Story 18.6, launch slice).
 
 Reads the game repo via `git show <ref>:<path>` (nothing checked out) and
-generates static HTML sheets at `countries/<iso>/index.html` for the 20 launch
-countries, styled with the site's existing `style.css` and self-hosted fonts
-(no Google Fonts, no third-party scripts).
+generates BOTH static HTML sheets for each of the 20 launch countries in one
+run, styled with the site's existing `style.css` and self-hosted fonts
+(no Google Fonts, no third-party scripts):
+  - `countries/<iso>/index.html`      — short summary page (the URL the game opens)
+  - `countries/<iso>/all/index.html`  — full page with every published fact
 
 Usage:
-    python3 scripts/build_sheets.py --game ../Sorting-Geography [--ref origin/main] [--countries-ref REF] [--layout full|short] [--out DIR]
-    python3 scripts/build_sheets.py --check [--layout full|short] [--out DIR]
-    python3 scripts/build_sheets.py --check --game ../Sorting-Geography [--ref origin/main] [--countries-ref REF] [--layout full|short] [--out DIR]
+    python3 scripts/build_sheets.py --game ../Sorting-Geography [--ref origin/main] [--countries-ref REF] [--out DIR]
+    python3 scripts/build_sheets.py --check [--out DIR]
+    python3 scripts/build_sheets.py --check --game ../Sorting-Geography [--ref origin/main] [--countries-ref REF] [--out DIR]
 
 Modes:
   - Build (`--game PATH`): reads dataset.json, axes.yaml, fields.yaml,
     fact_consistency_allowlist.yaml, roster/countries.json, capital_name.csv,
     ne_50m_admin_0_countries.geojson, puzzle.dart, app_en.arb, version-log.json,
-    and flag SVGs from the game repo at `--ref`; writes `countries/<iso>/index.html`,
+    and flag SVGs from the game repo at `--ref`; writes
+    `countries/<iso>/index.html` (short), `countries/<iso>/all/index.html` (full),
     `images/flags/<iso>.svg`, and `src/sheets_manifest.json`. Refuses (exit 1)
     if any axis to be published is not `web_republish: allowed` or is in
     `src/sheet_deny_axes.json`.
-  - Offline check (`--check`, used in CI): verifies every sheet against
-    COUNTRIES, `src/sheet_deny_axes.json`, `src/sheets_manifest.json`, and
-    `sitemap.xml` (allowed-only axes, exact dataset values, FR-55 notes,
-    noindex,follow, self-canonical, no third-party scripts/fonts, no Daily).
+  - Offline check (`--check`, used in CI): verifies both pages for every
+    country against COUNTRIES, `src/sheet_deny_axes.json`,
+    `src/sheets_manifest.json`, and `sitemap.xml` (allowed-only axes, exact
+    dataset values, FR-55 notes, noindex,follow, self-canonical, short<->full
+    links, no third-party scripts/fonts, no Daily).
   - Live game check (`--check --game PATH`): runs all offline checks plus
-    re-checks against the game repo at `--ref` and compares COUNTRIES against
-    `kCountrySheetCountries` in `app/lib/play/country_sheet_url.dart`.
+    re-checks both pages directly against the game repo at `--ref` and compares
+    COUNTRIES against `kCountrySheetCountries` in
+    `app/lib/play/country_sheet_url.dart`.
 """
 from __future__ import annotations
 
@@ -38,6 +43,7 @@ import json
 import math
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 from urllib.parse import urlparse
@@ -1438,10 +1444,11 @@ def render_sheet(
     bundle: dict,
     iso_lower: str,
     root: pathlib.Path,
-    layout: str = "full",
+    layout: str = "short",
     asset_prefix: str = "../../",
-) -> tuple[str, dict, set[str]]:
-    """Render one country sheet HTML, its manifest record, and the flag ISOs it needs."""
+    full_fact_count: int | None = None,
+) -> tuple[str, dict, set[str], str]:
+    """Render one country sheet HTML (short or full), its manifest record, needed flag ISOs, and country name."""
     spec = compute_sheet_expectation(bundle, iso_lower, layout=layout)
     iso = spec["iso"]
     cname = spec["cname"]
@@ -1547,13 +1554,30 @@ def render_sheet(
         and not isinstance(ds["axes"][a][iso].get("sort_value"), dict)
     )
     if layout == "short":
-        how_html = (
+        if full_fact_count is None:
+            raise SheetError(f"{iso_lower}: short sheet requires full_fact_count")
+        rel = f"countries/{iso_lower}/index.html"
+        title_str = f"{cname} — Sorting Geography"
+        subnav_html = ""
+        closing_html = (
+            '<div class="a-closing">'
+            f'<p class="a-more"><a class="a-more-link" href="./all/">See all {full_fact_count} facts about {e(cname)}</a></p>'
             f'<p class="a-how">Showing {len(spec["shown_axes"])} highlights for {e(cname)}. '
             f'Rank counts from the highest value among the countries that have data: '
             f'1st is the most. Ties share a rank. Data version {bundle["vnum"]}, {e(bundle["vdate"])}.</p>'
+            '</div>'
         )
     else:
-        how_html = (
+        rel = f"countries/{iso_lower}/all/index.html"
+        title_str = f"All facts about {cname} — Sorting Geography"
+        subnav_html = (
+            '\n<nav class="a-subnav" aria-label="Country sheet view">\n'
+            '  <div class="a-subnav-in">\n'
+            f'    <a class="a-back-summary" href="../">{ic_back()}Back to the summary</a>\n'
+            '  </div>\n'
+            '</nav>'
+        )
+        closing_html = (
             f'<p class="a-how">Rank counts from the highest value among the countries that have data: '
             f'1st is the most. Ties share a rank. Data version {bundle["vnum"]}, {e(bundle["vdate"])}.</p>'
         )
@@ -1570,13 +1594,12 @@ def render_sheet(
         f"Real, sourced facts and world rankings for {cname} from Sorting Geography: "
         f"size, borders, people, economy, food and energy."
     )
-    rel = f"countries/{iso_lower}/index.html"
     raw_html = f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{e(cname)} — Sorting Geography</title>
+<title>{e(title_str)}</title>
 <meta name="description" content="{e(desc, quote=True)}">
 <!-- seo:head --><!-- /seo:head -->
 <meta name="robots" content="noindex,follow">
@@ -1603,7 +1626,7 @@ def render_sheet(
     <a href="{asset_prefix}">{ic_back()}Back to the game</a>
     <span>Opened from the game</span>
   </div>
-</div>
+</div>{subnav_html}
 
 <main class="da">
   <div class="a-shw">
@@ -1616,7 +1639,7 @@ def render_sheet(
       <div class="a-fcols">
         {"".join(sec_parts)}
       </div>
-      {how_html}
+      {closing_html}
     </div>
     <div class="a-side-play">
       {play_html}
@@ -1650,7 +1673,6 @@ def render_sheet(
     rendered = build_seo.render(rel, rendered)
 
     manifest_entry = {
-        "name": cname,
         "shown_axes": spec["shown_axes"],
         "boards": manifest_boards,
         "values": {
@@ -1668,7 +1690,7 @@ def render_sheet(
         },
         "consistency_rules": [r["rule"] for r in spec["rules"]],
     }
-    return rendered, manifest_entry, spec["needed_flags"]
+    return rendered, manifest_entry, spec["needed_flags"], cname
 
 
 # ---------------------------------------------------------------------------
@@ -1680,7 +1702,7 @@ VOID_TAGS: frozenset[str] = frozenset({
     "meta", "param", "source", "track", "wbr",
 })
 EXTERNAL_OR_DATA_URL_RE = re.compile(r"^(?:https?:|//|data:|javascript:)", re.I)
-REQUIRED_ASSETSIGNORE: tuple[str, ...] = ("_preview-short", ".gitignore", ".neon-test.sh")
+REQUIRED_ASSETSIGNORE: tuple[str, ...] = (".gitignore", ".neon-test.sh")
 
 
 def _is_external_or_data_url(url: str) -> bool:
@@ -1688,11 +1710,12 @@ def _is_external_or_data_url(url: str) -> bool:
 
 
 class _SheetHTMLParser(HTMLParser):
-    """Single-pass HTMLParser extracting security/SEO/overflow signals, data-axis, fact cards, mini-boards, notes, and visible text."""
+    """Single-pass HTMLParser extracting security/SEO/overflow signals, data-axis, fact cards, mini-boards, notes, navigation links, and visible text."""
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self._stack: list[tuple[str, set[str], dict[str, str]]] = []
+        self._order = 0
         self.all_data_axes: list[str] = []
 
         # Security / SEO / Overflow
@@ -1710,8 +1733,20 @@ class _SheetHTMLParser(HTMLParser):
         self.facts: list[dict] = []
         self.boards: list[dict] = []
         self.consistency_notes: dict[str, str] = {}
+        self.closing_present = False
+        self.closing_links: list[tuple[str, str]] = []
         self.how_present = False
-        self.how_has_link = False
+        self.how_links: list[tuple[str, str]] = []
+        self.subnav_present = False
+        self.subnav_links: list[tuple[str, str]] = []
+
+        # DOM placement tracking
+        self.fromgame_order: int | None = None
+        self.subnav_order: int | None = None
+        self.main_order: int | None = None
+        self.last_fact_section_order: int | None = None
+        self.closing_order: int | None = None
+        self.play_card_order: int | None = None
 
         self._all_visible_parts: list[str] = []
         self._main_visible_parts: list[str] = []
@@ -1720,7 +1755,10 @@ class _SheetHTMLParser(HTMLParser):
         self._cur_board: dict | None = None
         self._cur_mb_row: dict | None = None
         self._cur_cnote: tuple[int, str, list[str]] | None = None
+        self._cur_nav_anchor: tuple[int, set[str], str, list[str]] | None = None
+        self._in_closing_depth: int | None = None
         self._in_how_depth: int | None = None
+        self._in_subnav_depth: int | None = None
         self._in_main_depth: int | None = None
         self._in_svg_depth: int | None = None
         self._in_play_ls_depth: int | None = None
@@ -1735,6 +1773,7 @@ class _SheetHTMLParser(HTMLParser):
 
     def _on_open(self, tag: str, attrs: list[tuple[str, str | None]], is_void: bool) -> None:
         tag = tag.lower()
+        self._order += 1
         attr_map = {k.lower(): (v if v is not None else "") for k, v in attrs}
         classes = set(attr_map.get("class", "").split())
 
@@ -1828,8 +1867,15 @@ class _SheetHTMLParser(HTMLParser):
             self._stack.append((tag, classes, attr_map))
             depth = len(self._stack)
 
+            if tag == "div" and "fromgame" in classes and self.fromgame_order is None:
+                self.fromgame_order = self._order
             if tag == "main" and self._in_main_depth is None:
                 self._in_main_depth = depth
+                self.main_order = self._order
+            if tag == "section" and "a-fs" in classes and attr_map.get("id", "").startswith("sec-"):
+                self.last_fact_section_order = self._order
+            if tag == "div" and ("a-side-play" in classes or "a-play" in classes) and self.play_card_order is None:
+                self.play_card_order = self._order
             if tag == "svg" and self._in_svg_depth is None:
                 self._in_svg_depth = depth
             if "a-play-ls" in classes and self._in_play_ls_depth is None:
@@ -1839,11 +1885,28 @@ class _SheetHTMLParser(HTMLParser):
             if tag == "style" and self._in_style_depth is None:
                 self._in_style_depth = depth
 
+            if tag == "div" and "a-closing" in classes:
+                self.closing_present = True
+                self.closing_order = self._order
+                self._in_closing_depth = depth
             if tag == "p" and "a-how" in classes:
                 self.how_present = True
                 self._in_how_depth = depth
-            if tag == "a" and self._in_how_depth is not None:
-                self.how_has_link = True
+            if tag == "nav" and "a-subnav" in classes:
+                self.subnav_present = True
+                self.subnav_order = self._order
+                self._in_subnav_depth = depth
+
+            if tag == "a":
+                scopes: set[str] = set()
+                if self._in_closing_depth is not None:
+                    scopes.add("closing")
+                if self._in_how_depth is not None:
+                    scopes.add("how")
+                if self._in_subnav_depth is not None:
+                    scopes.add("subnav")
+                if scopes:
+                    self._cur_nav_anchor = (depth, scopes, attr_map.get("href", "").strip(), [])
 
             if tag == "p" and "a-cnote" in classes and "data-consistency-rule" in attr_map:
                 self._cur_cnote = (depth, attr_map["data-consistency-rule"], [])
@@ -1920,8 +1983,22 @@ class _SheetHTMLParser(HTMLParser):
                 self._in_script_depth = None
             if self._in_style_depth == depth:
                 self._in_style_depth = None
+            if self._in_closing_depth == depth:
+                self._in_closing_depth = None
             if self._in_how_depth == depth:
                 self._in_how_depth = None
+            if self._in_subnav_depth == depth:
+                self._in_subnav_depth = None
+            if self._cur_nav_anchor is not None and self._cur_nav_anchor[0] == depth:
+                _, scopes, href, parts = self._cur_nav_anchor
+                txt = " ".join("".join(parts).split())
+                if "closing" in scopes:
+                    self.closing_links.append((href, txt))
+                if "how" in scopes:
+                    self.how_links.append((href, txt))
+                if "subnav" in scopes:
+                    self.subnav_links.append((href, txt))
+                self._cur_nav_anchor = None
             if self._cur_cnote is not None and self._cur_cnote[0] == depth:
                 _, rule_id, parts = self._cur_cnote
                 self.consistency_notes[rule_id] = " ".join("".join(parts).split())
@@ -1968,6 +2045,9 @@ class _SheetHTMLParser(HTMLParser):
             self._all_visible_parts.append(data)
             if self._in_main_depth is not None and self._in_svg_depth is None and self._in_play_ls_depth is None:
                 self._main_visible_parts.append(data)
+
+        if self._cur_nav_anchor is not None and self._in_svg_depth is None:
+            self._cur_nav_anchor[3].append(data)
 
         if self._cur_cnote is not None:
             self._cur_cnote[2].append(data)
@@ -2027,7 +2107,7 @@ def _parse_sheet_html(page: str) -> _SheetHTMLParser:
 
 
 def _check_assetsignore(root: pathlib.Path) -> list[str]:
-    """Fail if .assetsignore does not exclude _preview-short, .gitignore, .neon-test.sh, or any root dotfile (Finding 1)."""
+    """Fail if .assetsignore does not exclude .gitignore, .neon-test.sh, or any root dotfile (Finding 1)."""
     p = root / ".assetsignore"
     if not p.is_file():
         return [".assetsignore is missing"]
@@ -2049,7 +2129,7 @@ def _check_assetsignore(root: pathlib.Path) -> list[str]:
     return bad
 
 
-def _check_page_security_and_seo(rel: str, iso: str, parsed: _SheetHTMLParser) -> list[str]:
+def _check_page_security_and_seo(rel: str, want_canon: str, parsed: _SheetHTMLParser) -> list[str]:
     bad: list[str] = []
 
     # 1. noindex,follow
@@ -2057,9 +2137,8 @@ def _check_page_security_and_seo(rel: str, iso: str, parsed: _SheetHTMLParser) -
         bad.append(f'{rel}: missing <meta name="robots" content="noindex,follow">')
 
     # 2. self-canonical
-    want_canon = f"{SITE}/countries/{iso}/"
-    if want_canon not in parsed.canonical_hrefs:
-        bad.append(f"{rel}: missing self-canonical {want_canon}")
+    if parsed.canonical_hrefs != [want_canon]:
+        bad.append(f"{rel}: missing or wrong self-canonical {want_canon} (got {parsed.canonical_hrefs!r})")
 
     # 3. No scripts of any kind (no third-party scripts, no inline scripts)
     for sc in parsed.disallowed_scripts:
@@ -2080,6 +2159,73 @@ def _check_page_security_and_seo(rel: str, iso: str, parsed: _SheetHTMLParser) -
     if m_daily:
         bad.append(f"{rel}: mentions {m_daily.group(0)!r} (no Daily question or answer on country sheets)")
 
+    return bad
+
+
+def _check_short_closing(rel: str, parsed: _SheetHTMLParser, cname: str, full_fact_count: int) -> list[str]:
+    """Short page closing area must sit after the last fact section, before the play card, with exactly one link to ./all/."""
+    bad: list[str] = []
+    if not parsed.closing_present:
+        bad.append(f"{rel}: short page is missing closing area (.a-closing) with link to './all/'")
+        return bad
+    if not parsed.how_present:
+        bad.append(f"{rel}: short page is missing closing .a-how line")
+    if parsed.how_links:
+        bad.append(f"{rel}: short page closing .a-how line must not contain a link (found {parsed.how_links!r})")
+    if (
+        parsed.last_fact_section_order is None
+        or parsed.closing_order is None
+        or parsed.play_card_order is None
+        or not (parsed.last_fact_section_order < parsed.closing_order < parsed.play_card_order)
+    ):
+        bad.append(f"{rel}: short page closing area must appear after the last fact section and before the play card")
+    if len(parsed.closing_links) == 0:
+        bad.append(f"{rel}: short page closing area is missing link to './all/'")
+    elif len(parsed.closing_links) > 1:
+        bad.append(
+            f"{rel}: short page closing area must contain exactly one link to './all/' "
+            f"(found {len(parsed.closing_links)}: {parsed.closing_links!r})"
+        )
+    else:
+        href, text = parsed.closing_links[0]
+        if href != "./all/":
+            bad.append(f"{rel}: short page closing link href {href!r} must be './all/'")
+        want_text = f"See all {full_fact_count} facts about {cname}"
+        if text != want_text:
+            bad.append(f"{rel}: short page closing link text {text!r} != {want_text!r}")
+    return bad
+
+
+def _check_full_back_link(rel: str, parsed: _SheetHTMLParser) -> list[str]:
+    """Full page must have a 'Back to the summary' link to '../' at the top under the back-to-game bar."""
+    bad: list[str] = []
+    if not parsed.subnav_present:
+        bad.append(f"{rel}: full page is missing 'Back to the summary' bar (.a-subnav)")
+        return bad
+    if (
+        parsed.fromgame_order is None
+        or parsed.subnav_order is None
+        or parsed.main_order is None
+        or not (parsed.fromgame_order < parsed.subnav_order < parsed.main_order)
+    ):
+        bad.append(f"{rel}: full page 'Back to the summary' bar must sit under the back-to-game bar before <main>")
+    if len(parsed.subnav_links) == 0:
+        bad.append(f"{rel}: full page is missing 'Back to the summary' link to '../'")
+    elif len(parsed.subnav_links) > 1:
+        bad.append(
+            f"{rel}: full page subnav must contain exactly one link to '../' "
+            f"(found {len(parsed.subnav_links)}: {parsed.subnav_links!r})"
+        )
+    else:
+        href, text = parsed.subnav_links[0]
+        if href != "../":
+            bad.append(f"{rel}: full page back-to-summary link href {href!r} must be '../'")
+        if text != "Back to the summary":
+            bad.append(f"{rel}: full page back-to-summary link text {text!r} != 'Back to the summary'")
+    if not parsed.how_present:
+        bad.append(f"{rel}: full page is missing closing .a-how line")
+    if parsed.how_links:
+        bad.append(f"{rel}: full page closing .a-how line must not contain a link (found {parsed.how_links!r})")
     return bad
 
 
@@ -2292,12 +2438,97 @@ def _check_card_fields(rel: str, ax: str, got: dict, exp: dict, label: str) -> l
     return bad
 
 
+def _check_single_page(
+    rel: str,
+    want_canon: str,
+    parsed: _SheetHTMLParser,
+    layout: str,
+    policy: dict[str, str],
+    deny_list: dict[str, str],
+    expected_axes: list[str],
+    want_entry: dict,
+    label: str,
+    *,
+    cname: str,
+    full_fact_count: int,
+    ref_note: str = "",
+) -> list[str]:
+    bad: list[str] = []
+    bad += _check_page_security_and_seo(rel, want_canon, parsed)
+    bad += _check_page_overflow(rel, parsed)
+    bad += _check_page_abbreviations(rel, parsed)
+
+    # Check every data-axis attribute (both fact rows and standout mini-boards, any quote style)
+    for ax in sorted(set(parsed.all_data_axes)):
+        if policy.get(ax) != "allowed":
+            if ref_note:
+                bad.append(f"{rel}: axis {ax!r} is web_republish={policy.get(ax)!r} at {ref_note} (refusing non-allowed axis)")
+            else:
+                bad.append(f"{rel}: axis {ax!r} has web_republish={policy.get(ax)!r} (only 'allowed' may appear)")
+        if ax in deny_list:
+            bad.append(f"{rel}: axis {ax!r} is on {DENY_FILE} ({deny_list[ax]})")
+
+    rendered = parsed.facts
+    rendered_map = {f["ax"]: f for f in rendered}
+    if len(rendered_map) != len(rendered):
+        bad.append(f"{rel}: duplicate axis row rendered")
+
+    if not isinstance(want_entry, dict):
+        bad.append(f"{rel}: {label} is missing {layout!r} entry")
+        return bad
+
+    want_vals = want_entry.get("values")
+    if not isinstance(want_vals, dict):
+        bad.append(f"{rel}: {label} is missing 'values'")
+        want_vals = {}
+    want_boards = want_entry.get("boards")
+    bad += _check_boards(rel, parsed.boards, want_boards, label)
+
+    if layout == "short":
+        if len(rendered) == 0:
+            bad.append(f"{rel}: short page has 0 facts")
+        if len(rendered) > SHORT_MAX_FACTS:
+            bad.append(f"{rel}: short page has {len(rendered)} facts (max {SHORT_MAX_FACTS})")
+        expected_short = want_entry.get("shown_axes")
+        if not isinstance(expected_short, list):
+            bad.append(f"{rel}: {label} is missing 'shown_axes'")
+        else:
+            missing_ax = sorted(set(expected_short) - set(rendered_map))
+            extra_ax = sorted(set(rendered_map) - set(expected_short))
+            if missing_ax:
+                bad.append(f"{rel}: missing short-page axis/axes {missing_ax[:5]} ({len(missing_ax)} total)")
+            if extra_ax:
+                bad.append(f"{rel}: unexpected short-page axis/axes {extra_ax[:5]} ({len(extra_ax)} total)")
+        bad += _check_short_closing(rel, parsed, cname, full_fact_count)
+    else:
+        missing_ax = sorted(set(expected_axes) - set(rendered_map))
+        extra_ax = sorted(set(rendered_map) - set(expected_axes))
+        if missing_ax:
+            bad.append(f"{rel}: missing allowed axis/axes {missing_ax[:5]} ({len(missing_ax)} total)")
+        if extra_ax:
+            bad.append(f"{rel}: unexpected axis/axes {extra_ax[:5]} ({len(extra_ax)} total)")
+        bad += _check_full_back_link(rel, parsed)
+
+    for ax, got_card in rendered_map.items():
+        if ax not in want_vals:
+            bad.append(f"{rel}: {label} is missing values entry for rendered axis {ax!r}")
+            continue
+        bad += _check_card_fields(rel, ax, got_card, want_vals[ax], label)
+
+    notes = parsed.consistency_notes
+    for rule_id in want_entry.get("consistency_rules") or []:
+        note_txt = notes.get(rule_id, "")
+        if len(note_txt) < 20:
+            bad.append(f"{rel}: FR-55 consistency rule {rule_id!r} rendered without its required note")
+
+    return bad
+
+
 def check(
     root: pathlib.Path = ROOT,
     out_dir: pathlib.Path | None = None,
-    layout: str | None = None,
 ) -> list[str]:
-    """Offline CI check: verifies every sheet against COUNTRIES, deny-list, manifest, sitemap, .assetsignore, abbreviations, and overflow rules."""
+    """Offline CI check: verifies both short and full sheets for every country against COUNTRIES, deny-list, manifest, sitemap, .assetsignore, abbreviations, and overflow rules."""
     bad: list[str] = []
     bad += _check_assetsignore(root)
     bad += _check_sheet_css_overflow(root)
@@ -2312,106 +2543,117 @@ def check(
     if not mp.is_file():
         return [f"{mp} is missing; run scripts/build_sheets.py --game <path>"]
     manifest = json.loads(mp.read_text(encoding="utf-8"))
-    eff_layout = layout or manifest.get("layout", "full")
-    if eff_layout not in {"full", "short"}:
-        return [f"unsupported layout {eff_layout!r} (must be 'full' or 'short')"]
 
     policy: dict[str, str] = manifest.get("axis_policy") or {}
     m_countries: dict[str, dict] = manifest.get("countries") or {}
     expected_axes = sorted(ax for ax, st in policy.items() if st == "allowed" and ax not in deny_list)
 
-    # Check exact set of countries on disk matches COUNTRIES
+    # Check exact set of short and full pages on disk matches COUNTRIES
     cdir = target_dir / "countries"
-    on_disk = sorted(
+    on_disk_short = sorted(
         p.parent.name for p in cdir.glob("*/index.html")
     ) if cdir.is_dir() else []
-    missing_disk = sorted(set(COUNTRIES) - set(on_disk))
-    extra_disk = sorted(set(on_disk) - set(COUNTRIES))
-    if missing_disk:
-        bad.append(f"countries/: missing sheet(s) for {missing_disk}")
-    if extra_disk:
-        bad.append(f"countries/: unexpected sheet(s) outside COUNTRIES: {extra_disk}")
+    missing_short = sorted(set(COUNTRIES) - set(on_disk_short))
+    extra_short = sorted(set(on_disk_short) - set(COUNTRIES))
+    if missing_short:
+        bad.append(f"countries/: missing sheet(s) for {missing_short}")
+    if extra_short:
+        bad.append(f"countries/: unexpected sheet(s) outside COUNTRIES: {extra_short}")
 
-    # Country sheets must never appear in sitemap.xml
+    on_disk_full = sorted(
+        p.parent.parent.name for p in cdir.glob("*/all/index.html")
+    ) if cdir.is_dir() else []
+    missing_full = sorted(set(COUNTRIES) - set(on_disk_full))
+    extra_full = sorted(set(on_disk_full) - set(COUNTRIES))
+    if missing_full:
+        bad.append(f"countries/: missing full sheet(s) (all/) for {missing_full}")
+    if extra_full:
+        bad.append(f"countries/: unexpected full sheet(s) (all/) outside COUNTRIES: {extra_full}")
+
+    # Country sheets (short or full) must never appear in sitemap.xml
     sm = root / "sitemap.xml"
     if sm.is_file() and "/countries/" in sm.read_text(encoding="utf-8"):
         bad.append("sitemap.xml: lists /countries/ URL(s); country sheets are noindex and must stay out of sitemap.xml")
 
     for iso in COUNTRIES:
-        rel = f"countries/{iso}/index.html"
-        p = target_dir / rel
-        if not p.is_file():
-            continue
-        page = p.read_text(encoding="utf-8")
-        parsed = _parse_sheet_html(page)
-        bad += _check_page_security_and_seo(rel, iso, parsed)
-        bad += _check_page_overflow(rel, parsed)
-        bad += _check_page_abbreviations(rel, parsed)
-
-        # Check every data-axis attribute (both fact rows and standout mini-boards, any quote style)
-        for ax in sorted(set(parsed.all_data_axes)):
-            if policy.get(ax) != "allowed":
-                bad.append(f"{rel}: axis {ax!r} has web_republish={policy.get(ax)!r} (only 'allowed' may appear)")
-            if ax in deny_list:
-                bad.append(f"{rel}: axis {ax!r} is on {DENY_FILE} ({deny_list[ax]})")
-
-        rendered = parsed.facts
-        rendered_map = {f["ax"]: f for f in rendered}
-        if len(rendered_map) != len(rendered):
-            bad.append(f"{rel}: duplicate axis row rendered")
-
         if iso not in m_countries:
             bad.append(f"{MANIFEST_FILE}: missing entry for {iso}")
             continue
-        want_vals = m_countries[iso].get("values")
-        if not isinstance(want_vals, dict):
-            bad.append(f"{rel}: {MANIFEST_FILE} is missing 'values' for {iso}")
-            want_vals = {}
-        want_boards = m_countries[iso].get("boards")
-        bad += _check_boards(rel, parsed.boards, want_boards, "dataset")
+        centry = m_countries[iso]
+        cname = centry.get("name")
+        if not isinstance(cname, str) or not cname:
+            bad.append(f"{MANIFEST_FILE}: missing 'name' for {iso}")
+            continue
+        full_entry = centry.get("full")
+        short_entry = centry.get("short")
+        full_count = centry.get("full_fact_count")
+        if not isinstance(full_count, int) or full_count <= 0:
+            bad.append(f"{MANIFEST_FILE}: missing or invalid 'full_fact_count' for {iso}")
+            full_count = len(expected_axes)
+        elif isinstance(full_entry, dict) and isinstance(full_entry.get("shown_axes"), list):
+            if full_count != len(full_entry["shown_axes"]):
+                bad.append(
+                    f"{MANIFEST_FILE}: {iso} full_fact_count={full_count} != len(full.shown_axes)={len(full_entry['shown_axes'])}"
+                )
 
-        if eff_layout == "short":
-            if len(rendered) == 0:
-                bad.append(f"{rel}: short layout has 0 facts")
-            if len(rendered) > SHORT_MAX_FACTS:
-                bad.append(f"{rel}: short layout has {len(rendered)} facts (max {SHORT_MAX_FACTS})")
-            expected_short = m_countries[iso].get("shown_axes")
-            if not isinstance(expected_short, list):
-                bad.append(f"{rel}: {MANIFEST_FILE} is missing 'shown_axes' for {iso}")
-            else:
-                missing_ax = sorted(set(expected_short) - set(rendered_map))
-                extra_ax = sorted(set(rendered_map) - set(expected_short))
-                if missing_ax:
-                    bad.append(f"{rel}: missing short-layout axis/axes {missing_ax[:5]} ({len(missing_ax)} total)")
-                if extra_ax:
-                    bad.append(f"{rel}: unexpected short-layout axis/axes {extra_ax[:5]} ({len(extra_ax)} total)")
-            # Short page must end with a plain line linking nowhere new
-            if not parsed.how_present:
-                bad.append(f"{rel}: short layout missing closing .a-how line")
-            elif parsed.how_has_link:
-                bad.append(f"{rel}: short layout closing .a-how line must not contain a link")
-        else:
-            missing_ax = sorted(set(expected_axes) - set(rendered_map))
-            extra_ax = sorted(set(rendered_map) - set(expected_axes))
-            if missing_ax:
-                bad.append(f"{rel}: missing allowed axis/axes {missing_ax[:5]} ({len(missing_ax)} total)")
-            if extra_ax:
-                bad.append(f"{rel}: unexpected axis/axes {extra_ax[:5]} ({len(extra_ax)} total)")
+        # Full page first so we can also verify short page's <N> matches actual full page fact count
+        rel_full = f"countries/{iso}/all/index.html"
+        p_full = target_dir / rel_full
+        actual_full_facts: int | None = None
+        if p_full.is_file():
+            parsed_full = _parse_sheet_html(p_full.read_text(encoding="utf-8"))
+            actual_full_facts = len(parsed_full.facts)
+            bad += _check_single_page(
+                rel_full,
+                f"{SITE}/countries/{iso}/all/",
+                parsed_full,
+                "full",
+                policy,
+                deny_list,
+                expected_axes,
+                full_entry,
+                "dataset",
+                cname=cname,
+                full_fact_count=full_count,
+            )
 
-        for ax, got_card in rendered_map.items():
-            if ax not in want_vals:
-                bad.append(f"{rel}: {MANIFEST_FILE} is missing values entry for rendered axis {ax!r}")
-                continue
-            bad += _check_card_fields(rel, ax, got_card, want_vals[ax], "dataset")
-
-        # FR-55: every required consistency rule must render with a non-empty note
-        notes = parsed.consistency_notes
-        for rule_id in m_countries[iso].get("consistency_rules") or []:
-            note_txt = notes.get(rule_id, "")
-            if len(note_txt) < 20:
-                bad.append(f"{rel}: FR-55 consistency rule {rule_id!r} rendered without its required note")
+        rel_short = f"countries/{iso}/index.html"
+        p_short = target_dir / rel_short
+        if p_short.is_file():
+            parsed_short = _parse_sheet_html(p_short.read_text(encoding="utf-8"))
+            want_n = actual_full_facts if actual_full_facts is not None else full_count
+            bad += _check_single_page(
+                rel_short,
+                f"{SITE}/countries/{iso}/",
+                parsed_short,
+                "short",
+                policy,
+                deny_list,
+                expected_axes,
+                short_entry,
+                "dataset",
+                cname=cname,
+                full_fact_count=want_n,
+            )
 
     return bad
+
+
+def _spec_to_want_entry(spec: dict) -> dict:
+    return {
+        "shown_axes": spec["shown_axes"],
+        "boards": [
+            {
+                "ax": b["ax"],
+                "unit": b["unit"],
+                "bsrc": b["bsrc"],
+                "rows": [{"rank": r["rank"], "name": r["name"], "val": r["val"]} for r in b["rows"]],
+            }
+            for b in spec["boards"]
+        ],
+        "values": spec["cards"],
+        "consistency_rules": [r["rule"] for r in spec["rules"]],
+    }
 
 
 def check_game(
@@ -2420,12 +2662,9 @@ def check_game(
     root: pathlib.Path = ROOT,
     countries_ref: str | None = None,
     out_dir: pathlib.Path | None = None,
-    layout: str = "full",
 ) -> list[str]:
-    """Live check against the game repo: dataset values, mini-boards, units/sources, web_republish policy, FR-55, and kCountrySheetCountries."""
+    """Live check against the game repo: both short and full sheets, dataset values, mini-boards, units/sources, web_republish policy, FR-55, links, and kCountrySheetCountries."""
     bad: list[str] = []
-    if layout not in {"full", "short"}:
-        return [f"unsupported layout {layout!r} (must be 'full' or 'short')"]
     try:
         deny_list = load_deny_list(root)
         bundle = load_game_bundle(game, ref, deny_list)
@@ -2453,83 +2692,72 @@ def check_game(
                 f"(only in game: {only_game}, only in site: {only_site})"
             )
 
-    # Check every sheet directly against live dataset.json, web_republish and allowlist
+    # Check both short and full sheets directly against live dataset.json, web_republish and allowlist
     target_dir = out_dir if out_dir is not None else root
     policy = bundle["policy"]
-    expected_axes = set(bundle["published_axes"])
+    expected_axes = bundle["published_axes"]
     for iso in COUNTRIES:
-        rel = f"countries/{iso}/index.html"
-        p = target_dir / rel
-        if not p.is_file():
-            bad.append(f"{rel}: missing")
-            continue
-        page = p.read_text(encoding="utf-8")
-        parsed = _parse_sheet_html(page)
-        bad += _check_page_security_and_seo(rel, iso, parsed)
-        bad += _check_page_overflow(rel, parsed)
-        bad += _check_page_abbreviations(rel, parsed)
+        full_spec = compute_sheet_expectation(bundle, iso, layout="full")
+        short_spec = compute_sheet_expectation(bundle, iso, layout="short")
+        cname = full_spec["cname"]
+        full_count = len(full_spec["shown_axes"])
 
-        for ax in sorted(set(parsed.all_data_axes)):
-            if policy.get(ax) != "allowed":
-                bad.append(f"{rel}: axis {ax!r} is web_republish={policy.get(ax)!r} at {ref} (refusing non-allowed axis)")
-            if ax in deny_list:
-                bad.append(f"{rel}: axis {ax!r} is on {DENY_FILE}")
-
-        spec = compute_sheet_expectation(bundle, iso, layout=layout)
-        rendered_list = parsed.facts
-        rendered = {f["ax"]: f for f in rendered_list}
-        want_cards = spec["cards"]
-        want_boards = [
-            {
-                "ax": b["ax"],
-                "unit": b["unit"],
-                "bsrc": b["bsrc"],
-                "rows": [{"rank": r["rank"], "name": r["name"], "val": r["val"]} for r in b["rows"]],
-            }
-            for b in spec["boards"]
-        ]
-        bad += _check_boards(rel, parsed.boards, want_boards, f"{ref} dataset")
-
-        if layout == "short":
-            if len(rendered_list) > SHORT_MAX_FACTS:
-                bad.append(f"{rel}: short layout has {len(rendered_list)} facts (max {SHORT_MAX_FACTS})")
-            want_short = set(spec["shown_axes"])
-            missing_ax = sorted(want_short - set(rendered))
-            extra_ax = sorted(set(rendered) - want_short)
-            if missing_ax:
-                bad.append(f"{rel}: missing short-layout axis/axes at {ref}: {missing_ax[:5]}")
-            if extra_ax:
-                bad.append(f"{rel}: unexpected short-layout axis/axes at {ref}: {extra_ax[:5]}")
+        rel_full = f"countries/{iso}/all/index.html"
+        p_full = target_dir / rel_full
+        if not p_full.is_file():
+            bad.append(f"{rel_full}: missing")
         else:
-            missing_ax = sorted(expected_axes - set(rendered))
-            if missing_ax:
-                bad.append(f"{rel}: missing allowed axis/axes at {ref}: {missing_ax[:5]}")
+            parsed_full = _parse_sheet_html(p_full.read_text(encoding="utf-8"))
+            bad += _check_single_page(
+                rel_full,
+                f"{SITE}/countries/{iso}/all/",
+                parsed_full,
+                "full",
+                policy,
+                deny_list,
+                expected_axes,
+                _spec_to_want_entry(full_spec),
+                f"{ref} dataset",
+                cname=cname,
+                full_fact_count=full_count,
+                ref_note=ref,
+            )
 
-        for ax, got_card in rendered.items():
-            if ax not in want_cards:
-                bad.append(f"{rel}: rendered axis {ax!r} is missing from {ref} dataset expectations")
-                continue
-            bad += _check_card_fields(rel, ax, got_card, want_cards[ax], f"{ref} dataset")
-
-        notes = parsed.consistency_notes
-        for r in spec["rules"]:
-            if len(notes.get(r["rule"], "")) < 20:
-                bad.append(f"{rel}: FR-55 rule {r['rule']!r} from {ref} rendered without its note")
+        rel_short = f"countries/{iso}/index.html"
+        p_short = target_dir / rel_short
+        if not p_short.is_file():
+            bad.append(f"{rel_short}: missing")
+        else:
+            parsed_short = _parse_sheet_html(p_short.read_text(encoding="utf-8"))
+            bad += _check_single_page(
+                rel_short,
+                f"{SITE}/countries/{iso}/",
+                parsed_short,
+                "short",
+                policy,
+                deny_list,
+                expected_axes,
+                _spec_to_want_entry(short_spec),
+                f"{ref} dataset",
+                cname=cname,
+                full_fact_count=full_count,
+                ref_note=ref,
+            )
 
     # Also verify offline checks (manifest, sitemap, .assetsignore, etc.) stay in sync
-    bad += check(root, out_dir=out_dir, layout=layout)
+    bad += check(root, out_dir=out_dir)
     return bad
 
 
-def _asset_prefix_for(root: pathlib.Path, out_dir: pathlib.Path | None) -> str:
+def _asset_prefix_for(root: pathlib.Path, out_dir: pathlib.Path | None, base_depth: int = 2) -> str:
     if out_dir is None:
-        return "../../"
+        return "../" * base_depth
     try:
         rel_out = out_dir.resolve().relative_to(root.resolve())
         depth = len(rel_out.parts)
-        return "../" * (2 + depth)
+        return "../" * (base_depth + depth)
     except ValueError:
-        return "../../"
+        return "../" * base_depth
 
 
 def build(
@@ -2537,11 +2765,8 @@ def build(
     ref: str = "origin/main",
     root: pathlib.Path = ROOT,
     countries_ref: str | None = None,
-    layout: str = "full",
     out_dir: pathlib.Path | None = None,
 ) -> None:
-    if layout not in {"full", "short"}:
-        raise SheetError(f"unsupported layout {layout!r} (must be 'full' or 'short')")
     deny_list = load_deny_list(root)
     bundle = load_game_bundle(game, ref, deny_list)
 
@@ -2562,32 +2787,58 @@ def build(
 
     target_dir = out_dir if out_dir is not None else root
     is_custom_out = out_dir is not None and out_dir.resolve() != root.resolve()
-    asset_prefix = _asset_prefix_for(root, out_dir if is_custom_out else None)
+    short_prefix = _asset_prefix_for(root, out_dir if is_custom_out else None, base_depth=2)
+    full_prefix = _asset_prefix_for(root, out_dir if is_custom_out else None, base_depth=3)
 
     manifest_countries: dict[str, dict] = {}
     all_flags: set[str] = set()
-    pages_out: dict[str, str] = {}
+    short_pages_out: dict[str, str] = {}
+    full_pages_out: dict[str, str] = {}
 
     for iso in COUNTRIES:
-        rendered, entry, flags = render_sheet(bundle, iso, root, layout=layout, asset_prefix=asset_prefix)
-        pages_out[iso] = rendered
-        manifest_countries[iso] = entry
-        all_flags.update(flags)
+        full_html, full_entry, full_flags, cname = render_sheet(
+            bundle, iso, root, layout="full", asset_prefix=full_prefix,
+        )
+        full_fact_count = len(full_entry["shown_axes"])
+        short_html, short_entry, short_flags, _ = render_sheet(
+            bundle, iso, root, layout="short", asset_prefix=short_prefix, full_fact_count=full_fact_count,
+        )
+        short_pages_out[iso] = short_html
+        full_pages_out[iso] = full_html
+        manifest_countries[iso] = {
+            "name": cname,
+            "full_fact_count": full_fact_count,
+            "short": short_entry,
+            "full": full_entry,
+        }
+        all_flags.update(full_flags)
+        all_flags.update(short_flags)
 
-    # Validate every generated page BEFORE writing anything (fail closed).
-    for iso, page in pages_out.items():
-        rel = f"countries/{iso}/index.html"
-        parsed = _parse_sheet_html(page)
+    # Validate every generated page (short and full) BEFORE writing anything (fail closed).
+    for iso in COUNTRIES:
+        cname = manifest_countries[iso]["name"]
+        full_count = manifest_countries[iso]["full_fact_count"]
+
+        rel_short = f"countries/{iso}/index.html"
+        parsed_short = _parse_sheet_html(short_pages_out[iso])
         problems = (
-            _check_page_security_and_seo(rel, iso, parsed)
-            + _check_page_overflow(rel, parsed)
-            + _check_page_abbreviations(rel, parsed)
+            _check_page_security_and_seo(rel_short, f"{SITE}/countries/{iso}/", parsed_short)
+            + _check_page_overflow(rel_short, parsed_short)
+            + _check_page_abbreviations(rel_short, parsed_short)
+            + _check_short_closing(rel_short, parsed_short, cname, full_count)
+        )
+        rel_full = f"countries/{iso}/all/index.html"
+        parsed_full = _parse_sheet_html(full_pages_out[iso])
+        problems += (
+            _check_page_security_and_seo(rel_full, f"{SITE}/countries/{iso}/all/", parsed_full)
+            + _check_page_overflow(rel_full, parsed_full)
+            + _check_page_abbreviations(rel_full, parsed_full)
+            + _check_full_back_link(rel_full, parsed_full)
         )
         if problems:
             raise SheetError("refusing to write invalid sheet:\n  " + "\n  ".join(problems))
 
     # Copy referenced flag SVGs from the game repo at ref.
-    # For a preview --out inside root, share root/images/flags without deleting flags used by countries/.
     if is_custom_out:
         try:
             target_dir.resolve().relative_to(root.resolve())
@@ -2611,25 +2862,25 @@ def build(
             if existing.stem not in all_flags:
                 existing.unlink()
 
-    # Write the 20 HTML sheets.
-    for iso, page in pages_out.items():
-        dest = target_dir / "countries" / iso / "index.html"
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(page, encoding="utf-8")
+    # Write all 40 HTML sheets (20 short + 20 full).
+    for iso in COUNTRIES:
+        short_dest = target_dir / "countries" / iso / "index.html"
+        short_dest.parent.mkdir(parents=True, exist_ok=True)
+        short_dest.write_text(short_pages_out[iso], encoding="utf-8")
+
+        full_dest = target_dir / "countries" / iso / "all" / "index.html"
+        full_dest.parent.mkdir(parents=True, exist_ok=True)
+        full_dest.write_text(full_pages_out[iso], encoding="utf-8")
 
     # Remove any stray country folders outside COUNTRIES.
     cdir = target_dir / "countries"
     if cdir.is_dir():
         for sub in list(cdir.iterdir()):
             if sub.is_dir() and sub.name not in COUNTRIES:
-                for f in sub.rglob("*"):
-                    if f.is_file():
-                        f.unlink()
-                sub.rmdir()
+                shutil.rmtree(sub)
 
     # Write offline verification manifest (in src/ for root builds, or <out>/sheets_manifest.json for --out).
     manifest = {
-        "layout": layout,
         "dataset_version": bundle["version"],
         "version_num": bundle["vnum"],
         "version_date": bundle["vdate"],
@@ -2646,13 +2897,13 @@ def build(
     )
 
     # Run offline check immediately to guarantee our own output passes.
-    problems = check(root, out_dir=(target_dir if is_custom_out else None), layout=layout)
+    problems = check(root, out_dir=(target_dir if is_custom_out else None))
     if problems:
         raise SheetError("generated sheets failed self-check:\n  " + "\n  ".join(problems))
 
     dest_note = f" -> {target_dir}" if is_custom_out else ""
     print(
-        f"ok   built {len(COUNTRIES)} country sheets ({layout} layout{dest_note}, "
+        f"ok   built {len(COUNTRIES)} country sheets x 2 (short + all/{dest_note}, "
         f"{len(bundle['published_axes'])} allowed axes, "
         f"{sum(1 for v in bundle['policy'].values() if v != 'allowed')} not allowed, "
         f"{len(deny_list)} denied, {len(all_flags)} flags, {bundle['version']})"
@@ -2668,14 +2919,6 @@ def main(argv: list[str]) -> int:
         if "--countries-ref" in argv and argv.index("--countries-ref") + 1 < len(argv)
         else None
     )
-    layout = (
-        argv[argv.index("--layout") + 1]
-        if "--layout" in argv and argv.index("--layout") + 1 < len(argv)
-        else "full"
-    )
-    if layout not in {"full", "short"}:
-        print(f"build_sheets FAILED: --layout must be 'full' or 'short', got {layout!r}", file=sys.stderr)
-        return 2
     out_arg = (
         argv[argv.index("--out") + 1]
         if "--out" in argv and argv.index("--out") + 1 < len(argv)
@@ -2684,35 +2927,35 @@ def main(argv: list[str]) -> int:
     out_dir = (ROOT / out_arg) if out_arg is not None else None
 
     if check_mode and game is not None:
-        problems = check_game(game, ref, ROOT, countries_ref=cref, out_dir=out_dir, layout=layout)
+        problems = check_game(game, ref, ROOT, countries_ref=cref, out_dir=out_dir)
         if problems:
-            print(f"country sheet check FAILED against {ref} ({layout} layout):")
+            print(f"country sheet check FAILED against {ref}:")
             for b in problems:
                 print("  " + b)
             return 1
-        print(f"ok   country sheets ({layout}): {len(COUNTRIES)} pages match {ref} and kCountrySheetCountries")
+        print(f"ok   country sheets: {len(COUNTRIES)} countries (short + all/, {len(COUNTRIES) * 2} pages) match {ref} and kCountrySheetCountries")
         return 0
 
     if check_mode:
-        problems = check(ROOT, out_dir=out_dir, layout=layout)
+        problems = check(ROOT, out_dir=out_dir)
         if problems:
-            print(f"country sheet check FAILED (Story 18.6, {layout} layout):")
+            print("country sheet check FAILED (Story 18.6):")
             for b in problems:
                 print("  " + b)
             return 1
-        print(f"ok   country sheets ({layout}): {len(COUNTRIES)} pages pass all Story 18.6 checks")
+        print(f"ok   country sheets: {len(COUNTRIES)} countries (short + all/, {len(COUNTRIES) * 2} pages) pass all Story 18.6 checks")
         return 0
 
     if game is None:
         print(
-            "usage: build_sheets.py --game PATH [--ref REF] [--countries-ref REF] [--layout full|short] [--out DIR] "
-            "| --check [--game PATH] [--layout full|short] [--out DIR]",
+            "usage: build_sheets.py --game PATH [--ref REF] [--countries-ref REF] [--out DIR] "
+            "| --check [--game PATH] [--out DIR]",
             file=sys.stderr,
         )
         return 2
 
     try:
-        build(game, ref, ROOT, countries_ref=cref, layout=layout, out_dir=out_dir)
+        build(game, ref, ROOT, countries_ref=cref, out_dir=out_dir)
     except SheetError as e:
         print(f"build_sheets FAILED: {e}", file=sys.stderr)
         return 1

@@ -878,6 +878,29 @@ table.facts th {
 }
 .fromgame a:hover { text-decoration: underline; }
 
+.a-subnav {
+  background: var(--bg);
+  border-bottom: 1px solid var(--hair);
+}
+.a-subnav-in {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 8px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.a-back-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--hi);
+  text-decoration: none;
+}
+.a-back-summary:hover { text-decoration: underline; }
+
 .flag {
   display: inline-block;
   flex: none;
@@ -1194,6 +1217,34 @@ table.facts th {
 }
 .a-cnote strong { color: var(--secondary); }
 
+.a-closing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+.a-more {
+  text-align: center;
+  padding-top: 4px;
+}
+.a-more-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+  min-height: 48px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font: 700 16px/1.3 var(--f-ui);
+  text-decoration: none;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.a-more-link:hover { background: var(--primary-hover, var(--hi)); }
+
 .a-how {
   font-size: 13px;
   color: var(--muted);
@@ -1233,7 +1284,8 @@ table.facts th {
 }
 
 @media (min-width: 600px) {
-  .fromgame-in { padding: 8px 32px; }
+  .fromgame-in,
+  .a-subnav-in { padding: 8px 32px; }
   .a-shw {
     max-width: 704px;
     padding: 24px 32px;
@@ -1242,7 +1294,8 @@ table.facts th {
 }
 
 @media (min-width: 1024px) {
-  .fromgame-in { padding: 8px 40px; }
+  .fromgame-in,
+  .a-subnav-in { padding: 8px 40px; }
   .a-shw {
     max-width: 1180px;
     padding: 28px 40px;
@@ -1259,6 +1312,7 @@ table.facts th {
     gap: 18px;
   }
   .da .a-fs > h2 { font-size: 22px; }
+  .a-more { text-align: left; }
   .a-how { text-align: left; padding-inline: 2px; }
 }
 

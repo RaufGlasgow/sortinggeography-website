@@ -14,8 +14,10 @@ Country codes are single-quoted, lowercased ISO 3166-1 alpha-2 codes from
 pipeline/roster/countries.json -> "countries".
 
 For every tag in kCountrySheetLanguages and every iso in kCountrySheetCountries,
-the sheet must exist here (countries/<iso>/index.html for en,
-<lang>/countries/<iso>/index.html otherwise), or this fails. A file on main
+both the summary sheet (countries/<iso>/index.html for en,
+<lang>/countries/<iso>/index.html otherwise) and its full sheet
+(countries/<iso>/all/index.html or <lang>/countries/<iso>/all/index.html) must
+exist here and link to each other (./all/ and ../), or this fails. A file on main
 whose constant does not parse fails too: a check that cannot read either set
 must not wave it through. No file on main means the app links nowhere yet,
 which is the one passing absence, and only when no other file in the app names
@@ -29,6 +31,7 @@ build_features.py --game (docs/DEPLOY-RUNBOOK.md Step 4).
 """
 from __future__ import annotations
 
+from html.parser import HTMLParser
 import json
 import pathlib
 import re
@@ -79,6 +82,31 @@ def sheet_countries(dart: str) -> list[str] | None:
 
 def sheet_path(lang: str, iso: str) -> str:
     return f"countries/{iso}/index.html" if lang == "en" else f"{lang}/countries/{iso}/index.html"
+
+
+def full_sheet_path(lang: str, iso: str) -> str:
+    return f"countries/{iso}/all/index.html" if lang == "en" else f"{lang}/countries/{iso}/all/index.html"
+
+
+class _AnchorHrefs(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.hrefs: set[str] = set()
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() == "a":
+            for k, v in attrs:
+                if k.lower() == "href" and v is not None:
+                    self.hrefs.add(v.strip())
+
+    handle_startendtag = handle_starttag
+
+
+def _page_hrefs(path: pathlib.Path) -> set[str]:
+    p = _AnchorHrefs()
+    p.feed(path.read_text(encoding="utf-8"))
+    p.close()
+    return p.hrefs
 
 
 class GitFailed(Exception):
@@ -145,8 +173,24 @@ def _check(game: pathlib.Path, ref: str, root: pathlib.Path) -> list[str]:
         if missing:
             bad.append(f"the game links {lang} sheets, but {len(missing)} of {len(isos)} are not on the "
                        f"site (first: /{sheet_path(lang, missing[0]).removesuffix('index.html')})")
+        missing_all = [iso for iso in isos if not (root / full_sheet_path(lang, iso)).is_file()]
+        if missing_all:
+            bad.append(f"the game links {lang} sheets, but {len(missing_all)} of {len(isos)} full (all/) pages "
+                       f"are not on the site (first: /{full_sheet_path(lang, missing_all[0]).removesuffix('index.html')})")
+        broken_to_all = [
+            iso for iso in isos
+            if (root / sheet_path(lang, iso)).is_file() and "./all/" not in _page_hrefs(root / sheet_path(lang, iso))
+        ]
+        if broken_to_all:
+            bad.append(f"{lang} summary sheet(s) missing link to './all/' (first: /{sheet_path(lang, broken_to_all[0]).removesuffix('index.html')})")
+        broken_to_short = [
+            iso for iso in isos
+            if (root / full_sheet_path(lang, iso)).is_file() and "../" not in _page_hrefs(root / full_sheet_path(lang, iso))
+        ]
+        if broken_to_short:
+            bad.append(f"{lang} full sheet(s) missing link to '../' (first: /{full_sheet_path(lang, broken_to_short[0]).removesuffix('index.html')})")
     if not bad:
-        print(f"ok   sheet links: {langs or 'none'} x {len(isos)} countries all on the site")
+        print(f"ok   sheet links: {langs or 'none'} x {len(isos)} countries (summary + all/) on the site")
     return bad
 
 
