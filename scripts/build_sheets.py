@@ -32,6 +32,7 @@ from __future__ import annotations
 import csv
 import datetime
 import html
+from html.parser import HTMLParser
 import io
 import json
 import math
@@ -241,23 +242,23 @@ PLAIN_CONSISTENCY_NOTES: dict[str, tuple[str, str]] = {
     ),
     "foreign_born_share_vs_stock_over_pop": (
         "Different years",
-        "People born abroad (%) divides UN DESA mid-2020 migrant stock by UN mid-2020 resident population, whereas Population is World Bank WDI 2023.",
+        "People born abroad (%) divides UN DESA mid-2020 migrant stock by UN mid-2020 resident population, whereas Population is World Bank, WDI 2023.",
     ),
     "emigrants_pct_vs_total_over_pop": (
         "Different years",
-        "Share of its people living abroad (%) divides UN DESA mid-2020 emigrants by UN mid-2020 resident population, whereas Population is World Bank WDI 2023.",
+        "Share of its people living abroad (%) divides UN DESA mid-2020 emigrants by UN mid-2020 resident population, whereas Population is World Bank, WDI 2023.",
     ),
     "pop_growth_vs_components": (
         "Different sources and years",
-        "Births and deaths come from CIA World Factbook 2024 (2023 estimates), while population growth and net migration come from UN World Population Prospects 2024 via World Bank WDI (2023).",
+        "Births and deaths come from CIA World Factbook 2024 (2023 estimates), while population growth and net migration come from UN World Population Prospects 2024 via World Bank, WDI (2023).",
     ),
     "largest_city_gt_urban_pop": (
         "Different definitions",
-        "Biggest city uses UN DESA 2025 Degree of Urbanisation city boundaries, whereas urban population (%) uses the country's own national administrative definition (World Bank WDI 2023).",
+        "Biggest city uses UN DESA 2025 Degree of Urbanisation city boundaries, whereas urban population (%) uses the country's own national administrative definition (World Bank, WDI 2023).",
     ),
     "capital_gt_urban_pop": (
         "Different definitions",
-        "Capital population uses UN DESA 2025 Degree of Urbanisation city boundaries (mid-2025), whereas urban population (%) uses national statistical definitions (World Bank WDI 2023).",
+        "Capital population uses UN DESA 2025 Degree of Urbanisation city boundaries (mid-2025), whereas urban population (%) uses national statistical definitions (World Bank, WDI 2023).",
     ),
     "land_neighbours_0_but_boundary_gt_0": (
         "Different definitions",
@@ -265,7 +266,7 @@ PLAIN_CONSISTENCY_NOTES: dict[str, tuple[str, str]] = {
     ),
     "forest_pct_vs_area_over_land": (
         "Different years",
-        "Forest cover (%) and forest area are FAO 2020 figures using 2020 land area, whereas Land area is World Bank WDI 2023.",
+        "Forest cover (%) and forest area are FAO 2020 figures using 2020 land area, whereas Land area is World Bank, WDI 2023.",
     ),
     "maize_plus_wheat_gt_cereal": (
         "Different years",
@@ -282,43 +283,124 @@ SOURCE_RULES: list[tuple[str, str]] = [
     (r"^Derived: CIA World Factbook 2024", "CIA World Factbook and World Bank (derived)"),
     (r"^Derived: GeoNames capital", "GeoNames and Natural Earth (derived)"),
     (r"^Derived: Natural Earth", "Natural Earth (derived)"),
-    (r"^Derived: UN WUP 2025", "UN DESA WUP 2025 and World Bank (derived)"),
+    (r"^Derived: UN WUP 2025", "UN DESA World Urbanization Prospects 2025 and World Bank (derived)"),
     (r"^ESA WorldCover 2021", "ESA WorldCover 2021, via FAOSTAT"),
-    (r"^FAO 20\d\d \(via World Bank WDI", "FAO, via World Bank WDI"),
-    (r"^FAO AQUASTAT", "FAO AQUASTAT, via World Bank WDI"),
+    (r"^FAO 20\d\d \(via World Bank WDI", "FAO, via World Bank, WDI"),
+    (r"^FAO AQUASTAT", "AQUASTAT, via World Bank, WDI"),
     (r"^FAO Food Balance Sheets.*via Our World in Data", "FAO Food Balance Sheets, via Our World in Data"),
     (r"^FAO Food Balance Sheets", "FAO Food Balance Sheets"),
     (r"^FAO Global Forest Resources Assessment 2025", "FAO Global Forest Resources Assessment 2025"),
     (r"^FAO Global Forest Resources Assessment 2020", "FAO Global Forest Resources Assessment 2020"),
     (r"^FAOSTAT Environment/Land Cover.*ESA WorldCover", "ESA WorldCover 2021, via FAOSTAT"),
     (r"^FAOSTAT QCL.*via Our World in Data", "FAOSTAT, via Our World in Data"),
-    (r"^FAOSTAT", "FAO, FAOSTAT"),
+    (r"^FAOSTAT", "FAOSTAT"),
     (r"^GeoNames", "GeoNames"),
     (r"^IANA Time Zone Database", "IANA Time Zone Database 2026a"),
-    (r"^ILO\b.*via World Bank WDI", "ILO, via World Bank WDI"),
+    (r"^ILO\b.*via World Bank WDI", "ILO, via World Bank, WDI"),
     (r"^JRC Global Human Settlement Layer", "EU JRC Global Human Settlement Layer"),
-    (r"^Marine Regions World EEZ v12", "Marine Regions, World EEZ v12"),
+    (r"^Marine Regions World EEZ v12", "Marine Regions, World EEZ version 12"),
     (r"^Men's international football results", "International football results (martj42)"),
-    (r"^Natural Earth 1:50m", "Natural Earth 1:50m"),
+    (r"^Natural Earth 1:50m", "Natural Earth 1:50 million"),
     (r"^Our World in Data \(Global Carbon Project\)", "Global Carbon Project, via Our World in Data"),
     (r"^OurAirports", "OurAirports"),
     (r"^UN DESA International Migrant Stock 2024", "UN DESA International Migrant Stock 2024"),
     (r"^UN DESA Population Division, Database on Household Size", "UN DESA Household Size and Composition"),
     (r"^UN DESA World Urbanization Prospects 2025", "UN DESA World Urbanization Prospects 2025"),
-    (r"^UN IGME", "UN IGME, via World Bank WDI"),
+    (r"^UN IGME", "UN IGME, via World Bank, WDI"),
     (r"^UN WPP 2024 via Our World in Data", "UN World Population Prospects 2024, via Our World in Data"),
-    (r"^UN World Population Prospects 2024.*via World Bank WDI", "UN World Population Prospects 2024, via World Bank WDI"),
+    (r"^UN World Population Prospects 2024.*via World Bank WDI", "UN World Population Prospects 2024, via World Bank, WDI"),
     (r"^UN World Population Prospects 2024", "UN World Population Prospects 2024"),
-    (r"^UN World Urbanization Prospects 2025.*via World Bank WDI", "UN DESA WUP 2025, via World Bank WDI"),
+    (r"^UN World Urbanization Prospects 2025.*via World Bank WDI", "UN DESA World Urbanization Prospects 2025, via World Bank, WDI"),
     (r"^UNDP Human Development Report 2025", "UNDP Human Development Report 2025"),
-    (r"^US Energy Information Administration", "US Energy Information Administration"),
+    (r"^US Energy Information Administration", "United States Energy Information Administration"),
     (r"^Wikidata", "Wikidata"),
-    (r"^World Bank / ESMAP", "World Bank / ESMAP, via World Bank WDI"),
+    (r"^World Bank / ESMAP", "World Bank / ESMAP, via World Bank, WDI"),
     (r"^World Bank Food Prices for Nutrition", "World Bank Food Prices for Nutrition"),
     (r"^World Bank Global Findex 2024", "World Bank Global Findex 2024"),
-    (r"^World Bank International Comparison Program 2021", "World Bank ICP 2021"),
-    (r"^World Bank\b", "World Bank, World Development Indicators"),
+    (r"^World Bank International Comparison Program 2021", "World Bank, ICP 2021"),
+    (r"^World Bank\b", "World Bank, WDI"),
 ]
+
+# ONE table of abbreviation expansions for plain-English country sheets (Finding 8).
+# Each entry is (short_form, full_form, mode):
+#   "always" -> always replace short_form with full_form (short form never shown).
+#   "first"  -> expand first appearance on each page to "<full_form> (<short_form>)";
+#               later appearances on the same page may use <short_form>.
+# Ordered longest/most-specific first so compound forms match before shorter prefixes.
+ABBREVIATIONS: list[tuple[str, str, str]] = [
+    ("UN DESA", "United Nations Department of Economic and Social Affairs", "first"),
+    ("UN IGME", "United Nations Inter-agency Group for Child Mortality Estimation", "first"),
+    ("EU JRC", "European Union Joint Research Centre", "first"),
+    ("FAOSTAT", "Food and Agriculture Organization statistical database", "first"),
+    ("AQUASTAT", "Food and Agriculture Organization water database", "first"),
+    ("ESMAP", "Energy Sector Management Assistance Program", "first"),
+    ("UNDP", "United Nations Development Programme", "first"),
+    ("IANA", "Internet Assigned Numbers Authority", "first"),
+    ("FAO", "Food and Agriculture Organization", "first"),
+    ("ESA", "European Space Agency", "first"),
+    ("ILO", "International Labour Organization", "first"),
+    ("CIA", "Central Intelligence Agency", "first"),
+    ("WDI", "World Development Indicators", "first"),
+    ("WUP", "World Urbanization Prospects", "first"),
+    ("ICP", "International Comparison Program", "first"),
+    ("EEZ", "Exclusive Economic Zone", "first"),
+    ("GDP", "gross domestic product", "first"),
+    ("CO₂", "carbon dioxide", "first"),
+    ("US$", "United States dollars", "first"),
+    ("kWh", "kilowatt-hours", "always"),
+    ("kcal", "kilocalories", "always"),
+    ("km²", "square kilometres", "first"),
+    ("km³", "cubic kilometres", "first"),
+    ("km", "kilometres", "first"),
+    ("m³", "cubic metres", "first"),
+    ("mm", "millimetres", "first"),
+    ("kg", "kilograms", "first"),
+    ("ha", "hectares", "always"),
+    ("yr", "year", "always"),
+    ("UN", "United Nations", "first"),
+    ("US", "United States", "first"),
+    ("m", "metres", "first"),
+]
+
+
+def _abbr_token_re(short: str) -> re.Pattern[str]:
+    lb = r"(?<![A-Za-z0-9_'\u2019])"
+    la = r"(?![A-Za-z0-9_²³₂$])" if short == "US" else r"(?![A-Za-z0-9_²³₂])"
+    return re.compile(lb + re.escape(short) + la)
+
+
+_ABBR_BY_SHORT: dict[str, tuple[str, str]] = {short: (full, mode) for short, full, mode in ABBREVIATIONS}
+_ABBR_SINGLE_RE: dict[str, re.Pattern[str]] = {short: _abbr_token_re(short) for short, _, _ in ABBREVIATIONS}
+_ABBR_COMBINED_RE = re.compile("|".join(_abbr_token_re(short).pattern for short, _, _ in ABBREVIATIONS))
+
+
+class AbbrevExpander:
+    """Expand abbreviations in page reading order so every short form is defined at first use."""
+
+    def __init__(self) -> None:
+        self.seen: set[str] = set()
+
+    def expand(self, text: str, *, capitalize_start: bool = True) -> str:
+        if not text:
+            return text
+
+        def _repl(m: re.Match[str]) -> str:
+            short = m.group(0)
+            full, mode = _ABBR_BY_SHORT[short]
+            use_full = full
+            if capitalize_start and full[0].islower():
+                prefix = text[:m.start()]
+                if not prefix or re.search(r"(?:^|[.:?!]\s+)$", prefix):
+                    use_full = full[0].upper() + full[1:]
+            if mode == "always":
+                return use_full
+            if short in self.seen:
+                return short
+            self.seen.add(short)
+            return f"{use_full} ({short})"
+
+        return _ABBR_COMBINED_RE.sub(_repl, text)
+
 
 # Custom locator map frames for countries with distant overseas territories or
 # antimeridian crossings so every map is well-framed and honest in its caption.
@@ -330,7 +412,7 @@ MAP_FRAMES: dict[str, tuple[float, float, float, float, str | None, str]] = {
     "FR": (-8.5, 13.0, 40.5, 52.2, None, "Metropolitan France and Corsica shown; figures count the whole country."),
     "NL": (1.5, 9.0, 49.8, 54.5, None, "European Netherlands shown."),
     "RU": (14.0, 196.0, 38.0, 80.5, "east", "Russia as the game counts it."),
-    "US": (-172.0, -62.0, 17.0, 73.0, "west", "The 50 US states shown."),
+    "US": (-172.0, -62.0, 17.0, 73.0, "west", "The 50 states of the United States shown."),
     "ZA": (12.0, 37.5, -36.5, -20.5, None, "Mainland South Africa shown."),
 }
 
@@ -561,11 +643,31 @@ def split_name(label: str) -> tuple[str, str]:
     return (m.group(1), m.group(2)) if m else (label, "")
 
 
+def normalize_unit(unit: str) -> str:
+    """Normalize awkward raw ARB unit strings into clean plain-English units (Finding 7)."""
+    u = unit.strip()
+    if u == "annual %":
+        return "% a year"
+    if u == "$ a person":
+        return "dollars a person"
+    if u == "kg per person/yr":
+        return "kg per person a year"
+    if u == "litres/yr":
+        return "litres a year"
+    if u == "m/1,000 km²":
+        return "m per 1,000 km²"
+    if u == "people/km²":
+        return "people per km²"
+    return u
+
+
 def fmt_plain(v: float | int, unit: str) -> str:
     """Plain-text formatted value (uses ASCII '-' before HTML conversion to &minus;)."""
     if unit.startswith("%"):
         if v == 0:
             return "0%"
+        if abs(v) < 0.001:
+            return "< 0.001%" if v > 0 else "> -0.001%"
         if abs(v) < 0.01:
             return f"{v:.3f}%"
         if abs(v) < 0.1:
@@ -579,19 +681,58 @@ def fmt_plain(v: float | int, unit: str) -> str:
         return f"{int(round(v)):,}"
     if abs(v) >= 100:
         return f"{round(v):,}"
-    if unit == "$ a person":
+    if unit in {"$ a person", "dollars a person"}:
         return f"{v:.2f}"
+    if 0 < abs(v) < 0.0001:
+        return "< 0.0001" if v > 0 else "> -0.0001"
     if 0 < abs(v) < 0.01:
         return f"{v:.4f}".rstrip("0").rstrip(".")
     if 0 < abs(v) < 0.1:
         return f"{v:.3f}".rstrip("0").rstrip(".")
     if 0 < abs(v) < 1:
-        return f"{v:.2f}".rstrip("0").rstrip(".")
+        return f"{v:.2f}"
     return f"{v:.1f}"
 
 
 def fmt_html(v: float | int, unit: str) -> str:
-    return fmt_plain(v, unit).replace("-", "&minus;")
+    return html.escape(fmt_plain(v, unit)).replace("-", "&minus;")
+
+
+def fmt_plain_to_html(s: str) -> str:
+    return html.escape(s).replace("-", "&minus;")
+
+
+def format_board_values(rows: list[tuple[int, str, float | int]], unit: str) -> list[str]:
+    """Format mini-board values, adding decimals when needed so distinct raw values never collide."""
+    vals = [v for _, _, v in rows]
+    default = [fmt_plain(v, unit) for v in vals]
+
+    def has_collision(strs: list[str]) -> bool:
+        for i in range(len(vals)):
+            for j in range(i + 1, len(vals)):
+                if vals[i] != vals[j] and strs[i] == strs[j]:
+                    return True
+        return False
+
+    if not has_collision(default):
+        return default
+
+    use_pct = unit.startswith("%")
+    use_tril = not use_pct and any(abs(v) >= 1_000_000_000_000 for v in vals)
+    use_bil = not use_pct and not use_tril and unit == "US$" and any(abs(v) >= 10_000_000_000 for v in vals)
+
+    for d in range(1, 9):
+        if use_pct:
+            cand = [f"{v:.{d}f}%" for v in vals]
+        elif use_tril:
+            cand = [f"{v / 1e12:,.{d}f} trillion" for v in vals]
+        elif use_bil:
+            cand = [f"{v / 1e9:,.{d}f} billion" for v in vals]
+        else:
+            cand = [f"{v:,.{d}f}" for v in vals]
+        if not has_collision(cand):
+            return cand
+    return [f"{v:g}%" if use_pct else f"{v:g}" for v in vals]
 
 
 def short_source(decl: str) -> str:
@@ -809,7 +950,7 @@ def render_locator_map(
         f'<path d="{"".join(target_paths)}" style="fill:var(--map-pt);stroke:var(--map-pt);stroke-width:1.2;stroke-linejoin:round"></path>'
         f'{cap_svg}'
         '</svg>'
-        f'<figcaption class="mapcap">{html.escape(cap_text)}Map: Natural Earth 1:50m, public domain.</figcaption>'
+        f'<figcaption class="mapcap">{html.escape(cap_text)}Map: Natural Earth 1:50 million, public domain.</figcaption>'
         '</figure>'
     )
 
@@ -873,6 +1014,18 @@ def load_game_bundle(game: pathlib.Path, ref: str, deny_list: dict[str, str]) ->
     for entry in allowlist:
         axes_for_rule(entry["rule"])
 
+    # Fail closed if any axis declared in SECTIONS is no longer 'allowed' or is denied (Story 18.6 / Finding 6).
+    section_axes = {ax for _, _, axs in SECTIONS for ax in axs}
+    for ax in sorted(section_axes):
+        if ax in policy and policy[ax] != "allowed":
+            raise SheetError(
+                f"refusing to publish axis {ax!r}: listed in SECTIONS with web_republish={policy[ax]!r} (must be 'allowed')"
+            )
+        if ax in deny_list:
+            raise SheetError(
+                f"refusing to publish axis {ax!r}: listed in SECTIONS and on {DENY_FILE} ({deny_list[ax]})"
+            )
+
     # Determine published axes: strictly web_republish == "allowed" and not denied.
     published_axes = sorted(
         ax for ax in ds_axes
@@ -927,7 +1080,8 @@ def compute_axis_facts(bundle: dict, iso_upper: str) -> dict[str, dict]:
 
         cs = ds_axes[ax]
         label = arb[axis_keys[ax]]
-        name, unit = split_name(label)
+        name, raw_unit = split_name(label)
+        unit = normalize_unit(raw_unit)
         unit_txt = unit[1:].strip() if unit.startswith("%") else unit
         vals = sorted(
             (c["sort_value"] for c in cs.values() if isinstance(c, dict) and not isinstance(c.get("sort_value"), dict)),
@@ -1132,14 +1286,8 @@ def neighbour_name(code: str, roster: dict, geo: dict) -> str:
     raise SheetError(f"unknown land_neighbours territory code {code!r}")
 
 
-def render_sheet(
-    bundle: dict,
-    iso_lower: str,
-    root: pathlib.Path,
-    layout: str = "full",
-    asset_prefix: str = "../../",
-) -> tuple[str, dict, set[str]]:
-    """Render one country sheet HTML, its manifest record, and the flag ISOs it needs."""
+def compute_sheet_expectation(bundle: dict, iso_lower: str, layout: str = "full") -> dict:
+    """Compute exact rendered text for hero, map caption, mini-boards, notes, and fact cards in reading order."""
     if layout not in {"full", "short"}:
         raise SheetError(f"unsupported layout {layout!r} (must be 'full' or 'short')")
     iso = iso_lower.upper()
@@ -1159,12 +1307,11 @@ def render_sheet(
     standout = standout_facts(shown_facts)
     rules = active_consistency_rules(bundle, iso, shown_facts)
 
-    needed_flags: set[str] = {iso_lower}
-    e = html.escape
+    # Expand abbreviations strictly in page reading order (Finding 8):
+    # 1. Hero metadata -> 2. Map caption -> 3. Standout mini-boards -> 4. Sections (notes, then fact cards) -> 5. .a-how
+    exp = AbbrevExpander()
 
-    # Hero metadata card (Region shows continent only in both layouts)
     continent = ds["facets"]["continent"][iso]
-    region_txt = continent
     capital = bundle["capitals"].get(iso)
     cap_lat = ds["attributes"].get("capital_lat", {}).get(iso)
     cap_lon = ds["attributes"].get("capital_lon", {}).get(iso)
@@ -1174,56 +1321,41 @@ def render_sheet(
 
     meta_items: list[tuple[str, str, bool]] = []
     if capital:
-        meta_items.append(("Capital", capital, False))
-    meta_items.append(("Region", region_txt, False))
+        meta_items.append(("Capital", exp.expand(capital), False))
+    meta_items.append(("Region", exp.expand(continent), False))
     meta_items.append(("Time zones", str(tz_count), False))
-    meta_items.append(("Borders", border_names, len(neighbours) > 3 or len(border_names) > 25))
-    meta_html = "".join(
-        f'<div class="a-m{" a-m-wide" if wide else ""}"><span>{e(k)}</span><b>{e(v)}</b></div>'
-        for k, v, wide in meta_items
-    )
+    meta_items.append(("Borders", exp.expand(border_names), len(neighbours) > 3 or len(border_names) > 25))
 
-    hero_html = (
-        f'<div class="card a-sh">'
-        f'<div class="a-sh-top">{flag_img(iso, "flag-xl", 88, 66, lazy=False, prefix=asset_prefix)}'
-        f'<div><p class="a-crumb">Countries &rsaquo; {e(continent)}</p><h1 class="left">{e(cname)}</h1></div></div>'
-        f'<div class="a-meta">{meta_html}</div>'
-        f'</div>'
-    )
-
-    map_html = render_locator_map(iso, cname, capital, cap_lat, cap_lon, bundle["geo"])
-
-    # Standout mini-boards
-    boards_parts: list[str] = []
+    # Standout mini-boards (with collision-free decimal precision per board — Finding 2)
+    boards: list[dict] = []
+    needed_flags: set[str] = {iso_lower}
     for f in standout:
         nb = sorted_neighbours(bundle, f["ax"], iso)
-        rows = []
-        for r, other_iso, val in nb:
+        fmt_vals = format_board_values(nb, f["unit"])
+        b_title = exp.expand(f["name"], capitalize_start=True)
+        b_unit = exp.expand(f["unit"], capitalize_start=False) if f["unit"] else ""
+        b_rows: list[dict] = []
+        for (r, other_iso, _raw_v), val_plain in zip(nb, fmt_vals):
             needed_flags.add(other_iso.lower())
-            me_cls = " a-me" if other_iso == iso else ""
-            rows.append(
-                f'<div class="band a-mb{me_cls}">'
-                f'<span class="a-mb-n">{ordinal(r)}</span>'
-                f'{flag_img(other_iso, "", 28, 21, prefix=asset_prefix)}'
-                f'<span class="bname">{e(roster[other_iso]["name"])}</span>'
-                f'<b class="a-mb-v">{fmt_html(val, f["unit"])}</b>'
-                f'</div>'
-            )
-        unit_disp = e(f["unit"]) if f["unit"] else "&nbsp;"
-        boards_parts.append(
-            f'<figure class="a-board" data-axis="{e(f["ax"])}">'
-            f'<figcaption><span class="a-bq">{e(f["name"])}</span><span class="a-bu">{unit_disp}</span></figcaption>'
-            f'<div class="cap">&#9650; MOST</div>'
-            f'{"".join(rows)}'
-            f'<p class="a-bsrc">{e(f["rank_txt"])} &middot; {e(f["src"])}, {e(f["year"])}</p>'
-            f'</figure>'
-        )
-    standout_html = (
-        f'<section class="a-fs">'
-        f'<h2 class="left">Where {e(cname)} stands out</h2>'
-        f'<div class="a-boards">{"".join(boards_parts)}</div>'
-        f'</section>'
-    )
+            b_rows.append({
+                "iso": other_iso,
+                "is_me": other_iso == iso,
+                "rank": ordinal(r),
+                "name": roster[other_iso]["name"],
+                "val": val_plain,
+            })
+        b_src = exp.expand(f["src"], capitalize_start=True)
+        b_bsrc = f'{f["rank_txt"]} \u00b7 {b_src}, {f["year"]}'
+        boards.append({
+            "ax": f["ax"],
+            "title": b_title,
+            "unit": b_unit,
+            "src": b_src,
+            "year": f["year"],
+            "rank_txt": f["rank_txt"],
+            "bsrc": b_bsrc,
+            "rows": b_rows,
+        })
 
     # Map each active FR-55 consistency rule to the first section containing any of its axes
     sec_rules: dict[str, list[dict]] = {}
@@ -1237,38 +1369,168 @@ def render_sheet(
         if not placed:
             raise SheetError(f"{iso}: active consistency rule {r['rule']!r} could not be placed in any section")
 
+    # Fact sections (notes before cards, matching rendered DOM reading order)
+    rendered_sections: list[dict] = []
+    cards_by_ax: dict[str, dict] = {}
+    for key, title, axs in secs:
+        sec_notes: list[dict] = []
+        for r in sec_rules.get(key, []):
+            sec_notes.append({
+                "rule": r["rule"],
+                "axes": r["axes"],
+                "label": exp.expand(r["label"], capitalize_start=True),
+                "note": exp.expand(r["note"], capitalize_start=True),
+            })
+        sec_cards: list[dict] = []
+        for ax in axs:
+            f = shown_facts[ax]
+            c_name = exp.expand(f["name"], capitalize_start=True)
+            c_src = exp.expand(f["src"], capitalize_start=True)
+            src_host = host_label(f["url"]) if f["url"] else ""
+            src_text = f'{c_src}, {f["year"]}' + (f" \u00b7 {src_host}" if src_host else "")
+            if f["nodata"]:
+                c_unit = ""
+            else:
+                c_unit = exp.expand(f["unit_txt"], capitalize_start=False) if f["unit_txt"] else ""
+            card = {
+                "ax": ax,
+                "name": c_name,
+                "val": f["val_plain"],
+                "unit": c_unit,
+                "rank": f["rank_txt"],
+                "src": c_src,
+                "year": f["year"],
+                "url": f["url"],
+                "src_text": src_text,
+                "nodata": f["nodata"],
+            }
+            sec_cards.append(card)
+            cards_by_ax[ax] = card
+        rendered_sections.append({
+            "key": key,
+            "title": title,
+            "notes": sec_notes,
+            "cards": sec_cards,
+        })
+
+    return {
+        "iso": iso,
+        "cname": cname,
+        "continent": continent,
+        "capital": capital,
+        "cap_lat": cap_lat,
+        "cap_lon": cap_lon,
+        "meta_items": meta_items,
+        "boards": boards,
+        "sections": rendered_sections,
+        "cards": cards_by_ax,
+        "shown_axes": sorted(shown_facts),
+        "rules": rules,
+        "needed_flags": needed_flags,
+    }
+
+
+def render_sheet(
+    bundle: dict,
+    iso_lower: str,
+    root: pathlib.Path,
+    layout: str = "full",
+    asset_prefix: str = "../../",
+) -> tuple[str, dict, set[str]]:
+    """Render one country sheet HTML, its manifest record, and the flag ISOs it needs."""
+    spec = compute_sheet_expectation(bundle, iso_lower, layout=layout)
+    iso = spec["iso"]
+    cname = spec["cname"]
+    continent = spec["continent"]
+    ds = bundle["dataset"]
+    e = html.escape
+
+    meta_html = "".join(
+        f'<div class="a-m{" a-m-wide" if wide else ""}"><span>{e(k)}</span><b>{e(v)}</b></div>'
+        for k, v, wide in spec["meta_items"]
+    )
+
+    hero_html = (
+        f'<div class="card a-sh">'
+        f'<div class="a-sh-top">{flag_img(iso, "flag-xl", 88, 66, lazy=False, prefix=asset_prefix)}'
+        f'<div><p class="a-crumb">Countries &rsaquo; {e(continent)}</p><h1 class="left">{e(cname)}</h1></div></div>'
+        f'<div class="a-meta">{meta_html}</div>'
+        f'</div>'
+    )
+
+    map_html = render_locator_map(iso, cname, spec["capital"], spec["cap_lat"], spec["cap_lon"], bundle["geo"])
+
+    # Standout mini-boards
+    boards_parts: list[str] = []
+    manifest_boards: list[dict] = []
+    for b in spec["boards"]:
+        rows_html = []
+        manifest_rows = []
+        for row in b["rows"]:
+            me_cls = " a-me" if row["is_me"] else ""
+            rows_html.append(
+                f'<div class="band a-mb{me_cls}">'
+                f'<span class="a-mb-n">{e(row["rank"])}</span>'
+                f'{flag_img(row["iso"], "", 28, 21, prefix=asset_prefix)}'
+                f'<span class="bname">{e(row["name"])}</span>'
+                f'<b class="a-mb-v">{fmt_plain_to_html(row["val"])}</b>'
+                f'</div>'
+            )
+            manifest_rows.append({"rank": row["rank"], "name": row["name"], "val": row["val"]})
+        unit_disp = e(b["unit"]) if b["unit"] else "&nbsp;"
+        boards_parts.append(
+            f'<figure class="a-board" data-axis="{e(b["ax"])}">'
+            f'<figcaption><span class="a-bq">{e(b["title"])}</span><span class="a-bu">{unit_disp}</span></figcaption>'
+            f'<div class="cap">&#9650; MOST</div>'
+            f'{"".join(rows_html)}'
+            f'<p class="a-bsrc">{e(b["rank_txt"])} &middot; {e(b["src"])}, {e(b["year"])}</p>'
+            f'</figure>'
+        )
+        manifest_boards.append({
+            "ax": b["ax"],
+            "title": b["title"],
+            "unit": b["unit"],
+            "bsrc": b["bsrc"],
+            "rows": manifest_rows,
+        })
+    standout_html = (
+        f'<section class="a-fs">'
+        f'<h2 class="left">Where {e(cname)} stands out</h2>'
+        f'<div class="a-boards">{"".join(boards_parts)}</div>'
+        f'</section>'
+    )
+
     # Fact sections
     sec_parts: list[str] = []
-    for key, title, axs in secs:
+    for sec in spec["sections"]:
         notes_html = "".join(
             f'<p class="a-cnote" data-consistency-rule="{e(r["rule"])}" '
             f'data-consistency-axes="{e(",".join(r["axes"]))}">'
             f'<strong>{e(r["label"])}:</strong> {e(r["note"])}</p>'
-            for r in sec_rules.get(key, [])
+            for r in sec["notes"]
         )
         row_parts: list[str] = []
-        for ax in axs:
-            f = shown_facts[ax]
-            src_host = host_label(f["url"]) if f["url"] else ""
-            src_label = f'{e(f["src"])}, {e(f["year"])}' + (f" &middot; {e(src_host)}" if src_host else "")
+        for card in sec["cards"]:
+            src_host = host_label(card["url"]) if card["url"] else ""
+            src_label = f'{e(card["src"])}, {e(card["year"])}' + (f" &middot; {e(src_host)}" if src_host else "")
             src_el = (
-                f'<a class="a-f-s" href="{e(f["url"], quote=True)}" rel="noopener noreferrer">{src_label}</a>'
-                if f["url"] else f'<span class="a-f-s">{src_label}</span>'
+                f'<a class="a-f-s" href="{e(card["url"], quote=True)}" rel="noopener noreferrer">{src_label}</a>'
+                if card["url"] else f'<span class="a-f-s">{src_label}</span>'
             )
-            if f["nodata"]:
+            if card["nodata"]:
                 val_el = '<b class="a-nd">No data</b><span class="a-rk a-rk-nd">Not ranked</span>'
             else:
-                usp = f'<small> {e(f["unit_txt"])}</small>' if f["unit_txt"] else ""
-                val_el = f'<b>{f["val_html"]}{usp}</b><span class="a-rk">{e(f["rank_txt"])}</span>'
+                usp = f'<small> {e(card["unit"])}</small>' if card["unit"] else ""
+                val_el = f'<b>{fmt_plain_to_html(card["val"])}{usp}</b><span class="a-rk">{e(card["rank"])}</span>'
             row_parts.append(
-                f'<div class="band a-f" data-axis="{e(ax)}">'
-                f'<div class="a-f-l"><span class="a-f-n">{e(f["name"])}</span>{src_el}</div>'
+                f'<div class="band a-f" data-axis="{e(card["ax"])}">'
+                f'<div class="a-f-l"><span class="a-f-n">{e(card["name"])}</span>{src_el}</div>'
                 f'<div class="a-f-r">{val_el}</div>'
                 f'</div>'
             )
         sec_parts.append(
-            f'<section class="a-fs" id="sec-{e(key)}">'
-            f'<h2 class="left">{e(title)}</h2>'
+            f'<section class="a-fs" id="sec-{e(sec["key"])}">'
+            f'<h2 class="left">{e(sec["title"])}</h2>'
             f'{notes_html}'
             f'{"".join(row_parts)}'
             f'</section>'
@@ -1282,7 +1544,7 @@ def render_sheet(
     )
     if layout == "short":
         how_html = (
-            f'<p class="a-how">Showing {len(shown_facts)} highlights for {e(cname)}. '
+            f'<p class="a-how">Showing {len(spec["shown_axes"])} highlights for {e(cname)}. '
             f'Rank counts from the highest value among the countries that have data: '
             f'1st is the most. Ties share a rank. Data version {bundle["vnum"]}, {e(bundle["vdate"])}.</p>'
         )
@@ -1385,83 +1647,452 @@ def render_sheet(
 
     manifest_entry = {
         "name": cname,
-        "shown_axes": sorted(shown_facts),
-        "values": {ax: {"val": f["val_plain"], "rank": f["rank_txt"], "nodata": f["nodata"]} for ax, f in all_facts.items()},
-        "consistency_rules": [r["rule"] for r in rules],
+        "shown_axes": spec["shown_axes"],
+        "boards": manifest_boards,
+        "values": {
+            ax: {
+                "val": card["val"],
+                "unit": card["unit"],
+                "rank": card["rank"],
+                "src": card["src"],
+                "year": card["year"],
+                "url": card["url"],
+                "src_text": card["src_text"],
+                "nodata": card["nodata"],
+            }
+            for ax, card in spec["cards"].items()
+        },
+        "consistency_rules": [r["rule"] for r in spec["rules"]],
     }
-    return rendered, manifest_entry, needed_flags
+    return rendered, manifest_entry, spec["needed_flags"]
 
 
 # ---------------------------------------------------------------------------
-# Offline and live-game verification guards
+# Offline and live-game verification guards (HTMLParser-based, Finding 5)
 # ---------------------------------------------------------------------------
 
-def _extract_rendered_facts(page: str) -> list[tuple[str, str, str]]:
-    """Extract (axis_id, displayed_value_plain, displayed_rank) from every .a-f card."""
-    out: list[tuple[str, str, str]] = []
-    pat = re.compile(
-        r'<div\s+class="band a-f"\s+data-axis="([^"]+)">'
-        r'.*?<div\s+class="a-f-r"><b(?:\s+class="[^"]*")?>(.*?)</b>'
-        r'<span\s+class="a-rk[^"]*">(.*?)</span></div></div>',
-        re.S,
-    )
-    for m in pat.finditer(page):
-        ax = html.unescape(m.group(1))
-        val_inner = re.sub(r"<small>.*?</small>", "", m.group(2), flags=re.S)
-        val_txt = html.unescape(re.sub(r"<[^>]+>", "", val_inner)).strip().replace("\u2212", "-")
-        rk_txt = html.unescape(re.sub(r"<[^>]+>", "", m.group(3))).strip()
-        out.append((ax, val_txt, rk_txt))
-    return out
+VOID_TAGS: frozenset[str] = frozenset({
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+    "meta", "param", "source", "track", "wbr",
+})
+EXTERNAL_OR_DATA_URL_RE = re.compile(r"^(?:https?:|//|data:|javascript:)", re.I)
+REQUIRED_ASSETSIGNORE: tuple[str, ...] = ("_preview-short", ".gitignore", ".neon-test.sh")
 
 
-def _extract_consistency_notes(page: str) -> dict[str, str]:
-    """Extract rule_id -> visible note text from every FR-55 note element."""
-    out: dict[str, str] = {}
-    pat = re.compile(r'<p\s+class="a-cnote"\s+data-consistency-rule="([^"]+)"[^>]*>(.*?)</p>', re.S)
-    for m in pat.finditer(page):
-        rule_id = html.unescape(m.group(1))
-        text = " ".join(html.unescape(re.sub(r"<[^>]+>", " ", m.group(2))).split())
-        out[rule_id] = text
-    return out
+def _is_external_or_data_url(url: str) -> bool:
+    return bool(EXTERNAL_OR_DATA_URL_RE.match(url.strip()))
 
 
-def _check_page_security_and_seo(rel: str, iso: str, page: str) -> list[str]:
+class _SheetHTMLParser(HTMLParser):
+    """Single-pass HTMLParser extracting security/SEO/overflow signals, data-axis, fact cards, mini-boards, notes, and visible text."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._stack: list[tuple[str, set[str], dict[str, str]]] = []
+        self.all_data_axes: list[str] = []
+
+        # Security / SEO / Overflow
+        self.has_noindex_follow = False
+        self.canonical_hrefs: list[str] = []
+        self.has_viewport = False
+        self.disallowed_scripts: list[str] = []
+        self.external_resources: list[str] = []
+        self.inline_handlers: list[str] = []
+        self.third_party_fonts: list[str] = []
+        self.overflow_styles: list[str] = []
+        self.overflow_svgs: list[str] = []
+
+        # Content extraction
+        self.facts: list[dict] = []
+        self.boards: list[dict] = []
+        self.consistency_notes: dict[str, str] = {}
+        self.how_present = False
+        self.how_has_link = False
+
+        self._all_visible_parts: list[str] = []
+        self._main_visible_parts: list[str] = []
+
+        self._cur_fact: dict | None = None
+        self._cur_board: dict | None = None
+        self._cur_mb_row: dict | None = None
+        self._cur_cnote: tuple[int, str, list[str]] | None = None
+        self._in_how_depth: int | None = None
+        self._in_main_depth: int | None = None
+        self._in_svg_depth: int | None = None
+        self._in_play_ls_depth: int | None = None
+        self._in_script_depth: int | None = None
+        self._in_style_depth: int | None = None
+
+    def _check_srcset(self, srcset: str) -> None:
+        for cand in srcset.split(","):
+            tok = cand.strip().split()
+            if tok and _is_external_or_data_url(tok[0]):
+                self.external_resources.append(tok[0])
+
+    def _on_open(self, tag: str, attrs: list[tuple[str, str | None]], is_void: bool) -> None:
+        tag = tag.lower()
+        attr_map = {k.lower(): (v if v is not None else "") for k, v in attrs}
+        classes = set(attr_map.get("class", "").split())
+
+        # Separator so adjacent elements don't glue tokens in visible text
+        self._all_visible_parts.append(" ")
+        if (
+            self._in_main_depth is not None
+            and self._in_svg_depth is None
+            and self._in_play_ls_depth is None
+            and self._in_script_depth is None
+            and self._in_style_depth is None
+        ):
+            self._main_visible_parts.append(" ")
+
+        # Collect every data-axis attribute anywhere in the document
+        if "data-axis" in attr_map and attr_map["data-axis"]:
+            self.all_data_axes.append(attr_map["data-axis"])
+
+        # Security / SEO / Overflow attribute checks
+        for k, v in attrs:
+            kl = k.lower()
+            val = v if v is not None else ""
+            if kl.startswith("on"):
+                self.inline_handlers.append(f"<{tag} {kl}=...>")
+            if val and THIRD_PARTY_FONT_RE.search(val):
+                self.third_party_fonts.append(val)
+
+        if tag == "meta":
+            mname = attr_map.get("name", "").strip().lower()
+            mcontent = attr_map.get("content", "").strip()
+            if mname == "robots" and mcontent.lower() == "noindex,follow":
+                self.has_noindex_follow = True
+            if mname == "viewport" and re.fullmatch(r"width=device-width,\s*initial-scale=1", mcontent, re.I):
+                self.has_viewport = True
+
+        elif tag == "link":
+            rels = set(attr_map.get("rel", "").lower().split())
+            href = attr_map.get("href", "").strip()
+            if "canonical" in rels:
+                if href:
+                    self.canonical_hrefs.append(href)
+            elif href and _is_external_or_data_url(href):
+                self.external_resources.append(href)
+
+        elif tag == "script":
+            stype = attr_map.get("type", "").strip().lower()
+            ssrc = attr_map.get("src", "").strip()
+            if stype != "application/ld+json" or ssrc:
+                attr_desc = " ".join(f'{k}="{v}"' if v is not None else k for k, v in attrs)
+                self.disallowed_scripts.append(f"<script{' ' + attr_desc if attr_desc else ''}>")
+            if ssrc and _is_external_or_data_url(ssrc):
+                self.external_resources.append(ssrc)
+
+        elif tag in {"img", "iframe", "embed", "source", "audio", "video", "track"}:
+            src = attr_map.get("src", "").strip()
+            if src and _is_external_or_data_url(src):
+                self.external_resources.append(src)
+            srcset = attr_map.get("srcset", "").strip()
+            if srcset:
+                self._check_srcset(srcset)
+
+        elif tag == "object":
+            data_url = attr_map.get("data", "").strip()
+            if data_url and _is_external_or_data_url(data_url):
+                self.external_resources.append(data_url)
+
+        elif tag == "form":
+            action = attr_map.get("action", "").strip()
+            if action and _is_external_or_data_url(action):
+                self.external_resources.append(action)
+
+        elif tag == "a":
+            href = attr_map.get("href", "").strip()
+            if href and re.match(r"^javascript:", href, re.I):
+                self.external_resources.append(href)
+
+        style_val = attr_map.get("style", "")
+        if style_val:
+            if THIRD_PARTY_FONT_RE.search(style_val):
+                self.third_party_fonts.append(style_val)
+            for prop_m in re.finditer(r"(?<![a-z-])((?:min-)?width)\s*:\s*(\d+(?:\.\d+)?)px\b", style_val, re.I):
+                if float(prop_m.group(2)) > MAX_FIXED_WIDTH_PX:
+                    self.overflow_styles.append(prop_m.group(0))
+
+        if tag == "svg":
+            w_attr = attr_map.get("width", "").strip()
+            if re.fullmatch(r"\d+(?:\.\d+)?", w_attr) and float(w_attr) > MAX_FIXED_WIDTH_PX:
+                self.overflow_svgs.append(w_attr)
+
+        if not is_void:
+            self._stack.append((tag, classes, attr_map))
+            depth = len(self._stack)
+
+            if tag == "main" and self._in_main_depth is None:
+                self._in_main_depth = depth
+            if tag == "svg" and self._in_svg_depth is None:
+                self._in_svg_depth = depth
+            if "a-play-ls" in classes and self._in_play_ls_depth is None:
+                self._in_play_ls_depth = depth
+            if tag == "script" and self._in_script_depth is None:
+                self._in_script_depth = depth
+            if tag == "style" and self._in_style_depth is None:
+                self._in_style_depth = depth
+
+            if tag == "p" and "a-how" in classes:
+                self.how_present = True
+                self._in_how_depth = depth
+            if tag == "a" and self._in_how_depth is not None:
+                self.how_has_link = True
+
+            if tag == "p" and "a-cnote" in classes and "data-consistency-rule" in attr_map:
+                self._cur_cnote = (depth, attr_map["data-consistency-rule"], [])
+
+            if tag == "div" and "a-f" in classes and "data-axis" in attr_map:
+                self._cur_fact = {
+                    "depth": depth,
+                    "ax": attr_map["data-axis"],
+                    "name": [],
+                    "src_text": [],
+                    "src_href": "",
+                    "val": [],
+                    "unit": [],
+                    "rank": [],
+                }
+            elif self._cur_fact is not None and tag == "a" and "a-f-s" in classes:
+                self._cur_fact["src_href"] = attr_map.get("href", "")
+
+            if tag == "figure" and "a-board" in classes and "data-axis" in attr_map:
+                self._cur_board = {
+                    "depth": depth,
+                    "ax": attr_map["data-axis"],
+                    "title": [],
+                    "unit": [],
+                    "bsrc": [],
+                    "rows": [],
+                }
+            elif self._cur_board is not None and tag == "div" and "a-mb" in classes:
+                self._cur_mb_row = {
+                    "depth": depth,
+                    "rank": [],
+                    "name": [],
+                    "val": [],
+                }
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._on_open(tag, attrs, is_void=(tag.lower() in VOID_TAGS))
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._on_open(tag, attrs, is_void=True)
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.lower()
+        if tag in VOID_TAGS:
+            return
+        self._all_visible_parts.append(" ")
+        if (
+            self._in_main_depth is not None
+            and self._in_svg_depth is None
+            and self._in_play_ls_depth is None
+            and self._in_script_depth is None
+            and self._in_style_depth is None
+        ):
+            self._main_visible_parts.append(" ")
+
+        # Pop back to matching tag if present
+        match_idx: int | None = None
+        for idx in range(len(self._stack) - 1, -1, -1):
+            if self._stack[idx][0] == tag:
+                match_idx = idx
+                break
+        if match_idx is None:
+            return
+        while len(self._stack) > match_idx:
+            depth = len(self._stack)
+            self._stack.pop()
+            if self._in_main_depth == depth:
+                self._in_main_depth = None
+            if self._in_svg_depth == depth:
+                self._in_svg_depth = None
+            if self._in_play_ls_depth == depth:
+                self._in_play_ls_depth = None
+            if self._in_script_depth == depth:
+                self._in_script_depth = None
+            if self._in_style_depth == depth:
+                self._in_style_depth = None
+            if self._in_how_depth == depth:
+                self._in_how_depth = None
+            if self._cur_cnote is not None and self._cur_cnote[0] == depth:
+                _, rule_id, parts = self._cur_cnote
+                self.consistency_notes[rule_id] = " ".join("".join(parts).split())
+                self._cur_cnote = None
+            if self._cur_fact is not None and self._cur_fact["depth"] == depth:
+                f = self._cur_fact
+                unit_raw = "".join(f["unit"])
+                self.facts.append({
+                    "ax": f["ax"],
+                    "name": " ".join("".join(f["name"]).split()),
+                    "src_text": " ".join("".join(f["src_text"]).split()),
+                    "src_href": f["src_href"],
+                    "val": "".join(f["val"]).strip().replace("\u2212", "-"),
+                    "unit": unit_raw.strip(),
+                    "unit_has_nbsp": unit_raw.startswith("\xa0"),
+                    "rank": " ".join("".join(f["rank"]).split()),
+                })
+                self._cur_fact = None
+            if self._cur_mb_row is not None and self._cur_mb_row["depth"] == depth:
+                r = self._cur_mb_row
+                if self._cur_board is not None:
+                    self._cur_board["rows"].append({
+                        "rank": " ".join("".join(r["rank"]).split()),
+                        "name": " ".join("".join(r["name"]).split()),
+                        "val": "".join(r["val"]).strip().replace("\u2212", "-"),
+                    })
+                self._cur_mb_row = None
+            if self._cur_board is not None and self._cur_board["depth"] == depth:
+                b = self._cur_board
+                unit_clean = "".join(b["unit"]).replace("\xa0", " ").strip()
+                self.boards.append({
+                    "ax": b["ax"],
+                    "title": " ".join("".join(b["title"]).split()),
+                    "unit": unit_clean,
+                    "bsrc": " ".join("".join(b["bsrc"]).split()),
+                    "rows": b["rows"],
+                })
+                self._cur_board = None
+
+    def handle_data(self, data: str) -> None:
+        if self._in_style_depth is not None and THIRD_PARTY_FONT_RE.search(data):
+            self.third_party_fonts.append(data.strip())
+        if self._in_script_depth is None and self._in_style_depth is None:
+            self._all_visible_parts.append(data)
+            if self._in_main_depth is not None and self._in_svg_depth is None and self._in_play_ls_depth is None:
+                self._main_visible_parts.append(data)
+
+        if self._cur_cnote is not None:
+            self._cur_cnote[2].append(data)
+
+        if self._cur_fact is not None:
+            tags_in_fact = self._stack[self._cur_fact["depth"]:]
+            in_name = any(t == "span" and "a-f-n" in c for t, c, _ in tags_in_fact)
+            in_src = any(t in {"a", "span"} and "a-f-s" in c for t, c, _ in tags_in_fact)
+            in_r = any(t == "div" and "a-f-r" in c for t, c, _ in tags_in_fact)
+            if in_name:
+                self._cur_fact["name"].append(data)
+            if in_src:
+                self._cur_fact["src_text"].append(data)
+            if in_r:
+                in_b = any(t == "b" for t, _, _ in tags_in_fact)
+                in_small = any(t == "small" for t, _, _ in tags_in_fact)
+                in_rk = any(t == "span" and "a-rk" in c for t, c, _ in tags_in_fact)
+                if in_small and in_b:
+                    self._cur_fact["unit"].append(data)
+                elif in_b:
+                    self._cur_fact["val"].append(data)
+                if in_rk:
+                    self._cur_fact["rank"].append(data)
+
+        if self._cur_board is not None:
+            tags_in_board = self._stack[self._cur_board["depth"]:]
+            if self._cur_mb_row is not None:
+                tags_in_row = self._stack[self._cur_mb_row["depth"]:]
+                if any(t == "span" and "a-mb-n" in c for t, c, _ in tags_in_row):
+                    self._cur_mb_row["rank"].append(data)
+                if any(t == "span" and "bname" in c for t, c, _ in tags_in_row):
+                    self._cur_mb_row["name"].append(data)
+                if any(t == "b" and "a-mb-v" in c for t, c, _ in tags_in_row):
+                    self._cur_mb_row["val"].append(data)
+            else:
+                if any(t == "span" and "a-bq" in c for t, c, _ in tags_in_board):
+                    self._cur_board["title"].append(data)
+                if any(t == "span" and "a-bu" in c for t, c, _ in tags_in_board):
+                    self._cur_board["unit"].append(data)
+                if any(t == "p" and "a-bsrc" in c for t, c, _ in tags_in_board):
+                    self._cur_board["bsrc"].append(data)
+
+    @property
+    def all_visible_text(self) -> str:
+        return " ".join("".join(self._all_visible_parts).split())
+
+    @property
+    def main_visible_text(self) -> str:
+        return " ".join("".join(self._main_visible_parts).split())
+
+
+def _parse_sheet_html(page: str) -> _SheetHTMLParser:
+    parser = _SheetHTMLParser()
+    parser.feed(page)
+    parser.close()
+    return parser
+
+
+def _check_assetsignore(root: pathlib.Path) -> list[str]:
+    """Fail if .assetsignore does not exclude _preview-short, .gitignore, .neon-test.sh, or any root dotfile (Finding 1)."""
+    p = root / ".assetsignore"
+    if not p.is_file():
+        return [".assetsignore is missing"]
+    entries = {
+        ln.strip().strip("/")
+        for ln in p.read_text(encoding="utf-8").splitlines()
+        if ln.strip() and not ln.strip().startswith("#")
+    }
     bad: list[str] = []
-    no_comments = re.sub(r"<!--.*?-->", " ", page, flags=re.S)
+    has_dot_glob = ".*" in entries
+    for req in REQUIRED_ASSETSIGNORE:
+        if req not in entries and not (req.startswith(".") and has_dot_glob):
+            bad.append(f".assetsignore: {req!r} is not ignored (would be publicly served on deploy)")
+    for item in sorted(root.iterdir()):
+        name = item.name
+        if name.startswith(".") and name != ".well-known":
+            if name not in entries and not has_dot_glob:
+                bad.append(f".assetsignore: dotfile {name!r} at site root is not ignored")
+    return bad
+
+
+def _check_page_security_and_seo(rel: str, iso: str, parsed: _SheetHTMLParser) -> list[str]:
+    bad: list[str] = []
 
     # 1. noindex,follow
-    if not re.search(r'<meta\s+name="robots"\s+content="noindex,follow"\s*/?>', no_comments, re.I):
-        bad.append(f"{rel}: missing <meta name=\"robots\" content=\"noindex,follow\">")
+    if not parsed.has_noindex_follow:
+        bad.append(f'{rel}: missing <meta name="robots" content="noindex,follow">')
 
     # 2. self-canonical
     want_canon = f"{SITE}/countries/{iso}/"
-    if f'<link rel="canonical" href="{want_canon}">' not in no_comments:
+    if want_canon not in parsed.canonical_hrefs:
         bad.append(f"{rel}: missing self-canonical {want_canon}")
 
     # 3. No scripts of any kind (no third-party scripts, no inline scripts)
-    for m in re.finditer(r"<script\b([^>]*)>", no_comments, re.I):
-        attrs = m.group(1)
-        if not re.search(r'\btype\s*=\s*["\']application/ld\+json["\']', attrs, re.I):
-            bad.append(f"{rel}: disallowed <script{attrs}> on country sheet (no third-party or inline scripts)")
+    for sc in parsed.disallowed_scripts:
+        bad.append(f"{rel}: disallowed {sc} on country sheet (no third-party or inline scripts)")
 
-    # 4. No Google Fonts or other third-party font services, no external assets
-    if THIRD_PARTY_FONT_RE.search(no_comments):
-        bad.append(f"{rel}: references a third-party font service")
-    for m in re.finditer(r'<(?:link|img|iframe|object|embed)\b[^>]*\b(?:href|src)\s*=\s*"([^"]+)"', no_comments, re.I):
-        tag = m.group(0)
-        url = m.group(1)
-        # <link rel="canonical"> is allowed to carry the site URL; stylesheets/preloads/imgs/iframes must be local.
-        if re.search(r'\brel\s*=\s*"canonical"', tag, re.I):
-            continue
-        if re.match(r"^(?:https?:|//|data:)", url, re.I):
-            bad.append(f"{rel}: loads external or data resource {url!r}")
+    # 4. No inline event handlers
+    for h in parsed.inline_handlers:
+        bad.append(f"{rel}: disallowed inline event handler {h}")
 
-    # 5. No Daily answer / today's Daily question
-    visible = re.sub(r"<[^>]+>", " ", no_comments)
-    m_daily = DAILY_LEAK_RE.search(visible)
+    # 5. No Google Fonts or other third-party font services, no external/data resources
+    if parsed.third_party_fonts:
+        bad.append(f"{rel}: references a third-party font service ({parsed.third_party_fonts[0]!r})")
+    for url in parsed.external_resources:
+        bad.append(f"{rel}: loads external or data resource {url!r}")
+
+    # 6. No Daily answer / today's Daily question
+    m_daily = DAILY_LEAK_RE.search(parsed.all_visible_text)
     if m_daily:
         bad.append(f"{rel}: mentions {m_daily.group(0)!r} (no Daily question or answer on country sheets)")
 
+    return bad
+
+
+def _check_page_abbreviations(rel: str, parsed: _SheetHTMLParser) -> list[str]:
+    """Fail if any known abbreviation appears unexpanded or before its full form on the page (Finding 8)."""
+    bad: list[str] = []
+    text = parsed.main_visible_text
+    for short, full, mode in ABBREVIATIONS:
+        m_abbr = _ABBR_SINGLE_RE[short].search(text)
+        if m_abbr is None:
+            continue
+        if mode == "always":
+            bad.append(f"{rel}: unexpanded abbreviation {short!r} (spell out as {full!r})")
+            continue
+        m_full = re.search(r"(?<![A-Za-z0-9_])" + re.escape(full) + r"(?![A-Za-z0-9_])", text, re.I)
+        if m_full is None or m_full.start() > m_abbr.start():
+            bad.append(f"{rel}: abbreviation {short!r} appears before its full form {full!r}")
     return bad
 
 
@@ -1568,33 +2199,75 @@ def _check_sheet_css_overflow(root: pathlib.Path) -> list[str]:
     return bad
 
 
-def _check_page_overflow(rel: str, page: str) -> list[str]:
+def _check_page_overflow(rel: str, parsed: _SheetHTMLParser) -> list[str]:
     """Static markup checks on a country sheet for sideways-overflow hazards."""
     bad: list[str] = []
-    no_comments = re.sub(r"<!--.*?-->", " ", page, flags=re.S)
-
-    if not re.search(
-        r'<meta\s+name="viewport"\s+content="width=device-width,\s*initial-scale=1"\s*/?>',
-        no_comments,
-        re.I,
-    ):
+    if not parsed.has_viewport:
         bad.append(f"{rel}: missing responsive viewport meta tag")
-
-    for m in re.finditer(r'\bstyle\s*=\s*"([^"]*)"', no_comments, re.I):
-        style_val = m.group(1)
-        for prop_m in re.finditer(r"(?<![a-z-])((?:min-)?width)\s*:\s*(\d+(?:\.\d+)?)px\b", style_val, re.I):
-            if float(prop_m.group(2)) > MAX_FIXED_WIDTH_PX:
-                bad.append(
-                    f"{rel}: inline style {prop_m.group(0)!r} exceeds {int(MAX_FIXED_WIDTH_PX)}px"
-                )
-
-    for m in re.finditer(r'<svg\b[^>]*\bwidth\s*=\s*"(\d+(?:\.\d+)?)"', no_comments, re.I):
-        if float(m.group(1)) > MAX_FIXED_WIDTH_PX:
-            bad.append(f"{rel}: <svg width=\"{m.group(1)}\"> exceeds {int(MAX_FIXED_WIDTH_PX)}px (use viewBox + CSS)")
-
-    if re.search(r'<div\s+class="a-f-r"><b>[^<]*<small>&nbsp;', no_comments):
+    for st in parsed.overflow_styles:
+        bad.append(f"{rel}: inline style {st!r} exceeds {int(MAX_FIXED_WIDTH_PX)}px")
+    for w in parsed.overflow_svgs:
+        bad.append(f'{rel}: <svg width="{w}"> exceeds {int(MAX_FIXED_WIDTH_PX)}px (use viewBox + CSS)')
+    if any(f["unit_has_nbsp"] for f in parsed.facts):
         bad.append(f"{rel}: fact value uses non-breaking &nbsp; before unit (prevents wrapping on narrow screens)")
+    return bad
 
+
+def _check_boards(rel: str, got_boards: list[dict], want_boards: list[dict] | None, label: str) -> list[str]:
+    """Verify mini-board distinct-rank values (Finding 2) and exact rows/units/sources (Finding 5)."""
+    bad: list[str] = []
+    for b in got_boards:
+        rows = b["rows"]
+        for i in range(len(rows)):
+            for j in range(i + 1, len(rows)):
+                if rows[i]["rank"] != rows[j]["rank"] and rows[i]["val"] == rows[j]["val"]:
+                    bad.append(
+                        f"{rel}: mini-board {b['ax']!r} shows identical value {rows[i]['val']!r} "
+                        f"for distinct ranks {rows[i]['rank']!r} and {rows[j]['rank']!r}"
+                    )
+
+    if want_boards is None:
+        return bad
+    got_axes = [b["ax"] for b in got_boards]
+    want_axes = [b["ax"] for b in want_boards]
+    if got_axes != want_axes:
+        bad.append(f"{rel}: mini-board axes {got_axes} != {label} {want_axes}")
+        return bad
+    for gb, wb in zip(got_boards, want_boards):
+        ax = gb["ax"]
+        if gb["unit"] != wb["unit"]:
+            bad.append(f"{rel}: mini-board {ax!r} unit {gb['unit']!r} != {label} unit {wb['unit']!r}")
+        if gb["bsrc"] != wb["bsrc"]:
+            bad.append(f"{rel}: mini-board {ax!r} source {gb['bsrc']!r} != {label} source {wb['bsrc']!r}")
+        if len(gb["rows"]) != len(wb["rows"]):
+            bad.append(f"{rel}: mini-board {ax!r} has {len(gb['rows'])} rows != {label} {len(wb['rows'])}")
+            continue
+        for idx, (gr, wr) in enumerate(zip(gb["rows"], wb["rows"])):
+            if gr["rank"] != wr["rank"]:
+                bad.append(f"{rel}: mini-board {ax!r} row {idx + 1} rank {gr['rank']!r} != {label} rank {wr['rank']!r}")
+            if gr["name"] != wr["name"]:
+                bad.append(f"{rel}: mini-board {ax!r} row {idx + 1} country {gr['name']!r} != {label} country {wr['name']!r}")
+            if gr["val"] != wr["val"]:
+                bad.append(f"{rel}: mini-board {ax!r} row {idx + 1} value {gr['val']!r} != {label} value {wr['val']!r}")
+    return bad
+
+
+def _check_card_fields(rel: str, ax: str, got: dict, exp: dict, label: str) -> list[str]:
+    bad: list[str] = []
+    if got["val"] != exp["val"]:
+        bad.append(f"{rel}: {ax} value {got['val']!r} != {label} value {exp['val']!r}")
+    if got["rank"] != exp["rank"]:
+        bad.append(f"{rel}: {ax} rank {got['rank']!r} != {label} rank {exp['rank']!r}")
+    if exp.get("nodata") and (got["val"] != "No data" or got["rank"] != "Not ranked"):
+        bad.append(
+            f"{rel}: {ax} has no data and must read 'No data' / 'Not ranked', not {got['val']!r} / {got['rank']!r}"
+        )
+    if "unit" in exp and got["unit"] != exp["unit"]:
+        bad.append(f"{rel}: {ax} unit {got['unit']!r} != {label} unit {exp['unit']!r}")
+    if "src_text" in exp and got["src_text"] != exp["src_text"]:
+        bad.append(f"{rel}: {ax} source/year {got['src_text']!r} != {label} {exp['src_text']!r}")
+    if "url" in exp and got["src_href"] != exp["url"]:
+        bad.append(f"{rel}: {ax} source URL {got['src_href']!r} != {label} URL {exp['url']!r}")
     return bad
 
 
@@ -1603,8 +2276,9 @@ def check(
     out_dir: pathlib.Path | None = None,
     layout: str | None = None,
 ) -> list[str]:
-    """Offline CI check: verifies every sheet against COUNTRIES, deny-list, manifest, sitemap, and overflow rules."""
+    """Offline CI check: verifies every sheet against COUNTRIES, deny-list, manifest, sitemap, .assetsignore, abbreviations, and overflow rules."""
     bad: list[str] = []
+    bad += _check_assetsignore(root)
     bad += _check_sheet_css_overflow(root)
     try:
         deny_list = load_deny_list(root)
@@ -1612,7 +2286,8 @@ def check(
         return [str(e)]
 
     target_dir = out_dir if out_dir is not None else root
-    mp = (out_dir / "sheets_manifest.json") if (out_dir is not None and (out_dir / "sheets_manifest.json").is_file()) else (root / MANIFEST_FILE)
+    # Fail closed: when --out is specified, never fall back to src/sheets_manifest.json (Finding 4).
+    mp = (out_dir / "sheets_manifest.json") if out_dir is not None else (root / MANIFEST_FILE)
     if not mp.is_file():
         return [f"{mp} is missing; run scripts/build_sheets.py --game <path>"]
     manifest = json.loads(mp.read_text(encoding="utf-8"))
@@ -1647,20 +2322,20 @@ def check(
         if not p.is_file():
             continue
         page = p.read_text(encoding="utf-8")
-        bad += _check_page_security_and_seo(rel, iso, page)
-        bad += _check_page_overflow(rel, page)
+        parsed = _parse_sheet_html(page)
+        bad += _check_page_security_and_seo(rel, iso, parsed)
+        bad += _check_page_overflow(rel, parsed)
+        bad += _check_page_abbreviations(rel, parsed)
 
-        # Check every data-axis attribute (both fact rows and standout mini-boards)
-        all_axes_in_page = re.findall(r'data-axis="([^"]+)"', page)
-        for ax in sorted(set(all_axes_in_page)):
+        # Check every data-axis attribute (both fact rows and standout mini-boards, any quote style)
+        for ax in sorted(set(parsed.all_data_axes)):
             if policy.get(ax) != "allowed":
                 bad.append(f"{rel}: axis {ax!r} has web_republish={policy.get(ax)!r} (only 'allowed' may appear)")
             if ax in deny_list:
                 bad.append(f"{rel}: axis {ax!r} is on {DENY_FILE} ({deny_list[ax]})")
 
-        # Check every fact card's value and rank against manifest
-        rendered = _extract_rendered_facts(page)
-        rendered_map = {ax: (val, rk) for ax, val, rk in rendered}
+        rendered = parsed.facts
+        rendered_map = {f["ax"]: f for f in rendered}
         if len(rendered_map) != len(rendered):
             bad.append(f"{rel}: duplicate axis row rendered")
 
@@ -1668,6 +2343,8 @@ def check(
             bad.append(f"{MANIFEST_FILE}: missing entry for {iso}")
             continue
         want_vals = m_countries[iso].get("values") or {}
+        want_boards = m_countries[iso].get("boards")
+        bad += _check_boards(rel, parsed.boards, want_boards, "dataset")
 
         if eff_layout == "short":
             if len(rendered) == 0:
@@ -1683,10 +2360,9 @@ def check(
                 if extra_ax:
                     bad.append(f"{rel}: unexpected short-layout axis/axes {extra_ax[:5]} ({len(extra_ax)} total)")
             # Short page must end with a plain line linking nowhere new
-            m_how = re.search(r'<p\s+class="a-how">(.*?)</p>', page, re.S)
-            if not m_how:
+            if not parsed.how_present:
                 bad.append(f"{rel}: short layout missing closing .a-how line")
-            elif re.search(r"<a\b", m_how.group(1), re.I):
+            elif parsed.how_has_link:
                 bad.append(f"{rel}: short layout closing .a-how line must not contain a link")
         else:
             missing_ax = sorted(set(expected_axes) - set(rendered_map))
@@ -1696,19 +2372,13 @@ def check(
             if extra_ax:
                 bad.append(f"{rel}: unexpected axis/axes {extra_ax[:5]} ({len(extra_ax)} total)")
 
-        for ax, (got_val, got_rk) in rendered_map.items():
+        for ax, got_card in rendered_map.items():
             if ax not in want_vals:
                 continue
-            exp = want_vals[ax]
-            if got_val != exp["val"]:
-                bad.append(f"{rel}: {ax} value {got_val!r} != dataset value {exp['val']!r}")
-            if got_rk != exp["rank"]:
-                bad.append(f"{rel}: {ax} rank {got_rk!r} != dataset rank {exp['rank']!r}")
-            if exp.get("nodata") and (got_val != "No data" or got_rk != "Not ranked"):
-                bad.append(f"{rel}: {ax} has no data and must read 'No data' / 'Not ranked', not {got_val!r} / {got_rk!r}")
+            bad += _check_card_fields(rel, ax, got_card, want_vals[ax], "dataset")
 
         # FR-55: every required consistency rule must render with a non-empty note
-        notes = _extract_consistency_notes(page)
+        notes = parsed.consistency_notes
         for rule_id in m_countries[iso].get("consistency_rules") or []:
             note_txt = notes.get(rule_id, "")
             if len(note_txt) < 20:
@@ -1725,7 +2395,7 @@ def check_game(
     out_dir: pathlib.Path | None = None,
     layout: str = "full",
 ) -> list[str]:
-    """Live check against the game repo: dataset values, web_republish policy, FR-55, and kCountrySheetCountries."""
+    """Live check against the game repo: dataset values, mini-boards, units/sources, web_republish policy, FR-55, and kCountrySheetCountries."""
     bad: list[str] = []
     if layout not in {"full", "short"}:
         return [f"unsupported layout {layout!r} (must be 'full' or 'short')"]
@@ -1767,50 +2437,58 @@ def check_game(
             bad.append(f"{rel}: missing")
             continue
         page = p.read_text(encoding="utf-8")
-        bad += _check_page_security_and_seo(rel, iso, page)
-        bad += _check_page_overflow(rel, page)
+        parsed = _parse_sheet_html(page)
+        bad += _check_page_security_and_seo(rel, iso, parsed)
+        bad += _check_page_overflow(rel, parsed)
+        bad += _check_page_abbreviations(rel, parsed)
 
-        for ax in sorted(set(re.findall(r'data-axis="([^"]+)"', page))):
+        for ax in sorted(set(parsed.all_data_axes)):
             if policy.get(ax) != "allowed":
                 bad.append(f"{rel}: axis {ax!r} is web_republish={policy.get(ax)!r} at {ref} (refusing non-allowed axis)")
             if ax in deny_list:
                 bad.append(f"{rel}: axis {ax!r} is on {DENY_FILE}")
 
-        facts = compute_axis_facts(bundle, iso.upper())
-        rendered_list = _extract_rendered_facts(page)
-        rendered = dict((ax, (val, rk)) for ax, val, rk in rendered_list)
+        spec = compute_sheet_expectation(bundle, iso, layout=layout)
+        rendered_list = parsed.facts
+        rendered = {f["ax"]: f for f in rendered_list}
+        want_cards = spec["cards"]
+        want_boards = [
+            {
+                "ax": b["ax"],
+                "unit": b["unit"],
+                "bsrc": b["bsrc"],
+                "rows": [{"rank": r["rank"], "name": r["name"], "val": r["val"]} for r in b["rows"]],
+            }
+            for b in spec["boards"]
+        ]
+        bad += _check_boards(rel, parsed.boards, want_boards, f"{ref} dataset")
+
         if layout == "short":
             if len(rendered_list) > SHORT_MAX_FACTS:
                 bad.append(f"{rel}: short layout has {len(rendered_list)} facts (max {SHORT_MAX_FACTS})")
-            want_short = set(select_short_axes(facts))
+            want_short = set(spec["shown_axes"])
             missing_ax = sorted(want_short - set(rendered))
             extra_ax = sorted(set(rendered) - want_short)
             if missing_ax:
                 bad.append(f"{rel}: missing short-layout axis/axes at {ref}: {missing_ax[:5]}")
             if extra_ax:
                 bad.append(f"{rel}: unexpected short-layout axis/axes at {ref}: {extra_ax[:5]}")
-            active_facts = {ax: facts[ax] for ax in rendered if ax in facts}
         else:
             missing_ax = sorted(expected_axes - set(rendered))
             if missing_ax:
                 bad.append(f"{rel}: missing allowed axis/axes at {ref}: {missing_ax[:5]}")
-            active_facts = facts
 
-        for ax, (got_val, got_rk) in rendered.items():
-            if ax not in facts:
+        for ax, got_card in rendered.items():
+            if ax not in want_cards:
                 continue
-            f = facts[ax]
-            if got_val != f["val_plain"]:
-                bad.append(f"{rel}: {ax} value {got_val!r} != {ref} dataset value {f['val_plain']!r}")
-            if got_rk != f["rank_txt"]:
-                bad.append(f"{rel}: {ax} rank {got_rk!r} != {ref} dataset rank {f['rank_txt']!r}")
+            bad += _check_card_fields(rel, ax, got_card, want_cards[ax], f"{ref} dataset")
 
-        notes = _extract_consistency_notes(page)
-        for r in active_consistency_rules(bundle, iso.upper(), active_facts):
+        notes = parsed.consistency_notes
+        for r in spec["rules"]:
             if len(notes.get(r["rule"], "")) < 20:
                 bad.append(f"{rel}: FR-55 rule {r['rule']!r} from {ref} rendered without its note")
 
-    # Also verify offline checks (manifest, sitemap, etc.) stay in sync
+    # Also verify offline checks (manifest, sitemap, .assetsignore, etc.) stay in sync
     bad += check(root, out_dir=out_dir, layout=layout)
     return bad
 
@@ -1839,20 +2517,20 @@ def build(
     deny_list = load_deny_list(root)
     bundle = load_game_bundle(game, ref, deny_list)
 
-    # If country_sheet_url.dart is present on countries_ref (or ref), enforce exact match.
+    # Always enforce exact match with country_sheet_url.dart at cref (fail closed — Finding 3).
     cref = countries_ref or ref
+    require_ref(game, cref)
     dart = game_show(game, cref, SHEET_URL_DART)
-    if dart is not None:
-        game_countries = parse_game_countries(dart)
-        if game_countries is None:
-            raise SheetError(f"{SHEET_URL_DART} at {cref}: malformed kCountrySheetCountries")
-        if sorted(game_countries) != sorted(COUNTRIES):
-            raise SheetError(
-                f"COUNTRIES differs from {SHEET_URL_DART} kCountrySheetCountries at {cref}: "
-                f"site={sorted(COUNTRIES)} vs game={sorted(game_countries)}"
-            )
-    elif countries_ref is not None:
-        raise SheetError(f"{game}: cannot read {SHEET_URL_DART} at {countries_ref}")
+    if dart is None:
+        raise SheetError(f"{game}: cannot read {SHEET_URL_DART} at {cref}")
+    game_countries = parse_game_countries(dart)
+    if game_countries is None:
+        raise SheetError(f"{SHEET_URL_DART} at {cref}: malformed kCountrySheetCountries")
+    if sorted(game_countries) != sorted(COUNTRIES):
+        raise SheetError(
+            f"COUNTRIES differs from {SHEET_URL_DART} kCountrySheetCountries at {cref}: "
+            f"site={sorted(COUNTRIES)} vs game={sorted(game_countries)}"
+        )
 
     target_dir = out_dir if out_dir is not None else root
     is_custom_out = out_dir is not None and out_dir.resolve() != root.resolve()
@@ -1871,7 +2549,12 @@ def build(
     # Validate every generated page BEFORE writing anything (fail closed).
     for iso, page in pages_out.items():
         rel = f"countries/{iso}/index.html"
-        problems = _check_page_security_and_seo(rel, iso, page) + _check_page_overflow(rel, page)
+        parsed = _parse_sheet_html(page)
+        problems = (
+            _check_page_security_and_seo(rel, iso, parsed)
+            + _check_page_overflow(rel, parsed)
+            + _check_page_abbreviations(rel, parsed)
+        )
         if problems:
             raise SheetError("refusing to write invalid sheet:\n  " + "\n  ".join(problems))
 

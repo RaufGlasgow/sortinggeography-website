@@ -1818,16 +1818,19 @@ half_reminders_case("reminder_service.dart on main but main.dart does not refere
 half_reminders_case("main.dart references ReminderService but no reminder_service.dart: refuse to guess", "main-only")
 
 # ---- 18.6: country sheets (launch slice, 20 English pages) ---------------------
-def sheet_guard_case(name: str, expect_red: bool, mutate=None) -> None:
+def sheet_guard_case(name: str, expect_red: bool, mutate=None, must_match: str | None = None) -> None:
     root = copy_site()
     try:
         if mutate:
             mutate(root)
-        red = bool(build_sheets.check(root))
+        problems = build_sheets.check(root)
+        red = bool(problems)
     finally:
         shutil.rmtree(root)
-    ok = red == expect_red
-    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'red  ' if red else 'green'} {name}")
+    matched = True if (must_match is None or not expect_red) else any(must_match in p for p in problems)
+    ok = (red == expect_red) and matched
+    extra = "" if ok else f"  <- got {problems[:3]!r}, want match {must_match!r}"
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'red  ' if red else 'green'} {name}{extra}")
     if not ok:
         failures.append(f"sheet186: {name}")
 
@@ -1842,6 +1845,21 @@ def _edit_population_value(root: pathlib.Path) -> None:
     p.write_text(txt[:m.start(2)] + bumped + txt[m.end(2):], encoding="utf-8")
 
 
+def _edit_nodata_to_zero(root: pathlib.Path) -> None:
+    p = root / "countries/ch/index.html"
+    txt = p.read_text(encoding="utf-8")
+    new, n = re.subn(
+        r'(<div class="band a-f" data-axis="mangrove_area_km2">.*?<div class="a-f-r">)<b class="a-nd">No data</b><span class="a-rk a-rk-nd">Not ranked</span>',
+        r'\g<1><b>0</b><span class="a-rk">97th of 96</span>',
+        txt,
+        count=1,
+        flags=re.S,
+    )
+    if n != 1:
+        raise SystemExit("test setup: mangrove_area_km2 no-data card not found in countries/ch/index.html")
+    p.write_text(new, encoding="utf-8")
+
+
 def _remove_consistency_note(root: pathlib.Path, rel: str, rule_id: str) -> None:
     p = root / rel
     txt = p.read_text(encoding="utf-8")
@@ -1851,66 +1869,258 @@ def _remove_consistency_note(root: pathlib.Path, rel: str, rule_id: str) -> None
     p.write_text(new, encoding="utf-8")
 
 
+def _edit_first_board_value(root: pathlib.Path) -> None:
+    p = root / "countries/us/index.html"
+    txt = p.read_text(encoding="utf-8")
+    m = re.search(r'(<figure class="a-board"[^>]*>.*?<b class="a-mb-v">)([^<]+)(</b>)', txt, re.S)
+    if not m:
+        raise SystemExit("test setup: mini-board value not found in countries/us/index.html")
+    p.write_text(txt[:m.start(2)] + "999" + txt[m.end(2):], encoding="utf-8")
+
+
+def _inject_board_axis(root: pathlib.Path, ax: str) -> None:
+    edit(
+        root,
+        "countries/us/index.html",
+        '<div class="a-boards">',
+        f'<div class="a-boards"><figure class="a-board" data-axis="{ax}">'
+        '<figcaption><span class="a-bq">Extra</span><span class="a-bu">&nbsp;</span></figcaption>'
+        '<div class="cap">&#9650; MOST</div>'
+        '<div class="band a-mb a-me"><span class="a-mb-n">1st</span><span class="bname">United States</span><b class="a-mb-v">10</b></div>'
+        '<p class="a-bsrc">1st of 10 &middot; Test, 2024</p></figure>',
+    )
+
+
+def _remove_assetsignore_line(root: pathlib.Path, entry: str) -> None:
+    p = root / ".assetsignore"
+    lines = p.read_text(encoding="utf-8").splitlines()
+    kept = [ln for ln in lines if ln.strip().strip("/") != entry]
+    if len(kept) == len(lines):
+        raise SystemExit(f"test setup: {entry!r} not found in .assetsignore")
+    p.write_text("\n".join(kept) + "\n", encoding="utf-8")
+
+
 sheet_guard_case("the 20 country sheets as built", False)
-sheet_guard_case("forbidden axis (wine_lpc) injected onto a page", True, lambda r: edit(
-    r, "countries/us/index.html", '<div class="band a-f" data-axis="population">',
-    '<div class="band a-f" data-axis="wine_lpc"><div class="a-f-l"><span class="a-f-n">Wine</span></div>'
-    '<div class="a-f-r"><b>10</b><span class="a-rk">1st of 10</span></div></div>'
-    '<div class="band a-f" data-axis="population">'))
-sheet_guard_case("published axis flipped to 'flag' in manifest", True, lambda r: edit(
-    r, "src/sheets_manifest.json", '"population": "allowed"', '"population": "flag"'))
-sheet_guard_case("denied axis (latitude) injected onto a page", True, lambda r: edit(
-    r, "countries/us/index.html", '<div class="band a-f" data-axis="population">',
-    '<div class="band a-f" data-axis="latitude"><div class="a-f-l"><span class="a-f-n">Latitude</span></div>'
-    '<div class="a-f-r"><b>39.0</b><span class="a-rk">1st of 195</span></div></div>'
-    '<div class="band a-f" data-axis="population">'))
-sheet_guard_case("value edited by hand differs from dataset", True, _edit_population_value)
-sheet_guard_case("no-data axis edited to 0 instead of 'No data' / 'Not ranked'", True, lambda r: edit(
-    r, "countries/ch/index.html",
-    '<div class="band a-f" data-axis="mangrove_area_km2">',
-    '<div class="band a-f" data-axis="mangrove_area_km2">').__class__ if False else (
-        (r / "countries/ch/index.html").write_text(
-            re.sub(
-                r'(<div class="band a-f" data-axis="mangrove_area_km2">.*?<div class="a-f-r">)<b class="a-nd">No data</b><span class="a-rk a-rk-nd">Not ranked</span>',
-                r'\g<1><b>0</b><span class="a-rk">97th of 96</span>',
-                (r / "countries/ch/index.html").read_text(encoding="utf-8"),
-                count=1,
-                flags=re.S,
-            ),
-            encoding="utf-8",
-        )
-    ))
-sheet_guard_case("FR-55 DEFINITION pair without its note (ZA land use vs land cover)", True,
-                 lambda r: _remove_consistency_note(r, "countries/za/index.html", "forest_plus_agri_plus_barren_gt_102"))
-sheet_guard_case("FR-55 YEAR pair without its note (AU pop growth vs components)", True,
-                 lambda r: _remove_consistency_note(r, "countries/au/index.html", "pop_growth_vs_components"))
-sheet_guard_case("third-party script added to a country sheet", True, lambda r: edit(
-    r, "countries/us/index.html", "</head>", '<script src="https://cdn.example.com/tracker.js"></script>\n</head>'))
-sheet_guard_case("Google Fonts stylesheet added to a country sheet", True, lambda r: edit(
-    r, "countries/eg/index.html", "</head>", '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter">\n</head>'))
-sheet_guard_case("inline script added to a country sheet", True, lambda r: edit(
-    r, "countries/ch/index.html", "</body>", "<script>alert(1)</script>\n</body>"))
-sheet_guard_case("missing country sheet on disk (countries/eg deleted)", True,
-                 lambda r: (r / "countries/eg/index.html").unlink())
-sheet_guard_case("noindex,follow removed from a country sheet", True, lambda r: edit(
-    r, "countries/us/index.html", '<meta name="robots" content="noindex,follow">\n', ""))
-sheet_guard_case("country sheet added to sitemap.xml", True, lambda r: edit(
-    r, "sitemap.xml", "</urlset>", "  <url><loc>https://sortinggeography.com/countries/us/</loc></url>\n</urlset>"))
-sheet_guard_case("Daily question/answer leaked onto a country sheet", True, lambda r: edit(
-    r, "countries/us/index.html", "</main>", "<p>Today's Daily question is Population.</p>\n</main>"))
-sheet_guard_case("overflow: fixed width > 360px added to country-sheet CSS", True, lambda r: edit(
-    r, "style.css", ".a-shw {\n  display: grid;", ".a-shw {\n  width: 420px;\n  display: grid;"))
-sheet_guard_case("overflow: grid columns without minmax(0, ...) in country-sheet CSS", True, lambda r: edit(
-    r, "style.css", "grid-template-columns: repeat(2, minmax(0, 1fr));", "grid-template-columns: 1fr 1fr;"))
-sheet_guard_case("overflow: display: grid without grid-template-columns in country-sheet CSS", True, lambda r: edit(
-    r, "style.css", ".a-sh {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);", ".a-sh {\n  display: grid;"))
-sheet_guard_case("overflow: white-space: nowrap added to fact values in country-sheet CSS", True, lambda r: edit(
-    r, "style.css", ".a-f-r b {\n  font: 700 17px/1.2 var(--f-ui);",
-    ".a-f-r b {\n  white-space: nowrap;\n  font: 700 17px/1.2 var(--f-ui);"))
-sheet_guard_case("overflow: inline fixed width > 360px injected into a country sheet", True, lambda r: edit(
-    r, "countries/us/index.html", '<div class="card a-sh">', '<div class="card a-sh" style="width: 500px">'))
-sheet_guard_case("overflow: non-breaking &nbsp; unit glue in fact value", True, lambda r: edit(
-    r, "countries/us/index.html", "<small> thousand barrels a day</small>", "<small>&nbsp;thousand barrels a day</small>"))
+sheet_guard_case(
+    "assetsignore: _preview-short removed from .assetsignore goes red",
+    True,
+    lambda r: _remove_assetsignore_line(r, "_preview-short"),
+    must_match="'_preview-short' is not ignored",
+)
+sheet_guard_case(
+    "assetsignore: .gitignore removed from .assetsignore goes red",
+    True,
+    lambda r: _remove_assetsignore_line(r, ".gitignore"),
+    must_match="'.gitignore' is not ignored",
+)
+sheet_guard_case(
+    "forbidden axis (wine_lpc) injected onto a page",
+    True,
+    lambda r: edit(
+        r, "countries/us/index.html", '<div class="band a-f" data-axis="population">',
+        '<div class="band a-f" data-axis="wine_lpc"><div class="a-f-l"><span class="a-f-n">Wine</span></div>'
+        '<div class="a-f-r"><b>10</b><span class="a-rk">1st of 10</span></div></div>'
+        '<div class="band a-f" data-axis="population">',
+    ),
+    must_match="axis 'wine_lpc' has web_republish='forbidden'",
+)
+sheet_guard_case(
+    "forbidden axis (wine_lpc) injected ONLY into a mini-board",
+    True,
+    lambda r: _inject_board_axis(r, "wine_lpc"),
+    must_match="axis 'wine_lpc' has web_republish='forbidden'",
+)
+sheet_guard_case(
+    "denied axis (latitude) injected ONLY into a mini-board",
+    True,
+    lambda r: _inject_board_axis(r, "latitude"),
+    must_match="axis 'latitude' is on src/sheet_deny_axes.json",
+)
+sheet_guard_case(
+    "published axis flipped to 'flag' in manifest",
+    True,
+    lambda r: edit(r, "src/sheets_manifest.json", '"population": "allowed"', '"population": "flag"'),
+    must_match="axis 'population' has web_republish='flag'",
+)
+sheet_guard_case(
+    "denied axis (latitude) injected onto a page",
+    True,
+    lambda r: edit(
+        r, "countries/us/index.html", '<div class="band a-f" data-axis="population">',
+        '<div class="band a-f" data-axis="latitude"><div class="a-f-l"><span class="a-f-n">Latitude</span></div>'
+        '<div class="a-f-r"><b>39.0</b><span class="a-rk">1st of 195</span></div></div>'
+        '<div class="band a-f" data-axis="population">',
+    ),
+    must_match="axis 'latitude' is on src/sheet_deny_axes.json",
+)
+sheet_guard_case(
+    "value edited by hand differs from dataset",
+    True,
+    _edit_population_value,
+    must_match="population value",
+)
+sheet_guard_case(
+    "mini-board value edited by hand goes red",
+    True,
+    _edit_first_board_value,
+    must_match="mini-board 'time_zone_count' row 1 value",
+)
+sheet_guard_case(
+    "mini-board distinct ranks showing identical rounded value goes red",
+    True,
+    lambda r: edit(
+        r, "countries/it/index.html",
+        '<b class="a-mb-v">32.32</b>',
+        '<b class="a-mb-v">32.31</b>',
+    ),
+    must_match="shows identical value '32.31' for distinct ranks '6th' and '7th'",
+)
+sheet_guard_case(
+    "fact card unit edited by hand goes red",
+    True,
+    lambda r: edit(r, "countries/us/index.html", "<small> thousand barrels a day</small>", "<small> barrels</small>"),
+    must_match="crude_oil_production_kbd unit",
+)
+sheet_guard_case(
+    "fact card source/year edited by hand goes red",
+    True,
+    lambda r: edit(
+        r, "countries/us/index.html",
+        "World Bank, WDI, 2023 &middot; data.worldbank.org</a></div><div class=\"a-f-r\"><b>9,147,420",
+        "World Bank, WDI, 2020 &middot; data.worldbank.org</a></div><div class=\"a-f-r\"><b>9,147,420",
+    ),
+    must_match="land_area_km2 source/year",
+)
+sheet_guard_case(
+    "no-data axis edited to 0 instead of 'No data' / 'Not ranked'",
+    True,
+    _edit_nodata_to_zero,
+    must_match="must read 'No data' / 'Not ranked'",
+)
+sheet_guard_case(
+    "FR-55 DEFINITION pair without its note (ZA land use vs land cover)",
+    True,
+    lambda r: _remove_consistency_note(r, "countries/za/index.html", "forest_plus_agri_plus_barren_gt_102"),
+    must_match="FR-55 consistency rule 'forest_plus_agri_plus_barren_gt_102'",
+)
+sheet_guard_case(
+    "FR-55 YEAR pair without its note (AU pop growth vs components)",
+    True,
+    lambda r: _remove_consistency_note(r, "countries/au/index.html", "pop_growth_vs_components"),
+    must_match="FR-55 consistency rule 'pop_growth_vs_components'",
+)
+sheet_guard_case(
+    "third-party script added to a country sheet",
+    True,
+    lambda r: edit(r, "countries/us/index.html", "</head>", '<script src="https://cdn.example.com/tracker.js"></script>\n</head>'),
+    must_match="disallowed <script",
+)
+sheet_guard_case(
+    "single-quoted external img src caught by HTMLParser guard",
+    True,
+    lambda r: edit(r, "countries/us/index.html", "</main>", "<img src='https://tracker.example/p.gif' alt=''>\n</main>"),
+    must_match="loads external or data resource 'https://tracker.example/p.gif'",
+)
+sheet_guard_case(
+    "unquoted external img src caught by HTMLParser guard",
+    True,
+    lambda r: edit(r, "countries/us/index.html", "</main>", "<img src=https://tracker.example/p.gif alt=''>\n</main>"),
+    must_match="loads external or data resource 'https://tracker.example/p.gif'",
+)
+sheet_guard_case(
+    "single-quoted external stylesheet link caught by HTMLParser guard",
+    True,
+    lambda r: edit(r, "countries/us/index.html", "</head>", "<link rel='stylesheet' href='https://evil.example/a.css'>\n</head>"),
+    must_match="loads external or data resource 'https://evil.example/a.css'",
+)
+sheet_guard_case(
+    "Google Fonts stylesheet added to a country sheet",
+    True,
+    lambda r: edit(r, "countries/eg/index.html", "</head>", '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter">\n</head>'),
+    must_match="third-party font service",
+)
+sheet_guard_case(
+    "inline script added to a country sheet",
+    True,
+    lambda r: edit(r, "countries/ch/index.html", "</body>", "<script>alert(1)</script>\n</body>"),
+    must_match="disallowed <script>",
+)
+sheet_guard_case(
+    "missing country sheet on disk (countries/eg deleted)",
+    True,
+    lambda r: (r / "countries/eg/index.html").unlink(),
+    must_match="missing sheet(s) for ['eg']",
+)
+sheet_guard_case(
+    "noindex,follow removed from a country sheet",
+    True,
+    lambda r: edit(r, "countries/us/index.html", '<meta name="robots" content="noindex,follow">\n', ""),
+    must_match='missing <meta name="robots" content="noindex,follow">',
+)
+sheet_guard_case(
+    "country sheet added to sitemap.xml",
+    True,
+    lambda r: edit(r, "sitemap.xml", "</urlset>", "  <url><loc>https://sortinggeography.com/countries/us/</loc></url>\n</urlset>"),
+    must_match="sitemap.xml: lists /countries/",
+)
+sheet_guard_case(
+    "Daily question/answer leaked onto a country sheet",
+    True,
+    lambda r: edit(r, "countries/us/index.html", "</main>", "<p>Today's Daily question is Population.</p>\n</main>"),
+    must_match="no Daily question or answer",
+)
+sheet_guard_case(
+    "abbreviation (GDP) appearing before its full form goes red",
+    True,
+    lambda r: edit(r, "countries/us/index.html", '<h2 class="left">Where United States stands out</h2>',
+                   '<h2 class="left">Where United States stands out (GDP)</h2>'),
+    must_match="abbreviation 'GDP' appears before its full form 'gross domestic product'",
+)
+sheet_guard_case(
+    "always-expanded abbreviation (ha) injected onto a page goes red",
+    True,
+    lambda r: edit(r, "countries/us/index.html", "<small> hectares</small>", "<small> ha</small>"),
+    must_match="unexpanded abbreviation 'ha'",
+)
+sheet_guard_case(
+    "overflow: fixed width > 360px added to country-sheet CSS",
+    True,
+    lambda r: edit(r, "style.css", ".a-shw {\n  display: grid;", ".a-shw {\n  width: 420px;\n  display: grid;"),
+    must_match="exceeds 360px",
+)
+sheet_guard_case(
+    "overflow: grid columns without minmax(0, ...) in country-sheet CSS",
+    True,
+    lambda r: edit(r, "style.css", "grid-template-columns: repeat(2, minmax(0, 1fr));", "grid-template-columns: 1fr 1fr;"),
+    must_match="without minmax(0, ...)",
+)
+sheet_guard_case(
+    "overflow: display: grid without grid-template-columns in country-sheet CSS",
+    True,
+    lambda r: edit(r, "style.css", ".a-sh {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);", ".a-sh {\n  display: grid;"),
+    must_match="without grid-template-columns",
+)
+sheet_guard_case(
+    "overflow: white-space: nowrap added to fact values in country-sheet CSS",
+    True,
+    lambda r: edit(
+        r, "style.css", ".a-f-r b {\n  font: 700 17px/1.2 var(--f-ui);",
+        ".a-f-r b {\n  white-space: nowrap;\n  font: 700 17px/1.2 var(--f-ui);",
+    ),
+    must_match="white-space: nowrap",
+)
+sheet_guard_case(
+    "overflow: inline fixed width > 360px injected into a country sheet",
+    True,
+    lambda r: edit(r, "countries/us/index.html", '<div class="card a-sh">', '<div class="card a-sh" style="width: 500px">'),
+    must_match="inline style 'width: 500px' exceeds 360px",
+)
+sheet_guard_case(
+    "overflow: non-breaking &nbsp; unit glue in fact value",
+    True,
+    lambda r: edit(r, "countries/us/index.html", "<small> thousand barrels a day</small>", "<small>&nbsp;thousand barrels a day</small>"),
+    must_match="non-breaking &nbsp;",
+)
 
 
 def _make_short_fixture(root: pathlib.Path, count_for_us: int = 20) -> pathlib.Path:
@@ -1922,7 +2132,6 @@ def _make_short_fixture(root: pathlib.Path, count_for_us: int = 20) -> pathlib.P
     for iso in build_sheets.COUNTRIES:
         src = root / "countries" / iso / "index.html"
         page = src.read_text(encoding="utf-8")
-        cards = list(card_re.finditer(page))
         limit = count_for_us if iso == "us" else 20
         kept_axes: list[str] = []
         idx = 0
@@ -1944,22 +2153,37 @@ def _make_short_fixture(root: pathlib.Path, count_for_us: int = 20) -> pathlib.P
     return out
 
 
-def short_sheet_guard_case(name: str, expect_red: bool, mutate=None, count_for_us: int = 20) -> None:
+def short_sheet_guard_case(
+    name: str,
+    expect_red: bool,
+    mutate=None,
+    count_for_us: int = 20,
+    must_match: str | None = None,
+) -> None:
     root = copy_site()
     try:
         out = _make_short_fixture(root, count_for_us=count_for_us)
         if mutate:
             mutate(out)
-        red = bool(build_sheets.check(root, out_dir=out, layout="short"))
+        problems = build_sheets.check(root, out_dir=out, layout="short")
+        red = bool(problems)
     finally:
         shutil.rmtree(root)
-    ok = red == expect_red
-    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'red  ' if red else 'green'} {name}")
+    matched = True if (must_match is None or not expect_red) else any(must_match in p for p in problems)
+    ok = (red == expect_red) and matched
+    extra = "" if ok else f"  <- got {problems[:3]!r}, want match {must_match!r}"
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'red  ' if red else 'green'} {name}{extra}")
     if not ok:
         failures.append(f"sheet186: {name}")
 
 
 short_sheet_guard_case("short layout: clean 20-fact short sheets pass", False)
+short_sheet_guard_case(
+    "short layout: missing manifest in --out dir fails closed (no fallback to src/)",
+    True,
+    lambda o: (o / "sheets_manifest.json").unlink(),
+    must_match="sheets_manifest.json is missing",
+)
 short_sheet_guard_case(
     "short layout: forbidden axis (wine_lpc) injected onto a short page",
     True,
@@ -1969,11 +2193,13 @@ short_sheet_guard_case(
         '<div class="a-f-r"><b>10</b><span class="a-rk">1st of 10</span></div></div>'
         '<div class="band a-f" data-axis="land_area_km2">',
     ),
+    must_match="axis 'wine_lpc' has web_republish='forbidden'",
 )
 short_sheet_guard_case(
     "short layout: more than 25 facts (26 allowed facts) goes red",
     True,
     count_for_us=26,
+    must_match="short layout has 26 facts (max 25)",
 )
 short_sheet_guard_case(
     "short layout: closing line with a link goes red",
@@ -1983,44 +2209,226 @@ short_sheet_guard_case(
         '<p class="a-how">',
         '<p class="a-how"><a href="../../">See all facts</a> ',
     ),
+    must_match="must not contain a link",
 )
 
 
-def sheet_game_countries_case(name: str, game_countries: list[str] | None, expect_red: bool) -> None:
-    """Compare COUNTRIES in build_sheets.py against kCountrySheetCountries in a fake game repo."""
-    g = pathlib.Path(tempfile.mkdtemp(prefix="sg-s186-"))
-    try:
-        if game_countries is not None:
-            p = g / build_sheets.SHEET_URL_DART
-            p.parent.mkdir(parents=True, exist_ok=True)
-            body = ", ".join(f"'{c}'" for c in game_countries)
-            p.write_text(
-                "const Set<String> kCountrySheetLanguages = <String>{'en'};\n"
-                f"const Set<String> kCountrySheetCountries = <String>{{{body}}};\n",
-                encoding="utf-8",
-            )
+def _make_fixture_game_repo(
+    game_countries: list[str] | None,
+    pop_policy: str | None = "allowed",
+) -> pathlib.Path:
+    """Create a minimal git game repo that exercises real build_sheets.build() and check_game()."""
+    g = pathlib.Path(tempfile.mkdtemp(prefix="sg-s186-game-"))
+    isos_u = [c.upper() for c in build_sheets.COUNTRIES]
+    roster = {
+        "countries": {
+            iso: {"name": f"Testland {i + 1}"}
+            for i, iso in enumerate(isos_u)
+        }
+    }
+    if game_countries:
+        for i, c in enumerate(game_countries):
+            cu = c.upper()
+            roster["countries"].setdefault(cu, {"name": f"Extra {i + 1}"})
+
+    axes_spec = [
+        ("land_area_km2", "Land area (km²)", "axisLandArea", 10000.0, "World Bank WDI"),
+        ("population", "Population (people)", "axisPopulation", 5000000.0, "World Bank WDI"),
+        ("median_age", "Median age (years)", "axisMedianAge", 30.0, "UN World Population Prospects 2024"),
+        ("life_expectancy", "Life expectancy (years)", "axisLifeExp", 75.0, "UN World Population Prospects 2024"),
+        ("wine_lpc", "Wine (litres)", "axisWine", 5.0, "World Bank WDI"),
+    ]
+    ds_axes: dict[str, dict] = {}
+    for ax_idx, (ax, _lbl, _key, base, src_decl) in enumerate(axes_spec):
+        ds_axes[ax] = {
+            iso: {
+                "sort_value": round(base + (i + 1) * (10.0 if ax_idx < 2 else 0.5), 2),
+                "verification": {
+                    "declared_source": src_decl,
+                    "vintage": "2023",
+                    "source_url": "https://data.worldbank.org/indicator/TEST",
+                },
+            }
+            for i, iso in enumerate(isos_u)
+        }
+    dataset = {
+        "version": "dataset-v1-fixture",
+        "axes": ds_axes,
+        "facets": {"continent": {iso: "Europe" for iso in isos_u}},
+        "attributes": {
+            "capital_lat": {iso: 10.0 for iso in isos_u},
+            "capital_lon": {iso: 10.0 for iso in isos_u},
+        },
+        "field_sets": {
+            "land_neighbours": {iso: [] for iso in isos_u},
+            "time_zones": {iso: ["UTC"] for iso in isos_u},
+        },
+    }
+    geo = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"ISO_A2_EH": iso, "NAME": f"Testland {i + 1}", "TYPE": "Sovereign country"},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[8.0, 8.0], [12.0, 8.0], [12.0, 12.0], [8.0, 12.0], [8.0, 8.0]]],
+                },
+            }
+            for i, iso in enumerate(isos_u)
+        ],
+    }
+
+    def _write(rel: str, content: str) -> None:
+        fp = g / rel
+        fp.parent.mkdir(parents=True, exist_ok=True)
+        fp.write_text(content, encoding="utf-8")
+
+    _write("pipeline/content/dataset.json", json.dumps(dataset))
+    _write("pipeline/content/version-log.json", json.dumps([{"version": "dataset-v1-fixture", "at": "2026-11-22"}]))
+    _write("pipeline/roster/countries.json", json.dumps(roster))
+    axes_yaml_lines = ["axes:"]
+    for ax, _lbl, _key, _base, _src in axes_spec:
+        axes_yaml_lines.append(f"  {ax}:")
+        if ax == "wine_lpc":
+            axes_yaml_lines.append("    web_republish: forbidden")
+        elif ax == "population":
+            if pop_policy is not None:
+                axes_yaml_lines.append(f"    web_republish: {pop_policy}")
         else:
-            (g / "README").write_text("x", encoding="utf-8")
-        for cmd in (["init", "-q", "-b", "main"], ["add", "-A"],
-                    ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
-            subprocess.run(["git", "-C", str(g), *cmd], check=True)
-        dart = build_sheets.game_show(g, "main", build_sheets.SHEET_URL_DART)
-        parsed = build_sheets.parse_game_countries(dart) if dart is not None else None
-        red = parsed is None or sorted(parsed) != sorted(build_sheets.COUNTRIES)
+            axes_yaml_lines.append("    web_republish: allowed")
+    _write("pipeline/axes.yaml", "\n".join(axes_yaml_lines) + "\n")
+    _write("pipeline/fields.yaml", "fields:\n")
+    _write("pipeline/fact_consistency_allowlist.yaml", "entries:\n")
+    _write("pipeline/sources/geometry/ne_50m_admin_0_countries.geojson", json.dumps(geo))
+    cap_rows = ["iso_alpha2,value"] + [f"{iso},Capital {i + 1}" for i, iso in enumerate(isos_u)]
+    _write("pipeline/sources/geonames/capital_name.csv", "\n".join(cap_rows) + "\n")
+    puzzle_entries = "\n".join(
+        f"  '{ax}': PuzzleAxis(nameUnitsKey: '{key}')," for ax, _lbl, key, _b, _s in axes_spec
+    )
+    _write("app/lib/play/puzzle.dart", f"final axes = {{\n{puzzle_entries}\n}};\n")
+    _write("packages/sort_platform/l10n/app_en.arb", json.dumps({key: lbl for _ax, lbl, key, _b, _s in axes_spec}))
+    for iso in build_sheets.COUNTRIES:
+        _write(f"app/assets/flags/{iso}.svg", '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 3"></svg>')
+    if game_countries is not None:
+        body = ", ".join(f"'{c}'" for c in game_countries)
+        _write(
+            build_sheets.SHEET_URL_DART,
+            "const Set<String> kCountrySheetLanguages = <String>{'en'};\n"
+            f"const Set<String> kCountrySheetCountries = <String>{{{body}}};\n",
+        )
+
+    for cmd in (["init", "-q", "-b", "main"], ["add", "-A"],
+                ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "fixture"]):
+        subprocess.run(["git", "-C", str(g), *cmd], check=True)
+    return g
+
+
+def sheet_game_fixture_case(
+    name: str,
+    game_countries: list[str] | None,
+    expect_red: bool,
+    pop_policy: str | None = "allowed",
+    must_match: str | None = None,
+    check_built_with_mutated_game: bool = False,
+) -> None:
+    """Exercise real build_sheets.build() and check_game() against a minimal fixture game repo."""
+    root = copy_site()
+    g = _make_fixture_game_repo(game_countries, pop_policy=pop_policy)
+    g_clean = None
+    try:
+        if check_built_with_mutated_game:
+            # First build clean sheets from a clean fixture, then run check_game() against the mutated game repo.
+            g_clean = _make_fixture_game_repo(list(build_sheets.COUNTRIES), pop_policy="allowed")
+            build_sheets.build(g_clean, ref="main", root=root)
+            problems = build_sheets.check_game(g, ref="main", root=root)
+            red = bool(problems)
+            detail = problems[:3]
+        else:
+            try:
+                build_sheets.build(g, ref="main", root=root)
+                build_err: str | None = None
+            except build_sheets.SheetError as e:
+                build_err = str(e)
+            if build_err is not None:
+                red = True
+                detail = [build_err]
+            else:
+                problems = build_sheets.check_game(g, ref="main", root=root)
+                red = bool(problems)
+                detail = problems[:3]
     finally:
         shutil.rmtree(g)
-    ok = red == expect_red
-    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'red  ' if red else 'green'} {name}")
+        if g_clean is not None:
+            shutil.rmtree(g_clean)
+        shutil.rmtree(root)
+    matched = True if (must_match is None or not expect_red) else any(must_match in d for d in detail)
+    ok = (red == expect_red) and matched
+    extra = "" if ok else f"  <- got {detail!r}, want match {must_match!r}"
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'red  ' if red else 'green'} {name}{extra}")
     if not ok:
         failures.append(f"sheet186: {name}")
 
 
-sheet_game_countries_case("game kCountrySheetCountries matches build_sheets.COUNTRIES", list(build_sheets.COUNTRIES), False)
-sheet_game_countries_case("game kCountrySheetCountries adds an extra country (missing on site)",
-                          [*build_sheets.COUNTRIES, "pt"], True)
-sheet_game_countries_case("game kCountrySheetCountries drops a country (mismatch vs site)",
-                          [c for c in build_sheets.COUNTRIES if c != "za"], True)
-sheet_game_countries_case("country_sheet_url.dart missing from game repo", None, True)
+sheet_game_fixture_case(
+    "fixture build() + check_game(): matching kCountrySheetCountries passes",
+    list(build_sheets.COUNTRIES),
+    False,
+)
+sheet_game_fixture_case(
+    "fixture build(): extra country in kCountrySheetCountries raises SheetError",
+    [*build_sheets.COUNTRIES, "pt"],
+    True,
+    must_match="COUNTRIES differs from app/lib/play/country_sheet_url.dart",
+)
+sheet_game_fixture_case(
+    "fixture check_game(): extra country in kCountrySheetCountries goes red",
+    [*build_sheets.COUNTRIES, "pt"],
+    True,
+    must_match="COUNTRIES differs from app/lib/play/country_sheet_url.dart",
+    check_built_with_mutated_game=True,
+)
+sheet_game_fixture_case(
+    "fixture build(): dropped country in kCountrySheetCountries raises SheetError",
+    [c for c in build_sheets.COUNTRIES if c != "za"],
+    True,
+    must_match="COUNTRIES differs from app/lib/play/country_sheet_url.dart",
+)
+sheet_game_fixture_case(
+    "fixture build(): missing country_sheet_url.dart fails closed with SheetError",
+    None,
+    True,
+    must_match="cannot read app/lib/play/country_sheet_url.dart",
+)
+sheet_game_fixture_case(
+    "fixture check_game(): missing country_sheet_url.dart goes red",
+    None,
+    True,
+    must_match="cannot read app/lib/play/country_sheet_url.dart",
+    check_built_with_mutated_game=True,
+)
+sheet_game_fixture_case(
+    "fixture build(): published axis (population) flipped to 'flag' raises SheetError",
+    list(build_sheets.COUNTRIES),
+    True,
+    pop_policy="flag",
+    must_match="web_republish='flag'",
+)
+sheet_game_fixture_case(
+    "fixture check_game(): published axis (population) flipped to 'flag' goes red",
+    list(build_sheets.COUNTRIES),
+    True,
+    pop_policy="flag",
+    must_match="web_republish='flag'",
+    check_built_with_mutated_game=True,
+)
+sheet_game_fixture_case(
+    "fixture build(): axis missing web_republish policy raises SheetError",
+    list(build_sheets.COUNTRIES),
+    True,
+    pop_policy=None,
+    must_match="missing or invalid web_republish",
+)
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")

@@ -1,5 +1,7 @@
 .git
 .github
+.gitignore
+.neon-test.sh
 .wrangler
 node_modules
 src
@@ -11,3 +13,4 @@ wrangler.toml
 docs
 README.md
 testers
+_preview-short
