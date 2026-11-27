@@ -194,100 +194,7 @@
   "countries": {
     "au": {
       "full": {
-        "boards": [
-          {
-            "ax": "solar_watts_per_person",
-            "bsrc": "1st of 185 · United States Energy Information Administration, 2024",
-            "rows": [
-              {
-                "name": "Australia",
-                "rank": "1st",
-                "val": "1,412"
-              },
-              {
-                "name": "Netherlands",
-                "rank": "2nd",
-                "val": "1,336"
-              },
-              {
-                "name": "Germany",
-                "rank": "3rd",
-                "val": "1,077"
-              }
-            ],
-            "title": "Solar panel capacity per person",
-            "unit": "watts"
-          },
-          {
-            "ax": "arable_land_per_person_ha",
-            "bsrc": "2nd of 190 · Food and Agriculture Organization (FAO), via World Bank, World Development Indicators (WDI), 2023",
-            "rows": [
-              {
-                "name": "Kazakhstan",
-                "rank": "1st",
-                "val": "1.5"
-              },
-              {
-                "name": "Australia",
-                "rank": "2nd",
-                "val": "1.2"
-              },
-              {
-                "name": "Argentina",
-                "rank": "3rd",
-                "val": "1.0"
-              }
-            ],
-            "title": "Farmland per person",
-            "unit": "hectares"
-          },
-          {
-            "ax": "eez_area",
-            "bsrc": "3rd of 191 · Marine Regions, World Exclusive Economic Zone (EEZ) version 12, 2023",
-            "rows": [
-              {
-                "name": "France",
-                "rank": "2nd",
-                "val": "9,529,864"
-              },
-              {
-                "name": "Australia",
-                "rank": "3rd",
-                "val": "8,993,463"
-              },
-              {
-                "name": "Russia",
-                "rank": "4th",
-                "val": "7,730,566"
-              }
-            ],
-            "title": "Sea area it controls",
-            "unit": "square kilometres (km²)"
-          },
-          {
-            "ax": "airports_count",
-            "bsrc": "3rd of 189 · Central Intelligence Agency (CIA) World Factbook, 2024 edition, 2024",
-            "rows": [
-              {
-                "name": "Brazil",
-                "rank": "2nd",
-                "val": "4,919"
-              },
-              {
-                "name": "Australia",
-                "rank": "3rd",
-                "val": "2,180"
-              },
-              {
-                "name": "Mexico",
-                "rank": "4th",
-                "val": "1,485"
-              }
-            ],
-            "title": "Airports",
-            "unit": ""
-          }
-        ],
+        "boards": [],
         "consistency_rules": [
           "share_gt_100:energy_self_sufficiency_pct",
           "pop_growth_vs_components"
@@ -478,8 +385,8 @@
           "annual_precipitation": {
             "nodata": false,
             "rank": "140th of 179",
-            "src": "FAO, via World Bank, WDI",
-            "src_text": "FAO, via World Bank, WDI, 2022 · data.worldbank.org",
+            "src": "Food and Agriculture Organization (FAO), via World Bank, WDI",
+            "src_text": "Food and Agriculture Organization (FAO), via World Bank, WDI, 2022 · data.worldbank.org",
             "unit": "millimetres (mm)",
             "url": "https://data.worldbank.org/indicator/AG.LND.PRCP.MM",
             "val": "534",
@@ -668,8 +575,8 @@
           "coastline_km": {
             "nodata": false,
             "rank": "6th of 193",
-            "src": "CIA World Factbook, 2024 edition",
-            "src_text": "CIA World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
+            "src": "Central Intelligence Agency (CIA) World Factbook, 2024 edition",
+            "src_text": "Central Intelligence Agency (CIA) World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
             "unit": "kilometres (km)",
             "url": "https://web.archive.org/web/20240418083207/https://www.cia.gov/the-world-factbook/field/coastline",
             "val": "25,760",
@@ -728,8 +635,8 @@
           "eez_area": {
             "nodata": false,
             "rank": "3rd of 191",
-            "src": "Marine Regions, World EEZ version 12",
-            "src_text": "Marine Regions, World EEZ version 12, 2023 · doi.org",
+            "src": "Marine Regions, World Exclusive Economic Zone (EEZ) version 12",
+            "src_text": "Marine Regions, World Exclusive Economic Zone (EEZ) version 12, 2023 · doi.org",
             "unit": "km²",
             "url": "https://doi.org/10.14284/632",
             "val": "8,993,463",
@@ -1148,9 +1055,9 @@
           "land_area_km2": {
             "nodata": false,
             "rank": "6th of 195",
-            "src": "World Bank, WDI",
-            "src_text": "World Bank, WDI, 2023 · data.worldbank.org",
-            "unit": "km²",
+            "src": "World Bank, World Development Indicators (WDI)",
+            "src_text": "World Bank, World Development Indicators (WDI), 2023 · data.worldbank.org",
+            "unit": "square kilometres (km²)",
             "url": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2",
             "val": "7,692,020",
             "year": "2023"
@@ -2163,100 +2070,7 @@
     },
     "br": {
       "full": {
-        "boards": [
-          {
-            "ax": "football_goal_difference",
-            "bsrc": "1st of 193 · International football results (martj42), 2026",
-            "rows": [
-              {
-                "name": "Brazil",
-                "rank": "1st",
-                "val": "1,354"
-              },
-              {
-                "name": "Germany",
-                "rank": "2nd",
-                "val": "1,128"
-              },
-              {
-                "name": "Argentina",
-                "rank": "3rd",
-                "val": "964"
-              }
-            ],
-            "title": "All-time football goal difference",
-            "unit": ""
-          },
-          {
-            "ax": "cattle_count",
-            "bsrc": "1st of 183 · Food and Agriculture Organization statistical database (FAOSTAT), 2023",
-            "rows": [
-              {
-                "name": "Brazil",
-                "rank": "1st",
-                "val": "238,620,910"
-              },
-              {
-                "name": "India",
-                "rank": "2nd",
-                "val": "194,539,444"
-              },
-              {
-                "name": "United States",
-                "rank": "3rd",
-                "val": "88,841,000"
-              }
-            ],
-            "title": "Cattle",
-            "unit": ""
-          },
-          {
-            "ax": "football_home_win_pct",
-            "bsrc": "1st of 183 · International football results (martj42), 2026",
-            "rows": [
-              {
-                "name": "Brazil",
-                "rank": "1st",
-                "val": "73.5%"
-              },
-              {
-                "name": "Iran",
-                "rank": "2nd",
-                "val": "71.0%"
-              },
-              {
-                "name": "Spain",
-                "rank": "3rd",
-                "val": "69.9%"
-              }
-            ],
-            "title": "Share of home football internationals won",
-            "unit": "%"
-          },
-          {
-            "ax": "renewable_water_internal",
-            "bsrc": "1st of 182 · Food and Agriculture Organization water database (AQUASTAT), via World Bank, World Development Indicators (WDI), 2021",
-            "rows": [
-              {
-                "name": "Brazil",
-                "rank": "1st",
-                "val": "5,661"
-              },
-              {
-                "name": "Russia",
-                "rank": "2nd",
-                "val": "4,312"
-              },
-              {
-                "name": "Canada",
-                "rank": "3rd",
-                "val": "2,850"
-              }
-            ],
-            "title": "Its own fresh water",
-            "unit": "cubic kilometres (km³)"
-          }
-        ],
+        "boards": [],
         "consistency_rules": [
           "share_gt_100:energy_self_sufficiency_pct"
         ],
@@ -3116,8 +2930,8 @@
           "land_area_km2": {
             "nodata": false,
             "rank": "5th of 195",
-            "src": "World Bank, WDI",
-            "src_text": "World Bank, WDI, 2023 · data.worldbank.org",
+            "src": "World Bank, World Development Indicators (WDI)",
+            "src_text": "World Bank, World Development Indicators (WDI), 2023 · data.worldbank.org",
             "unit": "square kilometres (km²)",
             "url": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2",
             "val": "8,358,140",
@@ -3336,8 +3150,8 @@
           "mountain_share_pct": {
             "nodata": false,
             "rank": "129th of 162",
-            "src": "FAOSTAT",
-            "src_text": "FAOSTAT, 2021 · bulks-faostat.fao.org",
+            "src": "Food and Agriculture Organization statistical database (FAOSTAT)",
+            "src_text": "Food and Agriculture Organization statistical database (FAOSTAT), 2021 · bulks-faostat.fao.org",
             "unit": "",
             "url": "https://bulks-faostat.fao.org/production/SDG_BulkDownloads_E_All_Data_(Normalized).zip",
             "val": "6.0%",
@@ -3566,9 +3380,9 @@
           "renewable_water_internal": {
             "nodata": false,
             "rank": "1st of 182",
-            "src": "AQUASTAT, via World Bank, WDI",
-            "src_text": "AQUASTAT, via World Bank, WDI, 2021 · data.worldbank.org",
-            "unit": "km³",
+            "src": "Food and Agriculture Organization water database (AQUASTAT), via World Bank, WDI",
+            "src_text": "Food and Agriculture Organization water database (AQUASTAT), via World Bank, WDI, 2021 · data.worldbank.org",
+            "unit": "cubic kilometres (km³)",
             "url": "https://data.worldbank.org/indicator/ER.H2O.INTR.K3",
             "val": "5,661",
             "year": "2021"
@@ -4131,100 +3945,7 @@
     },
     "ca": {
       "full": {
-        "boards": [
-          {
-            "ax": "coastline_km",
-            "bsrc": "1st of 193 · Central Intelligence Agency (CIA) World Factbook, 2024 edition, 2024",
-            "rows": [
-              {
-                "name": "Canada",
-                "rank": "1st",
-                "val": "202,080"
-              },
-              {
-                "name": "Indonesia",
-                "rank": "2nd",
-                "val": "54,716"
-              },
-              {
-                "name": "Russia",
-                "rank": "3rd",
-                "val": "37,653"
-              }
-            ],
-            "title": "Coastline",
-            "unit": "kilometres (km)"
-          },
-          {
-            "ax": "herbaceous_wetland_area_km2",
-            "bsrc": "2nd of 186 · European Space Agency (ESA) WorldCover 2021, via Food and Agriculture Organization statistical database (FAOSTAT), 2021",
-            "rows": [
-              {
-                "name": "Russia",
-                "rank": "1st",
-                "val": "1,165,531"
-              },
-              {
-                "name": "Canada",
-                "rank": "2nd",
-                "val": "256,404"
-              },
-              {
-                "name": "United States",
-                "rank": "3rd",
-                "val": "129,866"
-              }
-            ],
-            "title": "Marsh and flooded grassland",
-            "unit": "square kilometres (km²)"
-          },
-          {
-            "ax": "petrol_litres_per_person_year",
-            "bsrc": "2nd of 185 · United States Energy Information Administration, 2024",
-            "rows": [
-              {
-                "name": "United States",
-                "rank": "1st",
-                "val": "1,537"
-              },
-              {
-                "name": "Canada",
-                "rank": "2nd",
-                "val": "1,165"
-              },
-              {
-                "name": "United Arab Emirates",
-                "rank": "3rd",
-                "val": "1,037"
-              }
-            ],
-            "title": "Petrol sold per person",
-            "unit": "litres a year"
-          },
-          {
-            "ax": "time_zone_count",
-            "bsrc": "3rd of 195 · Internet Assigned Numbers Authority (IANA) Time Zone Database 2026a, 2026",
-            "rows": [
-              {
-                "name": "Russia",
-                "rank": "2nd",
-                "val": "27"
-              },
-              {
-                "name": "Canada",
-                "rank": "3rd",
-                "val": "23"
-              },
-              {
-                "name": "Brazil",
-                "rank": "4th",
-                "val": "16"
-              }
-            ],
-            "title": "Time-zone regions",
-            "unit": ""
-          }
-        ],
+        "boards": [],
         "consistency_rules": [
           "share_gt_100:energy_self_sufficiency_pct",
           "pop_growth_vs_components"
@@ -4605,9 +4326,9 @@
           "coastline_km": {
             "nodata": false,
             "rank": "1st of 193",
-            "src": "CIA World Factbook, 2024 edition",
-            "src_text": "CIA World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
-            "unit": "km",
+            "src": "Central Intelligence Agency (CIA) World Factbook, 2024 edition",
+            "src_text": "Central Intelligence Agency (CIA) World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
+            "unit": "kilometres (km)",
             "url": "https://web.archive.org/web/20240418083207/https://www.cia.gov/the-world-factbook/field/coastline",
             "val": "202,080",
             "year": "2024"
@@ -5087,7 +4808,7 @@
             "rank": "4th of 195",
             "src": "World Bank, World Development Indicators (WDI)",
             "src_text": "World Bank, World Development Indicators (WDI), 2023 · data.worldbank.org",
-            "unit": "km²",
+            "unit": "square kilometres (km²)",
             "url": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2",
             "val": "8,788,700",
             "year": "2023"
@@ -5185,8 +4906,8 @@
           "mangrove_area_km2": {
             "nodata": true,
             "rank": "Not ranked",
-            "src": "ESA WorldCover 2021, via FAOSTAT",
-            "src_text": "ESA WorldCover 2021, via FAOSTAT, 2021 · bulks-faostat.fao.org",
+            "src": "European Space Agency (ESA) WorldCover 2021, via FAOSTAT",
+            "src_text": "European Space Agency (ESA) WorldCover 2021, via FAOSTAT, 2021 · bulks-faostat.fao.org",
             "unit": "",
             "url": "https://bulks-faostat.fao.org/production/Environment_LandCover_E_All_Data_(Normalized).zip",
             "val": "No data",
@@ -5305,8 +5026,8 @@
           "mountain_share_pct": {
             "nodata": true,
             "rank": "Not ranked",
-            "src": "FAOSTAT",
-            "src_text": "FAOSTAT, 2021 · bulks-faostat.fao.org",
+            "src": "Food and Agriculture Organization statistical database (FAOSTAT)",
+            "src_text": "Food and Agriculture Organization statistical database (FAOSTAT), 2021 · bulks-faostat.fao.org",
             "unit": "",
             "url": "https://bulks-faostat.fao.org/production/SDG_BulkDownloads_E_All_Data_(Normalized).zip",
             "val": "No data",
@@ -5615,8 +5336,8 @@
           "time_zone_count": {
             "nodata": false,
             "rank": "3rd of 195",
-            "src": "IANA Time Zone Database 2026a",
-            "src_text": "IANA Time Zone Database 2026a, 2026 · raw.githubusercontent.com",
+            "src": "Internet Assigned Numbers Authority (IANA) Time Zone Database 2026a",
+            "src_text": "Internet Assigned Numbers Authority (IANA) Time Zone Database 2026a, 2026 · raw.githubusercontent.com",
             "unit": "",
             "url": "https://raw.githubusercontent.com/eggert/tz/2026a/zone1970.tab",
             "val": "23",
@@ -5774,7 +5495,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 137,
       "name": "Canada",
       "short": {
         "boards": [
@@ -6100,100 +5821,7 @@
     },
     "ch": {
       "full": {
-        "boards": [
-          {
-            "ax": "rail_density_km_per_1000km2",
-            "bsrc": "1st of 131 · Central Intelligence Agency (CIA) World Factbook and World Bank (derived), 2024",
-            "rows": [
-              {
-                "name": "Switzerland",
-                "rank": "1st",
-                "val": "134"
-              },
-              {
-                "name": "Czechia",
-                "rank": "2nd",
-                "val": "124"
-              },
-              {
-                "name": "Belgium",
-                "rank": "3rd",
-                "val": "118"
-              }
-            ],
-            "title": "Railway per 1,000 square kilometres (km²) of land",
-            "unit": "kilometres (km)"
-          },
-          {
-            "ax": "mean_years_schooling",
-            "bsrc": "2nd of 192 · United Nations Development Programme (UNDP) Human Development Report 2025, 2023",
-            "rows": [
-              {
-                "name": "Germany",
-                "rank": "1st",
-                "val": "14.30"
-              },
-              {
-                "name": "Switzerland",
-                "rank": "2nd",
-                "val": "13.95"
-              },
-              {
-                "name": "United States",
-                "rank": "3rd",
-                "val": "13.91"
-              }
-            ],
-            "title": "Average adult's years of school",
-            "unit": ""
-          },
-          {
-            "ax": "price_level_gdp_icp",
-            "bsrc": "2nd of 176 · World Bank, International Comparison Program (ICP) 2021, 2021",
-            "rows": [
-              {
-                "name": "Barbados",
-                "rank": "1st",
-                "val": "189"
-              },
-              {
-                "name": "Switzerland",
-                "rank": "2nd",
-                "val": "181"
-              },
-              {
-                "name": "Israel",
-                "rank": "3rd",
-                "val": "179"
-              }
-            ],
-            "title": "How expensive the country is",
-            "unit": "world = 100"
-          },
-          {
-            "ax": "gdp_per_capita_usd",
-            "bsrc": "5th of 187 · World Bank, World Development Indicators (WDI), 2023",
-            "rows": [
-              {
-                "name": "Ireland",
-                "rank": "4th",
-                "val": "106,819"
-              },
-              {
-                "name": "Switzerland",
-                "rank": "5th",
-                "val": "104,450"
-              },
-              {
-                "name": "Norway",
-                "rank": "6th",
-                "val": "90,984"
-              }
-            ],
-            "title": "Gross domestic product (GDP) per capita",
-            "unit": "United States dollars (US$)"
-          }
-        ],
+        "boards": [],
         "consistency_rules": [],
         "shown_axes": [
           "adolescent_fertility_rate",
@@ -6571,9 +6199,9 @@
           "coastline_km": {
             "nodata": false,
             "rank": "150th of 193, tied with 43",
-            "src": "CIA World Factbook, 2024 edition",
-            "src_text": "CIA World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
-            "unit": "km",
+            "src": "Central Intelligence Agency (CIA) World Factbook, 2024 edition",
+            "src_text": "Central Intelligence Agency (CIA) World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
+            "unit": "kilometres (km)",
             "url": "https://web.archive.org/web/20240418083207/https://www.cia.gov/the-world-factbook/field/coastline",
             "val": "0",
             "year": "2024"
@@ -6953,7 +6581,7 @@
             "rank": "20th of 188",
             "src": "World Bank, WDI",
             "src_text": "World Bank, WDI, 2023 · data.worldbank.org",
-            "unit": "US$",
+            "unit": "United States dollars (US$)",
             "url": "https://data.worldbank.org/indicator/NY.GDP.MKTP.CD",
             "val": "928.4 billion",
             "year": "2023"
@@ -7051,9 +6679,9 @@
           "land_area_km2": {
             "nodata": false,
             "rank": "131st of 195",
-            "src": "World Bank, WDI",
-            "src_text": "World Bank, WDI, 2023 · data.worldbank.org",
-            "unit": "km²",
+            "src": "World Bank, World Development Indicators (WDI)",
+            "src_text": "World Bank, World Development Indicators (WDI), 2023 · data.worldbank.org",
+            "unit": "square kilometres (km²)",
             "url": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2",
             "val": "39,510",
             "year": "2023"
@@ -7191,8 +6819,8 @@
           "mean_years_schooling": {
             "nodata": false,
             "rank": "2nd of 192",
-            "src": "UNDP Human Development Report 2025",
-            "src_text": "UNDP Human Development Report 2025, 2023 · hdr.undp.org",
+            "src": "United Nations Development Programme (UNDP) Human Development Report 2025",
+            "src_text": "United Nations Development Programme (UNDP) Human Development Report 2025, 2023 · hdr.undp.org",
             "unit": "",
             "url": "https://hdr.undp.org/data-center/documentation-and-downloads",
             "val": "13.9",
@@ -7451,8 +7079,8 @@
           "price_level_gdp_icp": {
             "nodata": false,
             "rank": "2nd of 176",
-            "src": "World Bank, ICP 2021",
-            "src_text": "World Bank, ICP 2021, 2021 · datacatalog.worldbank.org",
+            "src": "World Bank, International Comparison Program (ICP) 2021",
+            "src_text": "World Bank, International Comparison Program (ICP) 2021, 2021 · datacatalog.worldbank.org",
             "unit": "world = 100",
             "url": "https://datacatalog.worldbank.org/search/dataset/0066092",
             "val": "181",
@@ -7740,7 +7368,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 137,
       "name": "Switzerland",
       "short": {
         "boards": [
@@ -8066,100 +7694,7 @@
     },
     "cn": {
       "full": {
-        "boards": [
-          {
-            "ax": "fish_capture_t",
-            "bsrc": "1st of 194 · Food and Agriculture Organization (FAO), via World Bank, World Development Indicators (WDI), 2024",
-            "rows": [
-              {
-                "name": "China",
-                "rank": "1st",
-                "val": "13,262,322"
-              },
-              {
-                "name": "Indonesia",
-                "rank": "2nd",
-                "val": "7,817,070"
-              },
-              {
-                "name": "India",
-                "rank": "3rd",
-                "val": "6,356,492"
-              }
-            ],
-            "title": "Wild fish caught",
-            "unit": "tonnes"
-          },
-          {
-            "ax": "fish_farmed_t",
-            "bsrc": "1st of 194 · FAO, via World Bank, WDI, 2024",
-            "rows": [
-              {
-                "name": "China",
-                "rank": "1st",
-                "val": "81,949,673"
-              },
-              {
-                "name": "Indonesia",
-                "rank": "2nd",
-                "val": "15,754,684"
-              },
-              {
-                "name": "India",
-                "rank": "3rd",
-                "val": "12,094,195"
-              }
-            ],
-            "title": "Farmed fish",
-            "unit": "tonnes"
-          },
-          {
-            "ax": "land_boundary_km",
-            "bsrc": "1st of 193 · Central Intelligence Agency (CIA) World Factbook, 2024 edition, 2024",
-            "rows": [
-              {
-                "name": "China",
-                "rank": "1st",
-                "val": "22,457"
-              },
-              {
-                "name": "Russia",
-                "rank": "2nd",
-                "val": "22,407"
-              },
-              {
-                "name": "Brazil",
-                "rank": "3rd",
-                "val": "16,145"
-              }
-            ],
-            "title": "Land borders",
-            "unit": "kilometres (km)"
-          },
-          {
-            "ax": "highest_airport_m",
-            "bsrc": "1st of 187 · OurAirports, 2026",
-            "rows": [
-              {
-                "name": "China",
-                "rank": "1st",
-                "val": "4,411"
-              },
-              {
-                "name": "Bolivia",
-                "rank": "2nd",
-                "val": "4,071"
-              },
-              {
-                "name": "Peru",
-                "rank": "3rd",
-                "val": "3,826"
-              }
-            ],
-            "title": "Highest airport you can fly to",
-            "unit": "metres (m)"
-          }
-        ],
+        "boards": [],
         "consistency_rules": [],
         "shown_axes": [
           "adolescent_fertility_rate",
@@ -8347,8 +7882,8 @@
           "annual_precipitation": {
             "nodata": false,
             "rank": "122nd of 179",
-            "src": "FAO, via World Bank, WDI",
-            "src_text": "FAO, via World Bank, WDI, 2022 · data.worldbank.org",
+            "src": "Food and Agriculture Organization (FAO), via World Bank, WDI",
+            "src_text": "Food and Agriculture Organization (FAO), via World Bank, WDI, 2022 · data.worldbank.org",
             "unit": "millimetres (mm)",
             "url": "https://data.worldbank.org/indicator/AG.LND.PRCP.MM",
             "val": "645",
@@ -8537,9 +8072,9 @@
           "coastline_km": {
             "nodata": false,
             "rank": "10th of 193",
-            "src": "CIA World Factbook, 2024 edition",
-            "src_text": "CIA World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
-            "unit": "km",
+            "src": "Central Intelligence Agency (CIA) World Factbook, 2024 edition",
+            "src_text": "Central Intelligence Agency (CIA) World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
+            "unit": "kilometres (km)",
             "url": "https://web.archive.org/web/20240418083207/https://www.cia.gov/the-world-factbook/field/coastline",
             "val": "14,500",
             "year": "2024"
@@ -8549,7 +8084,7 @@
             "rank": "125th of 192",
             "src": "CIA World Factbook and World Bank (derived)",
             "src_text": "CIA World Factbook and World Bank (derived), 2024 · web.archive.org (cia.gov)",
-            "unit": "m per 1,000 km²",
+            "unit": "metres (m) per 1,000 km²",
             "url": "https://web.archive.org/web/20240418083207/https://www.cia.gov/the-world-factbook/field/coastline",
             "val": "1,544",
             "year": "2024"
@@ -9017,8 +8552,8 @@
           "land_area_km2": {
             "nodata": false,
             "rank": "2nd of 195",
-            "src": "World Bank, WDI",
-            "src_text": "World Bank, WDI, 2023 · data.worldbank.org",
+            "src": "World Bank, World Development Indicators (WDI)",
+            "src_text": "World Bank, World Development Indicators (WDI), 2023 · data.worldbank.org",
             "unit": "square kilometres (km²)",
             "url": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2",
             "val": "9,388,210",
@@ -9706,7 +9241,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 139,
       "name": "China",
       "short": {
         "boards": [
@@ -10032,100 +9567,7 @@
     },
     "de": {
       "full": {
-        "boards": [
-          {
-            "ax": "mean_years_schooling",
-            "bsrc": "1st of 192 · United Nations Development Programme (UNDP) Human Development Report 2025, 2023",
-            "rows": [
-              {
-                "name": "Germany",
-                "rank": "1st",
-                "val": "14.30"
-              },
-              {
-                "name": "Switzerland",
-                "rank": "2nd",
-                "val": "13.95"
-              },
-              {
-                "name": "United States",
-                "rank": "3rd",
-                "val": "13.91"
-              }
-            ],
-            "title": "Average adult's years of school",
-            "unit": ""
-          },
-          {
-            "ax": "migrant_stock_total",
-            "bsrc": "2nd of 194 · United Nations Department of Economic and Social Affairs (UN DESA) International Migrant Stock 2024, 2020",
-            "rows": [
-              {
-                "name": "United States",
-                "rank": "1st",
-                "val": "50,471,028"
-              },
-              {
-                "name": "Germany",
-                "rank": "2nd",
-                "val": "15,021,300"
-              },
-              {
-                "name": "Saudi Arabia",
-                "rank": "3rd",
-                "val": "13,071,258"
-              }
-            ],
-            "title": "People born abroad",
-            "unit": ""
-          },
-          {
-            "ax": "football_goal_difference",
-            "bsrc": "2nd of 193 · International football results (martj42), 2026",
-            "rows": [
-              {
-                "name": "Brazil",
-                "rank": "1st",
-                "val": "1,354"
-              },
-              {
-                "name": "Germany",
-                "rank": "2nd",
-                "val": "1,128"
-              },
-              {
-                "name": "Argentina",
-                "rank": "3rd",
-                "val": "964"
-              }
-            ],
-            "title": "All-time football goal difference",
-            "unit": ""
-          },
-          {
-            "ax": "chess_grandmasters",
-            "bsrc": "3rd of 194 · Wikidata, 2026",
-            "rows": [
-              {
-                "name": "United States",
-                "rank": "2nd",
-                "val": "116"
-              },
-              {
-                "name": "Germany",
-                "rank": "3rd",
-                "val": "106"
-              },
-              {
-                "name": "Ukraine",
-                "rank": "4th",
-                "val": "96"
-              }
-            ],
-            "title": "Living chess grandmasters",
-            "unit": ""
-          }
-        ],
+        "boards": [],
         "consistency_rules": [],
         "shown_axes": [
           "adolescent_fertility_rate",
@@ -10343,8 +9785,8 @@
           "avg_household_size": {
             "nodata": false,
             "rank": "150th of 152",
-            "src": "UN DESA Household Size and Composition",
-            "src_text": "UN DESA Household Size and Composition, 2022 · un.org",
+            "src": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition",
+            "src_text": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition, 2022 · un.org",
             "unit": "",
             "url": "https://www.un.org/development/desa/pd/data/household-size-and-composition",
             "val": "2.1",
@@ -11123,8 +10565,8 @@
           "mean_years_schooling": {
             "nodata": false,
             "rank": "1st of 192",
-            "src": "UNDP Human Development Report 2025",
-            "src_text": "UNDP Human Development Report 2025, 2023 · hdr.undp.org",
+            "src": "United Nations Development Programme (UNDP) Human Development Report 2025",
+            "src_text": "United Nations Development Programme (UNDP) Human Development Report 2025, 2023 · hdr.undp.org",
             "unit": "",
             "url": "https://hdr.undp.org/data-center/documentation-and-downloads",
             "val": "14.3",
@@ -11672,7 +11114,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 136,
       "name": "Germany",
       "short": {
         "boards": [
@@ -11998,100 +11440,7 @@
     },
     "eg": {
       "full": {
-        "boards": [
-          {
-            "ax": "barren_land_share",
-            "bsrc": "4th of 194 · European Space Agency (ESA) WorldCover 2021, via Food and Agriculture Organization statistical database (FAOSTAT), 2021",
-            "rows": [
-              {
-                "name": "Qatar",
-                "rank": "3rd",
-                "val": "93.4%"
-              },
-              {
-                "name": "Egypt",
-                "rank": "4th",
-                "val": "92.5%"
-              },
-              {
-                "name": "Kuwait",
-                "rank": "5th",
-                "val": "90.8%"
-              }
-            ],
-            "title": "Desert and bare rock",
-            "unit": "% of land"
-          },
-          {
-            "ax": "football_opponents_faced",
-            "bsrc": "5th of 193 · International football results (martj42), 2026",
-            "rows": [
-              {
-                "name": "China",
-                "rank": "4th",
-                "val": "124"
-              },
-              {
-                "name": "Egypt",
-                "rank": "5th",
-                "val": "120"
-              },
-              {
-                "name": "Japan",
-                "rank": "6th",
-                "val": "116"
-              }
-            ],
-            "title": "Different football opponents faced",
-            "unit": ""
-          },
-          {
-            "ax": "capital_population_proper",
-            "bsrc": "5th of 192 · United Nations Department of Economic and Social Affairs (UN DESA) World Urbanization Prospects 2025, 2025",
-            "rows": [
-              {
-                "name": "India",
-                "rank": "4th",
-                "val": "30,222,405"
-              },
-              {
-                "name": "Egypt",
-                "rank": "5th",
-                "val": "25,566,102"
-              },
-              {
-                "name": "Philippines",
-                "rank": "6th",
-                "val": "24,735,305"
-              }
-            ],
-            "title": "Capital population",
-            "unit": ""
-          },
-          {
-            "ax": "tomato_production_t",
-            "bsrc": "5th of 164 · FAOSTAT, via Our World in Data, 2023",
-            "rows": [
-              {
-                "name": "United States",
-                "rank": "4th",
-                "val": "12,361,824"
-              },
-              {
-                "name": "Egypt",
-                "rank": "5th",
-                "val": "7,115,604"
-              },
-              {
-                "name": "Italy",
-                "rank": "6th",
-                "val": "6,016,050"
-              }
-            ],
-            "title": "Tomatoes grown",
-            "unit": "tonnes"
-          }
-        ],
+        "boards": [],
         "consistency_rules": [
           "share_gt_100:water_stress_pct"
         ],
@@ -12311,8 +11660,8 @@
           "avg_household_size": {
             "nodata": false,
             "rank": "63rd of 152",
-            "src": "UN DESA Household Size and Composition",
-            "src_text": "UN DESA Household Size and Composition, 2022 · un.org",
+            "src": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition",
+            "src_text": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition, 2022 · un.org",
             "unit": "",
             "url": "https://www.un.org/development/desa/pd/data/household-size-and-composition",
             "val": "4.1",
@@ -13051,8 +12400,8 @@
           "mangrove_area_km2": {
             "nodata": false,
             "rank": "85th of 96",
-            "src": "ESA WorldCover 2021, via FAOSTAT",
-            "src_text": "ESA WorldCover 2021, via FAOSTAT, 2021 · bulks-faostat.fao.org",
+            "src": "European Space Agency (ESA) WorldCover 2021, via FAOSTAT",
+            "src_text": "European Space Agency (ESA) WorldCover 2021, via FAOSTAT, 2021 · bulks-faostat.fao.org",
             "unit": "km²",
             "url": "https://bulks-faostat.fao.org/production/Environment_LandCover_E_All_Data_(Normalized).zip",
             "val": "1.5",
@@ -13171,8 +12520,8 @@
           "mountain_share_pct": {
             "nodata": false,
             "rank": "122nd of 162",
-            "src": "FAOSTAT",
-            "src_text": "FAOSTAT, 2021 · bulks-faostat.fao.org",
+            "src": "Food and Agriculture Organization statistical database (FAOSTAT)",
+            "src_text": "Food and Agriculture Organization statistical database (FAOSTAT), 2021 · bulks-faostat.fao.org",
             "unit": "",
             "url": "https://bulks-faostat.fao.org/production/SDG_BulkDownloads_E_All_Data_(Normalized).zip",
             "val": "8.5%",
@@ -13640,7 +12989,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 137,
       "name": "Egypt",
       "short": {
         "boards": [
@@ -13968,100 +13317,7 @@
     },
     "fr": {
       "full": {
-        "boards": [
-          {
-            "ax": "nuclear_share_of_electricity",
-            "bsrc": "1st of 185 · United States Energy Information Administration, 2024",
-            "rows": [
-              {
-                "name": "France",
-                "rank": "1st",
-                "val": "67.1%"
-              },
-              {
-                "name": "Slovakia",
-                "rank": "2nd",
-                "val": "63.9%"
-              },
-              {
-                "name": "Ukraine",
-                "rank": "3rd",
-                "val": "53.3%"
-              }
-            ],
-            "title": "Electricity it generates from nuclear",
-            "unit": "%"
-          },
-          {
-            "ax": "eez_area",
-            "bsrc": "2nd of 191 · Marine Regions, World Exclusive Economic Zone (EEZ) version 12, 2023",
-            "rows": [
-              {
-                "name": "United States",
-                "rank": "1st",
-                "val": "11,733,355"
-              },
-              {
-                "name": "France",
-                "rank": "2nd",
-                "val": "9,529,864"
-              },
-              {
-                "name": "Australia",
-                "rank": "3rd",
-                "val": "8,993,463"
-              }
-            ],
-            "title": "Sea area it controls",
-            "unit": "square kilometres (km²)"
-          },
-          {
-            "ax": "migrant_stock_total",
-            "bsrc": "5th of 194 · United Nations Department of Economic and Social Affairs (UN DESA) International Migrant Stock 2024, 2020",
-            "rows": [
-              {
-                "name": "United Kingdom",
-                "rank": "4th",
-                "val": "10,520,870"
-              },
-              {
-                "name": "France",
-                "rank": "5th",
-                "val": "8,610,719"
-              },
-              {
-                "name": "Canada",
-                "rank": "6th",
-                "val": "8,332,892"
-              }
-            ],
-            "title": "People born abroad",
-            "unit": ""
-          },
-          {
-            "ax": "chess_grandmasters",
-            "bsrc": "7th of 194 · Wikidata, 2026",
-            "rows": [
-              {
-                "name": "Spain",
-                "rank": "6th",
-                "val": "66"
-              },
-              {
-                "name": "France",
-                "rank": "7th",
-                "val": "64"
-              },
-              {
-                "name": "China",
-                "rank": "8th",
-                "val": "57"
-              }
-            ],
-            "title": "Living chess grandmasters",
-            "unit": ""
-          }
-        ],
+        "boards": [],
         "consistency_rules": [],
         "shown_axes": [
           "adolescent_fertility_rate",
@@ -14279,8 +13535,8 @@
           "avg_household_size": {
             "nodata": false,
             "rank": "147th of 152, tied with 1",
-            "src": "UN DESA Household Size and Composition",
-            "src_text": "UN DESA Household Size and Composition, 2022 · un.org",
+            "src": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition",
+            "src_text": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition, 2022 · un.org",
             "unit": "",
             "url": "https://www.un.org/development/desa/pd/data/household-size-and-composition",
             "val": "2.2",
@@ -14499,8 +13755,8 @@
           "eez_area": {
             "nodata": false,
             "rank": "2nd of 191",
-            "src": "Marine Regions, World EEZ version 12",
-            "src_text": "Marine Regions, World EEZ version 12, 2023 · doi.org",
+            "src": "Marine Regions, World Exclusive Economic Zone (EEZ) version 12",
+            "src_text": "Marine Regions, World Exclusive Economic Zone (EEZ) version 12, 2023 · doi.org",
             "unit": "km²",
             "url": "https://doi.org/10.14284/632",
             "val": "9,529,864",
@@ -14921,7 +14177,7 @@
             "rank": "48th of 195",
             "src": "World Bank, World Development Indicators (WDI)",
             "src_text": "World Bank, World Development Indicators (WDI), 2023 · data.worldbank.org",
-            "unit": "km²",
+            "unit": "square kilometres (km²)",
             "url": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2",
             "val": "538,950",
             "year": "2023"
@@ -15608,7 +14864,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 138,
       "name": "France",
       "short": {
         "boards": [
@@ -15934,100 +15190,7 @@
     },
     "gb": {
       "full": {
-        "boards": [
-          {
-            "ax": "migrant_stock_total",
-            "bsrc": "4th of 194 · United Nations Department of Economic and Social Affairs (UN DESA) International Migrant Stock 2024, 2020",
-            "rows": [
-              {
-                "name": "Saudi Arabia",
-                "rank": "3rd",
-                "val": "13,071,258"
-              },
-              {
-                "name": "United Kingdom",
-                "rank": "4th",
-                "val": "10,520,870"
-              },
-              {
-                "name": "France",
-                "rank": "5th",
-                "val": "8,610,719"
-              }
-            ],
-            "title": "People born abroad",
-            "unit": ""
-          },
-          {
-            "ax": "bank_account_ownership_pct",
-            "bsrc": "4th of 137 · World Bank Global Findex 2024, 2024",
-            "rows": [
-              {
-                "name": "Austria",
-                "rank": "3rd",
-                "val": "99.5%"
-              },
-              {
-                "name": "United Kingdom",
-                "rank": "4th",
-                "val": "99.3%"
-              },
-              {
-                "name": "France",
-                "rank": "5th",
-                "val": "99.2%"
-              }
-            ],
-            "title": "Adults with a bank account",
-            "unit": "%"
-          },
-          {
-            "ax": "net_migration",
-            "bsrc": "6th of 194 · United Nations (UN) World Population Prospects 2024, via World Bank, World Development Indicators (WDI), 2023",
-            "rows": [
-              {
-                "name": "South Sudan",
-                "rank": "5th",
-                "val": "455,000"
-              },
-              {
-                "name": "United Kingdom",
-                "rank": "6th",
-                "val": "445,523"
-              },
-              {
-                "name": "Canada",
-                "rank": "7th",
-                "val": "433,842"
-              }
-            ],
-            "title": "Net migration",
-            "unit": "people"
-          },
-          {
-            "ax": "airports_count",
-            "bsrc": "6th of 189 · Central Intelligence Agency (CIA) World Factbook, 2024 edition, 2024",
-            "rows": [
-              {
-                "name": "Canada",
-                "rank": "5th",
-                "val": "1,425"
-              },
-              {
-                "name": "United Kingdom",
-                "rank": "6th",
-                "val": "1,043"
-              },
-              {
-                "name": "Russia",
-                "rank": "7th",
-                "val": "904"
-              }
-            ],
-            "title": "Airports",
-            "unit": ""
-          }
-        ],
+        "boards": [],
         "consistency_rules": [],
         "shown_axes": [
           "adolescent_fertility_rate",
@@ -16245,8 +15408,8 @@
           "avg_household_size": {
             "nodata": false,
             "rank": "136th of 152",
-            "src": "UN DESA Household Size and Composition",
-            "src_text": "UN DESA Household Size and Composition, 2022 · un.org",
+            "src": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition",
+            "src_text": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition, 2022 · un.org",
             "unit": "",
             "url": "https://www.un.org/development/desa/pd/data/household-size-and-composition",
             "val": "2.4",
@@ -16405,8 +15568,8 @@
           "coastline_km": {
             "nodata": false,
             "rank": "12th of 193",
-            "src": "CIA World Factbook, 2024 edition",
-            "src_text": "CIA World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
+            "src": "Central Intelligence Agency (CIA) World Factbook, 2024 edition",
+            "src_text": "Central Intelligence Agency (CIA) World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
             "unit": "kilometres (km)",
             "url": "https://web.archive.org/web/20240418083207/https://www.cia.gov/the-world-factbook/field/coastline",
             "val": "12,429",
@@ -16885,8 +16048,8 @@
           "land_area_km2": {
             "nodata": false,
             "rank": "78th of 195",
-            "src": "World Bank, WDI",
-            "src_text": "World Bank, WDI, 2023 · data.worldbank.org",
+            "src": "World Bank, World Development Indicators (WDI)",
+            "src_text": "World Bank, World Development Indicators (WDI), 2023 · data.worldbank.org",
             "unit": "square kilometres (km²)",
             "url": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2",
             "val": "241,930",
@@ -17235,8 +16398,8 @@
           "population_growth_rate": {
             "nodata": false,
             "rank": "88th of 194",
-            "src": "UN World Population Prospects 2024, via World Bank, WDI",
-            "src_text": "UN World Population Prospects 2024, via World Bank, WDI, 2023 · data.worldbank.org",
+            "src": "United Nations (UN) World Population Prospects 2024, via World Bank, WDI",
+            "src_text": "United Nations (UN) World Population Prospects 2024, via World Bank, WDI, 2023 · data.worldbank.org",
             "unit": "a year",
             "url": "https://data.worldbank.org/indicator/SP.POP.GROW",
             "val": "1.3%",
@@ -17574,7 +16737,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 130,
       "name": "United Kingdom",
       "short": {
         "boards": [
@@ -17677,7 +16840,7 @@
           "bank_account_ownership_pct",
           "coastline_km",
           "eez_area",
-          "football_matches_all_time",
+          "emigrants_abroad_total",
           "forest_pct",
           "gdp_total_usd",
           "grassland_share_pct",
@@ -17735,15 +16898,15 @@
             "val": "4,085,524",
             "year": "2023"
           },
-          "football_matches_all_time": {
-            "nodata": true,
-            "rank": "Not ranked",
-            "src": "International football results (martj42)",
-            "src_text": "International football results (martj42), 2026 · github.com",
+          "emigrants_abroad_total": {
+            "nodata": false,
+            "rank": "11th of 195",
+            "src": "UN DESA International Migrant Stock 2024",
+            "src_text": "UN DESA International Migrant Stock 2024, 2020 · un.org",
             "unit": "",
-            "url": "https://github.com/martj42/international_results",
-            "val": "No data",
-            "year": "2026"
+            "url": "https://www.un.org/development/desa/pd/content/international-migrant-stock",
+            "val": "4,710,579",
+            "year": "2020"
           },
           "forest_pct": {
             "nodata": false,
@@ -17900,100 +17063,7 @@
     },
     "il": {
       "full": {
-        "boards": [
-          {
-            "ax": "price_level_gdp_icp",
-            "bsrc": "3rd of 176 · World Bank, International Comparison Program (ICP) 2021, 2021",
-            "rows": [
-              {
-                "name": "Switzerland",
-                "rank": "2nd",
-                "val": "181"
-              },
-              {
-                "name": "Israel",
-                "rank": "3rd",
-                "val": "179"
-              },
-              {
-                "name": "Iceland",
-                "rank": "4th",
-                "val": "177"
-              }
-            ],
-            "title": "How expensive the country is",
-            "unit": "world = 100"
-          },
-          {
-            "ax": "daily_calorie_supply",
-            "bsrc": "4th of 182 · Food and Agriculture Organization (FAO) Food Balance Sheets, via Our World in Data, 2022",
-            "rows": [
-              {
-                "name": "Belgium",
-                "rank": "3rd",
-                "val": "3,918"
-              },
-              {
-                "name": "Israel",
-                "rank": "4th",
-                "val": "3,917"
-              },
-              {
-                "name": "Serbia",
-                "rank": "5th",
-                "val": "3,860"
-              }
-            ],
-            "title": "Food supplied a day",
-            "unit": "kilocalories"
-          },
-          {
-            "ax": "poultry_supply_kg",
-            "bsrc": "5th of 171 · FAO Food Balance Sheets, 2023",
-            "rows": [
-              {
-                "name": "Marshall Islands",
-                "rank": "4th",
-                "val": "74.2"
-              },
-              {
-                "name": "Israel",
-                "rank": "5th",
-                "val": "72.8"
-              },
-              {
-                "name": "Samoa",
-                "rank": "6th",
-                "val": "72.0"
-              }
-            ],
-            "title": "Poultry supply",
-            "unit": "kilograms (kg) per person a year"
-          },
-          {
-            "ax": "mean_years_schooling",
-            "bsrc": "8th of 192 · United Nations Development Programme (UNDP) Human Development Report 2025, 2023",
-            "rows": [
-              {
-                "name": "Estonia",
-                "rank": "7th",
-                "val": "13.56"
-              },
-              {
-                "name": "Israel",
-                "rank": "8th",
-                "val": "13.54"
-              },
-              {
-                "name": "United Kingdom",
-                "rank": "9th",
-                "val": "13.49"
-              }
-            ],
-            "title": "Average adult's years of school",
-            "unit": ""
-          }
-        ],
+        "boards": [],
         "consistency_rules": [
           "pop_growth_vs_components"
         ],
@@ -18183,8 +17253,8 @@
           "annual_precipitation": {
             "nodata": true,
             "rank": "Not ranked",
-            "src": "FAO, via World Bank, WDI",
-            "src_text": "FAO, via World Bank, WDI, 2022 · data.worldbank.org",
+            "src": "Food and Agriculture Organization (FAO), via World Bank, WDI",
+            "src_text": "Food and Agriculture Organization (FAO), via World Bank, WDI, 2022 · data.worldbank.org",
             "unit": "",
             "url": "https://data.worldbank.org/indicator/AG.LND.PRCP.MM",
             "val": "No data",
@@ -18325,7 +17395,7 @@
             "rank": "98th of 176",
             "src": "FAO, via World Bank, WDI",
             "src_text": "FAO, via World Bank, WDI, 2023 · data.worldbank.org",
-            "unit": "kg",
+            "unit": "kilograms (kg)",
             "url": "https://data.worldbank.org/indicator/AG.YLD.CREL.KG",
             "val": "2,551",
             "year": "2023"
@@ -18993,8 +18063,8 @@
           "mean_years_schooling": {
             "nodata": false,
             "rank": "8th of 192",
-            "src": "UNDP Human Development Report 2025",
-            "src_text": "UNDP Human Development Report 2025, 2023 · hdr.undp.org",
+            "src": "United Nations Development Programme (UNDP) Human Development Report 2025",
+            "src_text": "United Nations Development Programme (UNDP) Human Development Report 2025, 2023 · hdr.undp.org",
             "unit": "",
             "url": "https://hdr.undp.org/data-center/documentation-and-downloads",
             "val": "13.5",
@@ -19253,8 +18323,8 @@
           "price_level_gdp_icp": {
             "nodata": false,
             "rank": "3rd of 176",
-            "src": "World Bank, ICP 2021",
-            "src_text": "World Bank, ICP 2021, 2021 · datacatalog.worldbank.org",
+            "src": "World Bank, International Comparison Program (ICP) 2021",
+            "src_text": "World Bank, International Comparison Program (ICP) 2021, 2021 · datacatalog.worldbank.org",
             "unit": "world = 100",
             "url": "https://datacatalog.worldbank.org/search/dataset/0066092",
             "val": "179",
@@ -19542,7 +18612,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 126,
       "name": "Israel",
       "short": {
         "boards": [
@@ -19868,100 +18938,7 @@
     },
     "in": {
       "full": {
-        "boards": [
-          {
-            "ax": "emigrants_abroad_total",
-            "bsrc": "1st of 195 · United Nations Department of Economic and Social Affairs (UN DESA) International Migrant Stock 2024, 2020",
-            "rows": [
-              {
-                "name": "India",
-                "rank": "1st",
-                "val": "16,532,761"
-              },
-              {
-                "name": "Mexico",
-                "rank": "2nd",
-                "val": "11,452,717"
-              },
-              {
-                "name": "China",
-                "rank": "3rd",
-                "val": "11,169,868"
-              }
-            ],
-            "title": "People living abroad",
-            "unit": ""
-          },
-          {
-            "ax": "population",
-            "bsrc": "1st of 195 · World Bank, World Development Indicators (WDI), 2023",
-            "rows": [
-              {
-                "name": "India",
-                "rank": "1st",
-                "val": "1,438,069,596"
-              },
-              {
-                "name": "China",
-                "rank": "2nd",
-                "val": "1,410,710,000"
-              },
-              {
-                "name": "United States",
-                "rank": "3rd",
-                "val": "336,755,052"
-              }
-            ],
-            "title": "Population",
-            "unit": "people"
-          },
-          {
-            "ax": "milk_production_t",
-            "bsrc": "1st of 179 · Food and Agriculture Organization statistical database (FAOSTAT), via Our World in Data, 2023",
-            "rows": [
-              {
-                "name": "India",
-                "rank": "1st",
-                "val": "239,306,910"
-              },
-              {
-                "name": "United States",
-                "rank": "2nd",
-                "val": "102,678,760"
-              },
-              {
-                "name": "Pakistan",
-                "rank": "3rd",
-                "val": "64,581,550"
-              }
-            ],
-            "title": "Milk produced",
-            "unit": "tonnes"
-          },
-          {
-            "ax": "water_withdrawal_km3",
-            "bsrc": "1st of 178 · Food and Agriculture Organization water database (AQUASTAT), via World Bank, WDI, 2022",
-            "rows": [
-              {
-                "name": "India",
-                "rank": "1st",
-                "val": "648"
-              },
-              {
-                "name": "China",
-                "rank": "2nd",
-                "val": "568"
-              },
-              {
-                "name": "United States",
-                "rank": "3rd",
-                "val": "444"
-              }
-            ],
-            "title": "Fresh water taken out",
-            "unit": "cubic kilometres (km³)"
-          }
-        ],
+        "boards": [],
         "consistency_rules": [],
         "shown_axes": [
           "adolescent_fertility_rate",
@@ -20179,8 +19156,8 @@
           "avg_household_size": {
             "nodata": false,
             "rank": "52nd of 152",
-            "src": "UN DESA Household Size and Composition",
-            "src_text": "UN DESA Household Size and Composition, 2022 · un.org",
+            "src": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition",
+            "src_text": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition, 2022 · un.org",
             "unit": "",
             "url": "https://www.un.org/development/desa/pd/data/household-size-and-composition",
             "val": "4.4",
@@ -20819,8 +19796,8 @@
           "land_area_km2": {
             "nodata": false,
             "rank": "7th of 195",
-            "src": "World Bank, WDI",
-            "src_text": "World Bank, WDI, 2023 · data.worldbank.org",
+            "src": "World Bank, World Development Indicators (WDI)",
+            "src_text": "World Bank, World Development Indicators (WDI), 2023 · data.worldbank.org",
             "unit": "square kilometres (km²)",
             "url": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2",
             "val": "2,973,190",
@@ -21039,8 +20016,8 @@
           "mountain_share_pct": {
             "nodata": false,
             "rank": "105th of 162",
-            "src": "FAOSTAT",
-            "src_text": "FAOSTAT, 2021 · bulks-faostat.fao.org",
+            "src": "Food and Agriculture Organization statistical database (FAOSTAT)",
+            "src_text": "Food and Agriculture Organization statistical database (FAOSTAT), 2021 · bulks-faostat.fao.org",
             "unit": "",
             "url": "https://bulks-faostat.fao.org/production/SDG_BulkDownloads_E_All_Data_(Normalized).zip",
             "val": "15.0%",
@@ -21269,9 +20246,9 @@
           "renewable_water_internal": {
             "nodata": false,
             "rank": "9th of 182",
-            "src": "AQUASTAT, via World Bank, WDI",
-            "src_text": "AQUASTAT, via World Bank, WDI, 2021 · data.worldbank.org",
-            "unit": "km³",
+            "src": "Food and Agriculture Organization water database (AQUASTAT), via World Bank, WDI",
+            "src_text": "Food and Agriculture Organization water database (AQUASTAT), via World Bank, WDI, 2021 · data.worldbank.org",
+            "unit": "cubic kilometres (km³)",
             "url": "https://data.worldbank.org/indicator/ER.H2O.INTR.K3",
             "val": "1,446",
             "year": "2021"
@@ -21834,100 +20811,7 @@
     },
     "it": {
       "full": {
-        "boards": [
-          {
-            "ax": "median_age",
-            "bsrc": "4th of 195 · United Nations (UN) World Population Prospects 2024, via Our World in Data, 2023",
-            "rows": [
-              {
-                "name": "Japan",
-                "rank": "3rd",
-                "val": "49.0"
-              },
-              {
-                "name": "Italy",
-                "rank": "4th",
-                "val": "47.5"
-              },
-              {
-                "name": "San Marino",
-                "rank": "5th",
-                "val": "47.4"
-              }
-            ],
-            "title": "Median age",
-            "unit": "years"
-          },
-          {
-            "ax": "mean_age_at_childbearing",
-            "bsrc": "7th of 195 · UN World Population Prospects 2024, 2023",
-            "rows": [
-              {
-                "name": "Luxembourg",
-                "rank": "6th",
-                "val": "32.32"
-              },
-              {
-                "name": "Italy",
-                "rank": "7th",
-                "val": "32.31"
-              },
-              {
-                "name": "Switzerland",
-                "rank": "8th",
-                "val": "32.30"
-              }
-            ],
-            "title": "Average age at childbirth",
-            "unit": "years"
-          },
-          {
-            "ax": "tomato_production_t",
-            "bsrc": "6th of 164 · Food and Agriculture Organization statistical database (FAOSTAT), via Our World in Data, 2023",
-            "rows": [
-              {
-                "name": "Egypt",
-                "rank": "5th",
-                "val": "7,115,604"
-              },
-              {
-                "name": "Italy",
-                "rank": "6th",
-                "val": "6,016,050"
-              },
-              {
-                "name": "Mexico",
-                "rank": "7th",
-                "val": "4,394,807"
-              }
-            ],
-            "title": "Tomatoes grown",
-            "unit": "tonnes"
-          },
-          {
-            "ax": "gdp_total_usd",
-            "bsrc": "8th of 188 · World Bank, World Development Indicators (WDI), 2023",
-            "rows": [
-              {
-                "name": "France",
-                "rank": "7th",
-                "val": "3.06 trillion"
-              },
-              {
-                "name": "Italy",
-                "rank": "8th",
-                "val": "2.32 trillion"
-              },
-              {
-                "name": "Canada",
-                "rank": "9th",
-                "val": "2.20 trillion"
-              }
-            ],
-            "title": "Total gross domestic product (GDP)",
-            "unit": "United States dollars (US$)"
-          }
-        ],
+        "boards": [],
         "consistency_rules": [],
         "shown_axes": [
           "adolescent_fertility_rate",
@@ -22687,7 +21571,7 @@
             "rank": "8th of 188",
             "src": "World Bank, WDI",
             "src_text": "World Bank, WDI, 2023 · data.worldbank.org",
-            "unit": "US$",
+            "unit": "United States dollars (US$)",
             "url": "https://data.worldbank.org/indicator/NY.GDP.MKTP.CD",
             "val": "2.32 trillion",
             "year": "2023"
@@ -22785,8 +21669,8 @@
           "land_area_km2": {
             "nodata": false,
             "rank": "72nd of 195",
-            "src": "World Bank, WDI",
-            "src_text": "World Bank, WDI, 2023 · data.worldbank.org",
+            "src": "World Bank, World Development Indicators (WDI)",
+            "src_text": "World Bank, World Development Indicators (WDI), 2023 · data.worldbank.org",
             "unit": "square kilometres (km²)",
             "url": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2",
             "val": "295,720",
@@ -23005,8 +21889,8 @@
           "mountain_share_pct": {
             "nodata": false,
             "rank": "43rd of 162",
-            "src": "FAOSTAT",
-            "src_text": "FAOSTAT, 2021 · bulks-faostat.fao.org",
+            "src": "Food and Agriculture Organization statistical database (FAOSTAT)",
+            "src_text": "Food and Agriculture Organization statistical database (FAOSTAT), 2021 · bulks-faostat.fao.org",
             "unit": "",
             "url": "https://bulks-faostat.fao.org/production/SDG_BulkDownloads_E_All_Data_(Normalized).zip",
             "val": "48.2%",
@@ -23135,8 +22019,8 @@
           "population_growth_rate": {
             "nodata": false,
             "rank": "166th of 194",
-            "src": "UN World Population Prospects 2024, via World Bank, WDI",
-            "src_text": "UN World Population Prospects 2024, via World Bank, WDI, 2023 · data.worldbank.org",
+            "src": "United Nations (UN) World Population Prospects 2024, via World Bank, WDI",
+            "src_text": "United Nations (UN) World Population Prospects 2024, via World Bank, WDI, 2023 · data.worldbank.org",
             "unit": "a year",
             "url": "https://data.worldbank.org/indicator/SP.POP.GROW",
             "val": "-0.05%",
@@ -23474,7 +22358,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 135,
       "name": "Italy",
       "short": {
         "boards": [
@@ -23800,100 +22684,7 @@
     },
     "jp": {
       "full": {
-        "boards": [
-          {
-            "ax": "healthy_diet_cost_ppp",
-            "bsrc": "1st of 159 · World Bank Food Prices for Nutrition, 2024",
-            "rows": [
-              {
-                "name": "Japan",
-                "rank": "1st",
-                "val": "7.79"
-              },
-              {
-                "name": "Syria",
-                "rank": "2nd",
-                "val": "7.63"
-              },
-              {
-                "name": "South Korea",
-                "rank": "3rd",
-                "val": "7.09"
-              }
-            ],
-            "title": "A day's healthy food",
-            "unit": "dollars a person"
-          },
-          {
-            "ax": "life_expectancy",
-            "bsrc": "3rd of 195 · United Nations (UN) World Population Prospects 2024, via Our World in Data, 2023",
-            "rows": [
-              {
-                "name": "San Marino",
-                "rank": "2nd",
-                "val": "85.7"
-              },
-              {
-                "name": "Japan",
-                "rank": "3rd",
-                "val": "84.7"
-              },
-              {
-                "name": "South Korea",
-                "rank": "4th",
-                "val": "84.3"
-              }
-            ],
-            "title": "Life expectancy",
-            "unit": "years"
-          },
-          {
-            "ax": "median_age",
-            "bsrc": "3rd of 195 · UN World Population Prospects 2024, via Our World in Data, 2023",
-            "rows": [
-              {
-                "name": "Monaco",
-                "rank": "2nd",
-                "val": "54.4"
-              },
-              {
-                "name": "Japan",
-                "rank": "3rd",
-                "val": "49.0"
-              },
-              {
-                "name": "Italy",
-                "rank": "4th",
-                "val": "47.5"
-              }
-            ],
-            "title": "Median age",
-            "unit": "years"
-          },
-          {
-            "ax": "capital_population_proper",
-            "bsrc": "3rd of 192 · United Nations Department of Economic and Social Affairs (UN DESA) World Urbanization Prospects 2025, 2025",
-            "rows": [
-              {
-                "name": "Bangladesh",
-                "rank": "2nd",
-                "val": "36,585,479"
-              },
-              {
-                "name": "Japan",
-                "rank": "3rd",
-                "val": "33,412,512"
-              },
-              {
-                "name": "India",
-                "rank": "4th",
-                "val": "30,222,405"
-              }
-            ],
-            "title": "Capital population",
-            "unit": ""
-          }
-        ],
+        "boards": [],
         "consistency_rules": [],
         "shown_axes": [
           "adolescent_fertility_rate",
@@ -24111,8 +22902,8 @@
           "avg_household_size": {
             "nodata": false,
             "rank": "140th of 152",
-            "src": "UN DESA Household Size and Composition",
-            "src_text": "UN DESA Household Size and Composition, 2022 · un.org",
+            "src": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition",
+            "src_text": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition, 2022 · un.org",
             "unit": "",
             "url": "https://www.un.org/development/desa/pd/data/household-size-and-composition",
             "val": "2.3",
@@ -25101,8 +23892,8 @@
           "population_growth_rate": {
             "nodata": false,
             "rank": "183rd of 194",
-            "src": "UN World Population Prospects 2024, via World Bank, WDI",
-            "src_text": "UN World Population Prospects 2024, via World Bank, WDI, 2023 · data.worldbank.org",
+            "src": "United Nations (UN) World Population Prospects 2024, via World Bank, WDI",
+            "src_text": "United Nations (UN) World Population Prospects 2024, via World Bank, WDI, 2023 · data.worldbank.org",
             "unit": "a year",
             "url": "https://data.worldbank.org/indicator/SP.POP.GROW",
             "val": "-0.5%",
@@ -25440,7 +24231,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 122,
       "name": "Japan",
       "short": {
         "boards": [
@@ -25766,100 +24557,7 @@
     },
     "mx": {
       "full": {
-        "boards": [
-          {
-            "ax": "emigrants_abroad_total",
-            "bsrc": "2nd of 195 · United Nations Department of Economic and Social Affairs (UN DESA) International Migrant Stock 2024, 2020",
-            "rows": [
-              {
-                "name": "India",
-                "rank": "1st",
-                "val": "16,532,761"
-              },
-              {
-                "name": "Mexico",
-                "rank": "2nd",
-                "val": "11,452,717"
-              },
-              {
-                "name": "China",
-                "rank": "3rd",
-                "val": "11,169,868"
-              }
-            ],
-            "title": "People living abroad",
-            "unit": ""
-          },
-          {
-            "ax": "maize_supply_kg",
-            "bsrc": "2nd of 168 · Food and Agriculture Organization (FAO) Food Balance Sheets, 2023",
-            "rows": [
-              {
-                "name": "Malawi",
-                "rank": "1st",
-                "val": "128"
-              },
-              {
-                "name": "Mexico",
-                "rank": "2nd",
-                "val": "124"
-              },
-              {
-                "name": "Zambia",
-                "rank": "3rd",
-                "val": "102"
-              }
-            ],
-            "title": "Corn supply",
-            "unit": "kilograms (kg) per person a year"
-          },
-          {
-            "ax": "airports_count",
-            "bsrc": "4th of 189 · Central Intelligence Agency (CIA) World Factbook, 2024 edition, 2024",
-            "rows": [
-              {
-                "name": "Australia",
-                "rank": "3rd",
-                "val": "2,180"
-              },
-              {
-                "name": "Mexico",
-                "rank": "4th",
-                "val": "1,485"
-              },
-              {
-                "name": "Canada",
-                "rank": "5th",
-                "val": "1,425"
-              }
-            ],
-            "title": "Airports",
-            "unit": ""
-          },
-          {
-            "ax": "mountain_area_km2",
-            "bsrc": "4th of 162 · Food and Agriculture Organization statistical database (FAOSTAT), 2021",
-            "rows": [
-              {
-                "name": "United States",
-                "rank": "3rd",
-                "val": "2,466,532"
-              },
-              {
-                "name": "Mexico",
-                "rank": "4th",
-                "val": "941,982"
-              },
-              {
-                "name": "Iran",
-                "rank": "5th",
-                "val": "931,338"
-              }
-            ],
-            "title": "Biggest area of mountains",
-            "unit": "square kilometres (km²)"
-          }
-        ],
+        "boards": [],
         "consistency_rules": [],
         "shown_axes": [
           "adolescent_fertility_rate",
@@ -26047,8 +24745,8 @@
           "annual_precipitation": {
             "nodata": false,
             "rank": "109th of 179",
-            "src": "FAO, via World Bank, WDI",
-            "src_text": "FAO, via World Bank, WDI, 2022 · data.worldbank.org",
+            "src": "Food and Agriculture Organization (FAO), via World Bank, WDI",
+            "src_text": "Food and Agriculture Organization (FAO), via World Bank, WDI, 2022 · data.worldbank.org",
             "unit": "millimetres (mm)",
             "url": "https://data.worldbank.org/indicator/AG.LND.PRCP.MM",
             "val": "758",
@@ -26077,8 +24775,8 @@
           "avg_household_size": {
             "nodata": false,
             "rank": "79th of 152",
-            "src": "UN DESA Household Size and Composition",
-            "src_text": "UN DESA Household Size and Composition, 2022 · un.org",
+            "src": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition",
+            "src_text": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition, 2022 · un.org",
             "unit": "",
             "url": "https://www.un.org/development/desa/pd/data/household-size-and-composition",
             "val": "3.7",
@@ -26189,7 +24887,7 @@
             "rank": "55th of 176",
             "src": "FAO, via World Bank, WDI",
             "src_text": "FAO, via World Bank, WDI, 2023 · data.worldbank.org",
-            "unit": "kg",
+            "unit": "kilograms (kg)",
             "url": "https://data.worldbank.org/indicator/AG.YLD.CREL.KG",
             "val": "4,262",
             "year": "2023"
@@ -26237,8 +24935,8 @@
           "coastline_km": {
             "nodata": false,
             "rank": "13th of 193",
-            "src": "CIA World Factbook, 2024 edition",
-            "src_text": "CIA World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
+            "src": "Central Intelligence Agency (CIA) World Factbook, 2024 edition",
+            "src_text": "Central Intelligence Agency (CIA) World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
             "unit": "kilometres (km)",
             "url": "https://web.archive.org/web/20240418083207/https://www.cia.gov/the-world-factbook/field/coastline",
             "val": "9,330",
@@ -26719,7 +25417,7 @@
             "rank": "13th of 195",
             "src": "World Bank, World Development Indicators (WDI)",
             "src_text": "World Bank, World Development Indicators (WDI), 2023 · data.worldbank.org",
-            "unit": "km²",
+            "unit": "square kilometres (km²)",
             "url": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2",
             "val": "1,943,950",
             "year": "2023"
@@ -26937,8 +25635,8 @@
           "mountain_share_pct": {
             "nodata": false,
             "rank": "42nd of 162",
-            "src": "FAOSTAT",
-            "src_text": "FAOSTAT, 2021 · bulks-faostat.fao.org",
+            "src": "Food and Agriculture Organization statistical database (FAOSTAT)",
+            "src_text": "Food and Agriculture Organization statistical database (FAOSTAT), 2021 · bulks-faostat.fao.org",
             "unit": "",
             "url": "https://bulks-faostat.fao.org/production/SDG_BulkDownloads_E_All_Data_(Normalized).zip",
             "val": "48.4%",
@@ -27406,7 +26104,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 138,
       "name": "Mexico",
       "short": {
         "boards": [
@@ -27732,100 +26430,7 @@
     },
     "nl": {
       "full": {
-        "boards": [
-          {
-            "ax": "solar_watts_per_person",
-            "bsrc": "2nd of 185 · United States Energy Information Administration, 2024",
-            "rows": [
-              {
-                "name": "Australia",
-                "rank": "1st",
-                "val": "1,412"
-              },
-              {
-                "name": "Netherlands",
-                "rank": "2nd",
-                "val": "1,336"
-              },
-              {
-                "name": "Germany",
-                "rank": "3rd",
-                "val": "1,077"
-              }
-            ],
-            "title": "Solar panel capacity per person",
-            "unit": "watts"
-          },
-          {
-            "ax": "road_density_km_per_100km2",
-            "bsrc": "5th of 187 · Central Intelligence Agency (CIA) World Factbook and World Bank (derived), 2024",
-            "rows": [
-              {
-                "name": "San Marino",
-                "rank": "4th",
-                "val": "477"
-              },
-              {
-                "name": "Netherlands",
-                "rank": "5th",
-                "val": "413"
-              },
-              {
-                "name": "Barbados",
-                "rank": "6th",
-                "val": "395"
-              }
-            ],
-            "title": "Road per 100 square kilometres (km²) of land",
-            "unit": "kilometres (km)"
-          },
-          {
-            "ax": "milk_supply_kg",
-            "bsrc": "5th of 171 · Food and Agriculture Organization (FAO) Food Balance Sheets, 2023",
-            "rows": [
-              {
-                "name": "Ireland",
-                "rank": "4th",
-                "val": "324"
-              },
-              {
-                "name": "Netherlands",
-                "rank": "5th",
-                "val": "310"
-              },
-              {
-                "name": "Lithuania",
-                "rank": "6th",
-                "val": "293"
-              }
-            ],
-            "title": "Milk supply",
-            "unit": "kilograms (kg) per person a year"
-          },
-          {
-            "ax": "football_goal_difference",
-            "bsrc": "6th of 193 · International football results (martj42), 2026",
-            "rows": [
-              {
-                "name": "South Korea",
-                "rank": "5th",
-                "val": "877"
-              },
-              {
-                "name": "Netherlands",
-                "rank": "6th",
-                "val": "771"
-              },
-              {
-                "name": "Sweden",
-                "rank": "7th",
-                "val": "747"
-              }
-            ],
-            "title": "All-time football goal difference",
-            "unit": ""
-          }
-        ],
+        "boards": [],
         "consistency_rules": [],
         "shown_axes": [
           "adolescent_fertility_rate",
@@ -28013,8 +26618,8 @@
           "annual_precipitation": {
             "nodata": false,
             "rank": "108th of 179",
-            "src": "FAO, via World Bank, WDI",
-            "src_text": "FAO, via World Bank, WDI, 2022 · data.worldbank.org",
+            "src": "Food and Agriculture Organization (FAO), via World Bank, WDI",
+            "src_text": "Food and Agriculture Organization (FAO), via World Bank, WDI, 2022 · data.worldbank.org",
             "unit": "millimetres (mm)",
             "url": "https://data.worldbank.org/indicator/AG.LND.PRCP.MM",
             "val": "778",
@@ -28155,7 +26760,7 @@
             "rank": "10th of 176",
             "src": "FAO, via World Bank, WDI",
             "src_text": "FAO, via World Bank, WDI, 2023 · data.worldbank.org",
-            "unit": "kg",
+            "unit": "kilograms (kg)",
             "url": "https://data.worldbank.org/indicator/AG.YLD.CREL.KG",
             "val": "8,080",
             "year": "2023"
@@ -28203,9 +26808,9 @@
           "coastline_km": {
             "nodata": false,
             "rank": "97th of 193",
-            "src": "CIA World Factbook, 2024 edition",
-            "src_text": "CIA World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
-            "unit": "km",
+            "src": "Central Intelligence Agency (CIA) World Factbook, 2024 edition",
+            "src_text": "Central Intelligence Agency (CIA) World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
+            "unit": "kilometres (km)",
             "url": "https://web.archive.org/web/20240418083207/https://www.cia.gov/the-world-factbook/field/coastline",
             "val": "451",
             "year": "2024"
@@ -28685,7 +27290,7 @@
             "rank": "133rd of 195",
             "src": "World Bank, World Development Indicators (WDI)",
             "src_text": "World Bank, World Development Indicators (WDI), 2023 · data.worldbank.org",
-            "unit": "km²",
+            "unit": "square kilometres (km²)",
             "url": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2",
             "val": "33,670",
             "year": "2023"
@@ -29372,7 +27977,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 136,
       "name": "Netherlands",
       "short": {
         "boards": [
@@ -29698,100 +28303,7 @@
     },
     "ru": {
       "full": {
-        "boards": [
-          {
-            "ax": "land_area_km2",
-            "bsrc": "1st of 195 · World Bank, World Development Indicators (WDI), 2023",
-            "rows": [
-              {
-                "name": "Russia",
-                "rank": "1st",
-                "val": "16,376,870"
-              },
-              {
-                "name": "China",
-                "rank": "2nd",
-                "val": "9,388,210"
-              },
-              {
-                "name": "United States",
-                "rank": "3rd",
-                "val": "9,147,420"
-              }
-            ],
-            "title": "Land area",
-            "unit": "square kilometres (km²)"
-          },
-          {
-            "ax": "chess_grandmasters",
-            "bsrc": "1st of 194 · Wikidata, 2026",
-            "rows": [
-              {
-                "name": "Russia",
-                "rank": "1st",
-                "val": "240"
-              },
-              {
-                "name": "United States",
-                "rank": "2nd",
-                "val": "116"
-              },
-              {
-                "name": "Germany",
-                "rank": "3rd",
-                "val": "106"
-              }
-            ],
-            "title": "Living chess grandmasters",
-            "unit": ""
-          },
-          {
-            "ax": "forest_area_km2",
-            "bsrc": "1st of 192 · Food and Agriculture Organization (FAO) Global Forest Resources Assessment 2025, 2020",
-            "rows": [
-              {
-                "name": "Russia",
-                "rank": "1st",
-                "val": "8,284,322"
-              },
-              {
-                "name": "Brazil",
-                "rank": "2nd",
-                "val": "5,023,669"
-              },
-              {
-                "name": "Canada",
-                "rank": "3rd",
-                "val": "3,688,679"
-              }
-            ],
-            "title": "Forest area",
-            "unit": "km²"
-          },
-          {
-            "ax": "herbaceous_wetland_area_km2",
-            "bsrc": "1st of 186 · European Space Agency (ESA) WorldCover 2021, via Food and Agriculture Organization statistical database (FAOSTAT), 2021",
-            "rows": [
-              {
-                "name": "Russia",
-                "rank": "1st",
-                "val": "1,165,531"
-              },
-              {
-                "name": "Canada",
-                "rank": "2nd",
-                "val": "256,404"
-              },
-              {
-                "name": "United States",
-                "rank": "3rd",
-                "val": "129,866"
-              }
-            ],
-            "title": "Marsh and flooded grassland",
-            "unit": "km²"
-          }
-        ],
+        "boards": [],
         "consistency_rules": [
           "share_gt_100:energy_self_sufficiency_pct"
         ],
@@ -29981,8 +28493,8 @@
           "annual_precipitation": {
             "nodata": false,
             "rank": "145th of 179",
-            "src": "FAO, via World Bank, WDI",
-            "src_text": "FAO, via World Bank, WDI, 2022 · data.worldbank.org",
+            "src": "Food and Agriculture Organization (FAO), via World Bank, WDI",
+            "src_text": "Food and Agriculture Organization (FAO), via World Bank, WDI, 2022 · data.worldbank.org",
             "unit": "millimetres (mm)",
             "url": "https://data.worldbank.org/indicator/AG.LND.PRCP.MM",
             "val": "460",
@@ -30651,9 +29163,9 @@
           "land_area_km2": {
             "nodata": false,
             "rank": "1st of 195",
-            "src": "World Bank, WDI",
-            "src_text": "World Bank, WDI, 2023 · data.worldbank.org",
-            "unit": "km²",
+            "src": "World Bank, World Development Indicators (WDI)",
+            "src_text": "World Bank, World Development Indicators (WDI), 2023 · data.worldbank.org",
+            "unit": "square kilometres (km²)",
             "url": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2",
             "val": "16,376,870",
             "year": "2023"
@@ -30751,8 +29263,8 @@
           "mangrove_area_km2": {
             "nodata": true,
             "rank": "Not ranked",
-            "src": "ESA WorldCover 2021, via FAOSTAT",
-            "src_text": "ESA WorldCover 2021, via FAOSTAT, 2021 · bulks-faostat.fao.org",
+            "src": "European Space Agency (ESA) WorldCover 2021, via FAOSTAT",
+            "src_text": "European Space Agency (ESA) WorldCover 2021, via FAOSTAT, 2021 · bulks-faostat.fao.org",
             "unit": "",
             "url": "https://bulks-faostat.fao.org/production/Environment_LandCover_E_All_Data_(Normalized).zip",
             "val": "No data",
@@ -30871,8 +29383,8 @@
           "mountain_share_pct": {
             "nodata": false,
             "rank": "83rd of 162",
-            "src": "FAOSTAT",
-            "src_text": "FAOSTAT, 2021 · bulks-faostat.fao.org",
+            "src": "Food and Agriculture Organization statistical database (FAOSTAT)",
+            "src_text": "Food and Agriculture Organization statistical database (FAOSTAT), 2021 · bulks-faostat.fao.org",
             "unit": "",
             "url": "https://bulks-faostat.fao.org/production/SDG_BulkDownloads_E_All_Data_(Normalized).zip",
             "val": "25.9%",
@@ -31340,7 +29852,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 139,
       "name": "Russia",
       "short": {
         "boards": [
@@ -31666,100 +30178,7 @@
     },
     "tr": {
       "full": {
-        "boards": [
-          {
-            "ax": "tomato_production_t",
-            "bsrc": "3rd of 164 · Food and Agriculture Organization statistical database (FAOSTAT), via Our World in Data, 2023",
-            "rows": [
-              {
-                "name": "India",
-                "rank": "2nd",
-                "val": "20,425,000"
-              },
-              {
-                "name": "Turkey",
-                "rank": "3rd",
-                "val": "13,300,000"
-              },
-              {
-                "name": "United States",
-                "rank": "4th",
-                "val": "12,361,824"
-              }
-            ],
-            "title": "Tomatoes grown",
-            "unit": "tonnes"
-          },
-          {
-            "ax": "daily_calorie_supply",
-            "bsrc": "6th of 182 · Food and Agriculture Organization (FAO) Food Balance Sheets, via Our World in Data, 2022",
-            "rows": [
-              {
-                "name": "Serbia",
-                "rank": "5th",
-                "val": "3,860"
-              },
-              {
-                "name": "Turkey",
-                "rank": "6th",
-                "val": "3,825"
-              },
-              {
-                "name": "Austria",
-                "rank": "7th",
-                "val": "3,802"
-              }
-            ],
-            "title": "Food supplied a day",
-            "unit": "kilocalories"
-          },
-          {
-            "ax": "wheat_supply_kg",
-            "bsrc": "8th of 171 · FAO Food Balance Sheets, 2023",
-            "rows": [
-              {
-                "name": "Turkmenistan",
-                "rank": "7th",
-                "val": "164.3"
-              },
-              {
-                "name": "Turkey",
-                "rank": "8th",
-                "val": "163.6"
-              },
-              {
-                "name": "Afghanistan",
-                "rank": "9th",
-                "val": "163.3"
-              }
-            ],
-            "title": "Wheat supply",
-            "unit": "kilograms (kg) per person a year"
-          },
-          {
-            "ax": "chicken_meat_t",
-            "bsrc": "9th of 184 · FAOSTAT, via Our World in Data, 2023",
-            "rows": [
-              {
-                "name": "Japan",
-                "rank": "8th",
-                "val": "2,384,255"
-              },
-              {
-                "name": "Turkey",
-                "rank": "9th",
-                "val": "2,328,791"
-              },
-              {
-                "name": "Argentina",
-                "rank": "10th",
-                "val": "2,287,016"
-              }
-            ],
-            "title": "Chicken produced",
-            "unit": "tonnes"
-          }
-        ],
+        "boards": [],
         "consistency_rules": [],
         "shown_axes": [
           "adolescent_fertility_rate",
@@ -31947,8 +30366,8 @@
           "annual_precipitation": {
             "nodata": false,
             "rank": "132nd of 179",
-            "src": "FAO, via World Bank, WDI",
-            "src_text": "FAO, via World Bank, WDI, 2022 · data.worldbank.org",
+            "src": "Food and Agriculture Organization (FAO), via World Bank, WDI",
+            "src_text": "Food and Agriculture Organization (FAO), via World Bank, WDI, 2022 · data.worldbank.org",
             "unit": "millimetres (mm)",
             "url": "https://data.worldbank.org/indicator/AG.LND.PRCP.MM",
             "val": "593",
@@ -32089,7 +30508,7 @@
             "rank": "72nd of 176",
             "src": "FAO, via World Bank, WDI",
             "src_text": "FAO, via World Bank, WDI, 2023 · data.worldbank.org",
-            "unit": "kg",
+            "unit": "kilograms (kg)",
             "url": "https://data.worldbank.org/indicator/AG.YLD.CREL.KG",
             "val": "3,659",
             "year": "2023"
@@ -32837,8 +31256,8 @@
           "mountain_share_pct": {
             "nodata": true,
             "rank": "Not ranked",
-            "src": "FAOSTAT",
-            "src_text": "FAOSTAT, 2021 · bulks-faostat.fao.org",
+            "src": "Food and Agriculture Organization statistical database (FAOSTAT)",
+            "src_text": "Food and Agriculture Organization statistical database (FAOSTAT), 2021 · bulks-faostat.fao.org",
             "unit": "",
             "url": "https://bulks-faostat.fao.org/production/SDG_BulkDownloads_E_All_Data_(Normalized).zip",
             "val": "No data",
@@ -33306,7 +31725,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 135,
       "name": "Turkey",
       "short": {
         "boards": [
@@ -33632,100 +32051,7 @@
     },
     "ua": {
       "full": {
-        "boards": [
-          {
-            "ax": "life_expectancy_gap_fm",
-            "bsrc": "1st of 195 · United Nations (UN) World Population Prospects 2024, 2023",
-            "rows": [
-              {
-                "name": "Ukraine",
-                "rank": "1st",
-                "val": "13.30"
-              },
-              {
-                "name": "State of Palestine",
-                "rank": "2nd",
-                "val": "11.81"
-              },
-              {
-                "name": "Russia",
-                "rank": "3rd",
-                "val": "11.78"
-              }
-            ],
-            "title": "Years longer women live than men",
-            "unit": ""
-          },
-          {
-            "ax": "death_rate",
-            "bsrc": "1st of 193 · Central Intelligence Agency (CIA) World Factbook, 2024 edition, 2024",
-            "rows": [
-              {
-                "name": "Ukraine",
-                "rank": "1st",
-                "val": "19.8"
-              },
-              {
-                "name": "Lithuania",
-                "rank": "2nd",
-                "val": "15.2"
-              },
-              {
-                "name": "Serbia",
-                "rank": "3rd",
-                "val": "15.1"
-              }
-            ],
-            "title": "Deaths",
-            "unit": "per 1,000 people"
-          },
-          {
-            "ax": "potato_supply_kg",
-            "bsrc": "2nd of 171 · Food and Agriculture Organization (FAO) Food Balance Sheets, 2023",
-            "rows": [
-              {
-                "name": "Belarus",
-                "rank": "1st",
-                "val": "167"
-              },
-              {
-                "name": "Ukraine",
-                "rank": "2nd",
-                "val": "147"
-              },
-              {
-                "name": "Bosnia and Herzegovina",
-                "rank": "3rd",
-                "val": "103"
-              }
-            ],
-            "title": "Potato supply",
-            "unit": "kilograms (kg) per person a year"
-          },
-          {
-            "ax": "nuclear_share_of_electricity",
-            "bsrc": "3rd of 185 · United States Energy Information Administration, 2024",
-            "rows": [
-              {
-                "name": "Slovakia",
-                "rank": "2nd",
-                "val": "63.9%"
-              },
-              {
-                "name": "Ukraine",
-                "rank": "3rd",
-                "val": "53.3%"
-              },
-              {
-                "name": "Hungary",
-                "rank": "4th",
-                "val": "41.0%"
-              }
-            ],
-            "title": "Electricity it generates from nuclear",
-            "unit": "%"
-          }
-        ],
+        "boards": [],
         "consistency_rules": [
           "foreign_born_share_vs_stock_over_pop",
           "emigrants_pct_vs_total_over_pop",
@@ -33917,8 +32243,8 @@
           "annual_precipitation": {
             "nodata": false,
             "rank": "135th of 179",
-            "src": "FAO, via World Bank, WDI",
-            "src_text": "FAO, via World Bank, WDI, 2022 · data.worldbank.org",
+            "src": "Food and Agriculture Organization (FAO), via World Bank, WDI",
+            "src_text": "Food and Agriculture Organization (FAO), via World Bank, WDI, 2022 · data.worldbank.org",
             "unit": "millimetres (mm)",
             "url": "https://data.worldbank.org/indicator/AG.LND.PRCP.MM",
             "val": "565",
@@ -34059,7 +32385,7 @@
             "rank": "34th of 176",
             "src": "FAO, via World Bank, WDI",
             "src_text": "FAO, via World Bank, WDI, 2023 · data.worldbank.org",
-            "unit": "kg",
+            "unit": "kilograms (kg)",
             "url": "https://data.worldbank.org/indicator/AG.YLD.CREL.KG",
             "val": "5,578",
             "year": "2023"
@@ -34107,8 +32433,8 @@
           "coastline_km": {
             "nodata": false,
             "rank": "40th of 193",
-            "src": "CIA World Factbook, 2024 edition",
-            "src_text": "CIA World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
+            "src": "Central Intelligence Agency (CIA) World Factbook, 2024 edition",
+            "src_text": "Central Intelligence Agency (CIA) World Factbook, 2024 edition, 2024 · web.archive.org (cia.gov)",
             "unit": "kilometres (km)",
             "url": "https://web.archive.org/web/20240418083207/https://www.cia.gov/the-world-factbook/field/coastline",
             "val": "2,782",
@@ -35276,7 +33602,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 132,
       "name": "Ukraine",
       "short": {
         "boards": [
@@ -35602,100 +33928,7 @@
     },
     "us": {
       "full": {
-        "boards": [
-          {
-            "ax": "time_zone_count",
-            "bsrc": "1st of 195 · Internet Assigned Numbers Authority (IANA) Time Zone Database 2026a, 2026",
-            "rows": [
-              {
-                "name": "United States",
-                "rank": "1st",
-                "val": "29"
-              },
-              {
-                "name": "Russia",
-                "rank": "2nd",
-                "val": "27"
-              },
-              {
-                "name": "Canada",
-                "rank": "3rd",
-                "val": "23"
-              }
-            ],
-            "title": "Time-zone regions",
-            "unit": ""
-          },
-          {
-            "ax": "migrant_stock_total",
-            "bsrc": "1st of 194 · United Nations Department of Economic and Social Affairs (UN DESA) International Migrant Stock 2024, 2020",
-            "rows": [
-              {
-                "name": "United States",
-                "rank": "1st",
-                "val": "50,471,028"
-              },
-              {
-                "name": "Germany",
-                "rank": "2nd",
-                "val": "15,021,300"
-              },
-              {
-                "name": "Saudi Arabia",
-                "rank": "3rd",
-                "val": "13,071,258"
-              }
-            ],
-            "title": "People born abroad",
-            "unit": ""
-          },
-          {
-            "ax": "net_migration",
-            "bsrc": "1st of 194 · United Nations (UN) World Population Prospects 2024, via World Bank, World Development Indicators (WDI), 2023",
-            "rows": [
-              {
-                "name": "United States",
-                "rank": "1st",
-                "val": "1,322,668"
-              },
-              {
-                "name": "Syria",
-                "rank": "2nd",
-                "val": "757,309"
-              },
-              {
-                "name": "Germany",
-                "rank": "3rd",
-                "val": "609,553"
-              }
-            ],
-            "title": "Net migration",
-            "unit": "people"
-          },
-          {
-            "ax": "eez_area",
-            "bsrc": "1st of 191 · Marine Regions, World Exclusive Economic Zone (EEZ) version 12, 2023",
-            "rows": [
-              {
-                "name": "United States",
-                "rank": "1st",
-                "val": "11,733,355"
-              },
-              {
-                "name": "France",
-                "rank": "2nd",
-                "val": "9,529,864"
-              },
-              {
-                "name": "Australia",
-                "rank": "3rd",
-                "val": "8,993,463"
-              }
-            ],
-            "title": "Sea area it controls",
-            "unit": "square kilometres (km²)"
-          }
-        ],
+        "boards": [],
         "consistency_rules": [
           "share_gt_100:energy_self_sufficiency_pct"
         ],
@@ -35915,8 +34148,8 @@
           "avg_household_size": {
             "nodata": false,
             "rank": "129th of 152",
-            "src": "UN DESA Household Size and Composition",
-            "src_text": "UN DESA Household Size and Composition, 2022 · un.org",
+            "src": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition",
+            "src_text": "United Nations Department of Economic and Social Affairs (UN DESA) Household Size and Composition, 2022 · un.org",
             "unit": "",
             "url": "https://www.un.org/development/desa/pd/data/household-size-and-composition",
             "val": "2.5",
@@ -36135,8 +34368,8 @@
           "eez_area": {
             "nodata": false,
             "rank": "1st of 191",
-            "src": "Marine Regions, World EEZ version 12",
-            "src_text": "Marine Regions, World EEZ version 12, 2023 · doi.org",
+            "src": "Marine Regions, World Exclusive Economic Zone (EEZ) version 12",
+            "src_text": "Marine Regions, World Exclusive Economic Zone (EEZ) version 12, 2023 · doi.org",
             "unit": "km²",
             "url": "https://doi.org/10.14284/632",
             "val": "11,733,355",
@@ -36555,9 +34788,9 @@
           "land_area_km2": {
             "nodata": false,
             "rank": "3rd of 195",
-            "src": "World Bank, WDI",
-            "src_text": "World Bank, WDI, 2023 · data.worldbank.org",
-            "unit": "km²",
+            "src": "World Bank, World Development Indicators (WDI)",
+            "src_text": "World Bank, World Development Indicators (WDI), 2023 · data.worldbank.org",
+            "unit": "square kilometres (km²)",
             "url": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2",
             "val": "9,147,420",
             "year": "2023"
@@ -36905,8 +35138,8 @@
           "population_growth_rate": {
             "nodata": false,
             "rank": "118th of 194",
-            "src": "UN World Population Prospects 2024, via World Bank, WDI",
-            "src_text": "UN World Population Prospects 2024, via World Bank, WDI, 2023 · data.worldbank.org",
+            "src": "United Nations (UN) World Population Prospects 2024, via World Bank, WDI",
+            "src_text": "United Nations (UN) World Population Prospects 2024, via World Bank, WDI, 2023 · data.worldbank.org",
             "unit": "a year",
             "url": "https://data.worldbank.org/indicator/SP.POP.GROW",
             "val": "0.8%",
@@ -37085,8 +35318,8 @@
           "time_zone_count": {
             "nodata": false,
             "rank": "1st of 195",
-            "src": "IANA Time Zone Database 2026a",
-            "src_text": "IANA Time Zone Database 2026a, 2026 · raw.githubusercontent.com",
+            "src": "Internet Assigned Numbers Authority (IANA) Time Zone Database 2026a",
+            "src_text": "Internet Assigned Numbers Authority (IANA) Time Zone Database 2026a, 2026 · raw.githubusercontent.com",
             "unit": "",
             "url": "https://raw.githubusercontent.com/eggert/tz/2026a/zone1970.tab",
             "val": "29",
@@ -37570,100 +35803,7 @@
     },
     "za": {
       "full": {
-        "boards": [
-          {
-            "ax": "youth_unemployment_pct",
-            "bsrc": "2nd of 179 · International Labour Organization (ILO), via World Bank, World Development Indicators (WDI), 2021",
-            "rows": [
-              {
-                "name": "Djibouti",
-                "rank": "1st",
-                "val": "79.4%"
-              },
-              {
-                "name": "South Africa",
-                "rank": "2nd",
-                "val": "65.5%"
-              },
-              {
-                "name": "Eswatini",
-                "rank": "3rd",
-                "val": "56.7%"
-              }
-            ],
-            "title": "Young people out of work",
-            "unit": "%"
-          },
-          {
-            "ax": "unemployment_pct",
-            "bsrc": "2nd of 176 · ILO, via World Bank, WDI, 2023",
-            "rows": [
-              {
-                "name": "Eswatini",
-                "rank": "1st",
-                "val": "34.6%"
-              },
-              {
-                "name": "South Africa",
-                "rank": "2nd",
-                "val": "32.1%"
-              },
-              {
-                "name": "Djibouti",
-                "rank": "3rd",
-                "val": "26.1%"
-              }
-            ],
-            "title": "Unemployment rate",
-            "unit": "%"
-          },
-          {
-            "ax": "coal_share_of_electricity",
-            "bsrc": "3rd of 185 · United States Energy Information Administration, 2024",
-            "rows": [
-              {
-                "name": "Mongolia",
-                "rank": "2nd",
-                "val": "84.6%"
-              },
-              {
-                "name": "South Africa",
-                "rank": "3rd",
-                "val": "82.1%"
-              },
-              {
-                "name": "India",
-                "rank": "4th",
-                "val": "73.9%"
-              }
-            ],
-            "title": "Electricity it generates from coal",
-            "unit": "%"
-          },
-          {
-            "ax": "pasture_share_of_land",
-            "bsrc": "6th of 181 · Food and Agriculture Organization statistical database (FAOSTAT), 2023",
-            "rows": [
-              {
-                "name": "Djibouti",
-                "rank": "5th",
-                "val": "73.3%"
-              },
-              {
-                "name": "South Africa",
-                "rank": "6th",
-                "val": "69.2%"
-              },
-              {
-                "name": "Somalia",
-                "rank": "7th",
-                "val": "68.5%"
-              }
-            ],
-            "title": "Land used for grazing",
-            "unit": "%"
-          }
-        ],
+        "boards": [],
         "consistency_rules": [
           "forest_plus_agri_plus_barren_gt_102",
           "share_gt_100:energy_self_sufficiency_pct"
@@ -38514,8 +36654,8 @@
           "labour_force_participation_pct": {
             "nodata": false,
             "rank": "142nd of 179",
-            "src": "ILO, via World Bank, WDI",
-            "src_text": "ILO, via World Bank, WDI, 2021 · data.worldbank.org",
+            "src": "International Labour Organization (ILO), via World Bank, WDI",
+            "src_text": "International Labour Organization (ILO), via World Bank, WDI, 2021 · data.worldbank.org",
             "unit": "",
             "url": "https://data.worldbank.org/indicator/SL.TLF.CACT.ZS",
             "val": "52.0%",
@@ -38524,8 +36664,8 @@
           "land_area_km2": {
             "nodata": false,
             "rank": "24th of 195",
-            "src": "World Bank, WDI",
-            "src_text": "World Bank, WDI, 2023 · data.worldbank.org",
+            "src": "World Bank, World Development Indicators (WDI)",
+            "src_text": "World Bank, World Development Indicators (WDI), 2023 · data.worldbank.org",
             "unit": "square kilometres (km²)",
             "url": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2",
             "val": "1,213,090",
@@ -38744,8 +36884,8 @@
           "mountain_share_pct": {
             "nodata": false,
             "rank": "68th of 162",
-            "src": "FAOSTAT",
-            "src_text": "FAOSTAT, 2021 · bulks-faostat.fao.org",
+            "src": "Food and Agriculture Organization statistical database (FAOSTAT)",
+            "src_text": "Food and Agriculture Organization statistical database (FAOSTAT), 2021 · bulks-faostat.fao.org",
             "unit": "",
             "url": "https://bulks-faostat.fao.org/production/SDG_BulkDownloads_E_All_Data_(Normalized).zip",
             "val": "35.2%",
@@ -39213,7 +37353,7 @@
           }
         }
       },
-      "full_fact_count": 140,
+      "full_fact_count": 139,
       "name": "South Africa",
       "short": {
         "boards": [

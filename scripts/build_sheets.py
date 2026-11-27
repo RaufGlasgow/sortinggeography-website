@@ -67,6 +67,27 @@ COUNTRIES: tuple[str, ...] = (
     "in", "it", "jp", "mx", "nl", "ru", "tr", "ua", "us", "za",
 )
 
+# ONE table of country ISO2 codes whose English name takes "the" in running prose.
+# Standalone titles/labels (<h1>, short-page <title>, mini-board rows, Borders list)
+# stay the bare name; running sentences use country_in_prose(iso, cname, start=...).
+COUNTRIES_WITH_THE: frozenset[str] = frozenset({
+    "GB",  # the United Kingdom
+    "NL",  # the Netherlands
+    "US",  # the United States
+})
+
+# Sheet-only display label overrides (do not touch the game's app_en.arb).
+SHEET_NAME_OVERRIDES: dict[str, str] = {
+    "foreign_born_share_pct": "Share of people born abroad",
+}
+
+
+def country_in_prose(iso: str, cname: str, *, start: bool = False) -> str:
+    """Return country name for running English prose ('the United States' / 'The United States')."""
+    if iso.upper() in COUNTRIES_WITH_THE:
+        return f"{'The' if start else 'the'} {cname}"
+    return cname
+
 # Section layout for all 140 allowed, non-denied axes (Direction A).
 SECTIONS: list[tuple[str, str, list[str]]] = [
     ("size", "Size, sea and borders", [
@@ -248,7 +269,7 @@ PLAIN_CONSISTENCY_NOTES: dict[str, tuple[str, str]] = {
     ),
     "foreign_born_share_vs_stock_over_pop": (
         "Different years",
-        "People born abroad (%) divides UN DESA mid-2020 migrant stock by UN mid-2020 resident population, whereas Population is World Bank, WDI 2023.",
+        "Share of people born abroad (%) divides UN DESA mid-2020 migrant stock by UN mid-2020 resident population, whereas Population is World Bank, WDI 2023.",
     ),
     "emigrants_pct_vs_total_over_pop": (
         "Different years",
@@ -420,7 +441,7 @@ MAP_FRAMES: dict[str, tuple[float, float, float, float, str | None, str]] = {
     "AU": (108.0, 159.0, -45.5, -8.5, None, "Mainland Australia and Tasmania shown."),
     "CA": (-146.0, -48.0, 40.0, 84.0, None, "Canada as the game counts it."),
     "FR": (-8.5, 13.0, 40.5, 52.2, None, "Metropolitan France and Corsica shown; figures count the whole country."),
-    "NL": (1.5, 9.0, 49.8, 54.5, None, "European Netherlands shown."),
+    "NL": (1.5, 9.0, 49.8, 54.5, None, "The European Netherlands shown."),
     "RU": (14.0, 196.0, 38.0, 80.5, "east", "Russia as the game counts it."),
     "US": (-172.0, -62.0, 17.0, 73.0, "west", "The 50 states of the United States shown."),
     "ZA": (12.0, 37.5, -36.5, -20.5, None, "Mainland South Africa shown."),
@@ -949,8 +970,8 @@ def render_locator_map(
                 f'class="m-lab m-small">{html.escape(capital)}</text>'
             )
 
-    cap_text = f"{frame_note} " if frame_note else f"{cname} as the game counts it. "
-    aria = f"Locator map of {cname}" + (f" showing {capital}" if capital else "") + "."
+    cap_text = f"{frame_note} " if frame_note else f"{country_in_prose(iso, cname, start=True)} as the game counts it. "
+    aria = f"Locator map of {country_in_prose(iso, cname)}" + (f" showing {capital}" if capital else "") + "."
     return (
         f'<figure class="map a-map">'
         f'<svg viewBox="0 0 {W:.0f} {H:.0f}" role="img" aria-label="{html.escape(aria, quote=True)}">'
@@ -1091,6 +1112,7 @@ def compute_axis_facts(bundle: dict, iso_upper: str) -> dict[str, dict]:
         cs = ds_axes[ax]
         label = arb[axis_keys[ax]]
         name, raw_unit = split_name(label)
+        name = SHEET_NAME_OVERRIDES.get(ax, name)
         unit = normalize_unit(raw_unit)
         unit_txt = unit[1:].strip() if unit.startswith("%") else unit
         vals = sorted(
@@ -1230,8 +1252,8 @@ def sections_for(published_axes: list[str]) -> list[tuple[str, str, list[str]]]:
 
 
 def select_short_axes(facts: dict[str, dict]) -> list[str]:
-    """Deterministic short-layout selection: core Sally staples + country's strongest ranks up to 20."""
-    selected: list[str] = [ax for ax in SHORT_CORE_AXES if ax in facts]
+    """Deterministic short-layout selection: core Sally staples (with data) + country's strongest ranks up to 20."""
+    selected: list[str] = [ax for ax in SHORT_CORE_AXES if ax in facts and not facts[ax]["nodata"]]
     chosen = set(selected)
     remaining = [f for ax, f in facts.items() if ax not in chosen and not f["nodata"]]
     remaining.sort(
@@ -1314,11 +1336,11 @@ def compute_sheet_expectation(bundle: dict, iso_lower: str, layout: str = "full"
     else:
         shown_facts = all_facts
         secs = sections_for(bundle["published_axes"])
-    standout = standout_facts(shown_facts)
+    standout = standout_facts(shown_facts) if layout == "short" else []
     rules = active_consistency_rules(bundle, iso, shown_facts)
 
     # Expand abbreviations strictly in page reading order (Finding 8):
-    # 1. Hero metadata -> 2. Map caption -> 3. Standout mini-boards -> 4. Sections (notes, then fact cards) -> 5. .a-how
+    # 1. Hero metadata -> 2. Map caption -> 3. Standout mini-boards (short only) -> 4. Sections (notes, then fact cards) -> 5. .a-how
     exp = AbbrevExpander()
 
     continent = ds["facets"]["continent"][iso]
@@ -1333,7 +1355,7 @@ def compute_sheet_expectation(bundle: dict, iso_lower: str, layout: str = "full"
     if capital:
         meta_items.append(("Capital", exp.expand(capital), False))
     meta_items.append(("Region", exp.expand(continent), False))
-    meta_items.append(("Time zones", str(tz_count), False))
+    meta_items.append(("Time-zone regions", str(tz_count), False))
     meta_items.append(("Borders", exp.expand(border_names), len(neighbours) > 3 or len(border_names) > 25))
 
     # Standout mini-boards (with collision-free decimal precision per board — Finding 2)
@@ -1452,6 +1474,7 @@ def render_sheet(
     spec = compute_sheet_expectation(bundle, iso_lower, layout=layout)
     iso = spec["iso"]
     cname = spec["cname"]
+    cname_prose = country_in_prose(iso, cname)
     continent = spec["continent"]
     ds = bundle["dataset"]
     e = html.escape
@@ -1471,7 +1494,7 @@ def render_sheet(
 
     map_html = render_locator_map(iso, cname, spec["capital"], spec["cap_lat"], spec["cap_lon"], bundle["geo"])
 
-    # Standout mini-boards
+    # Standout mini-boards (summary page only)
     boards_parts: list[str] = []
     manifest_boards: list[dict] = []
     for b in spec["boards"]:
@@ -1504,12 +1527,15 @@ def render_sheet(
             "bsrc": b["bsrc"],
             "rows": manifest_rows,
         })
-    standout_html = (
-        f'<section class="a-fs">'
-        f'<h2 class="left">Where {e(cname)} stands out</h2>'
-        f'<div class="a-boards">{"".join(boards_parts)}</div>'
-        f'</section>'
-    )
+    if layout == "short":
+        standout_block = (
+            f'      <section class="a-fs">'
+            f'<h2 class="left">Where {e(cname_prose)} stands out</h2>'
+            f'<div class="a-boards">{"".join(boards_parts)}</div>'
+            f'</section>\n'
+        )
+    else:
+        standout_block = ""
 
     # Fact sections
     sec_parts: list[str] = []
@@ -1561,15 +1587,15 @@ def render_sheet(
         subnav_html = ""
         closing_html = (
             '<div class="a-closing">'
-            f'<p class="a-more"><a class="a-more-link" href="./all/">See all {full_fact_count} facts about {e(cname)}</a></p>'
-            f'<p class="a-how">Showing {len(spec["shown_axes"])} highlights for {e(cname)}. '
+            f'<p class="a-more"><a class="a-more-link" href="./all/">See all {full_fact_count} facts about {e(cname_prose)}</a></p>'
+            f'<p class="a-how">Showing {len(spec["shown_axes"])} highlights for {e(cname_prose)}. '
             f'Rank counts from the highest value among the countries that have data: '
             f'1st is the most. Ties share a rank. Data version {bundle["vnum"]}, {e(bundle["vdate"])}.</p>'
             '</div>'
         )
     else:
         rel = f"countries/{iso_lower}/all/index.html"
-        title_str = f"All facts about {cname} — Sorting Geography"
+        title_str = f"All facts about {cname_prose} — Sorting Geography"
         subnav_html = (
             '\n<nav class="a-subnav" aria-label="Country sheet view">\n'
             '  <div class="a-subnav-in">\n'
@@ -1582,16 +1608,20 @@ def render_sheet(
             f'1st is the most. Ties share a rank. Data version {bundle["vnum"]}, {e(bundle["vdate"])}.</p>'
         )
 
+    if n_have_all == n_all_axes:
+        play_count_line = f"The game has figures for {e(cname_prose)} on all {n_all_axes} questions."
+    else:
+        play_count_line = f"The game has figures for {e(cname_prose)} on {n_have_all} of its {n_all_axes} questions."
     play_html = (
         f'<div class="card a-play">'
-        f'<h3>Sort {e(cname)} against four others</h3>'
-        f'<p>The game has figures for {e(cname)} on {n_have_all} of its {n_all_axes} questions.</p>'
+        f'<h3>Sort {e(cname_prose)} against four others</h3>'
+        f'<p>{play_count_line}</p>'
         f'<!-- launch:sheet-play --><!-- /launch:sheet-play -->'
         f'</div>'
     )
 
     desc = (
-        f"Real, sourced facts and world rankings for {cname} from Sorting Geography: "
+        f"Real, sourced facts and world rankings for {cname_prose} from Sorting Geography: "
         f"size, borders, people, economy, food and energy."
     )
     raw_html = f"""<!doctype html>
@@ -1635,8 +1665,7 @@ def render_sheet(
       {map_html}
     </div>
     <div class="a-main">
-      {standout_html}
-      <div class="a-fcols">
+{standout_block}      <div class="a-fcols">
         {"".join(sec_parts)}
       </div>
       {closing_html}
@@ -1733,12 +1762,21 @@ class _SheetHTMLParser(HTMLParser):
         self.facts: list[dict] = []
         self.boards: list[dict] = []
         self.consistency_notes: dict[str, str] = {}
+        self.fromgame_present = False
+        self.fromgame_links: list[tuple[str, str]] = []
         self.closing_present = False
         self.closing_links: list[tuple[str, str]] = []
         self.how_present = False
         self.how_links: list[tuple[str, str]] = []
         self.subnav_present = False
         self.subnav_links: list[tuple[str, str]] = []
+        self.h1_text = ""
+        self.meta_labels: list[str] = []
+        self.has_standout_boards = False
+        self.standout_headings: list[str] = []
+        self.play_h3_text = ""
+        self.play_p_texts: list[str] = []
+        self.map_caption_text = ""
 
         # DOM placement tracking
         self.fromgame_order: int | None = None
@@ -1750,18 +1788,27 @@ class _SheetHTMLParser(HTMLParser):
 
         self._all_visible_parts: list[str] = []
         self._main_visible_parts: list[str] = []
+        self._how_parts: list[str] = []
 
         self._cur_fact: dict | None = None
         self._cur_board: dict | None = None
         self._cur_mb_row: dict | None = None
         self._cur_cnote: tuple[int, str, list[str]] | None = None
         self._cur_nav_anchor: tuple[int, set[str], str, list[str]] | None = None
+        self._in_fromgame_depth: int | None = None
         self._in_closing_depth: int | None = None
         self._in_how_depth: int | None = None
         self._in_subnav_depth: int | None = None
         self._in_main_depth: int | None = None
         self._in_svg_depth: int | None = None
+        self._in_play_depth: int | None = None
         self._in_play_ls_depth: int | None = None
+        self._in_play_h3: tuple[int, list[str]] | None = None
+        self._in_play_p: tuple[int, list[str]] | None = None
+        self._in_h1: tuple[int, list[str]] | None = None
+        self._in_h2: tuple[int, list[str]] | None = None
+        self._in_meta_label: tuple[int, list[str]] | None = None
+        self._in_mapcap: tuple[int, list[str]] | None = None
         self._in_script_depth: int | None = None
         self._in_style_depth: int | None = None
 
@@ -1864,11 +1911,16 @@ class _SheetHTMLParser(HTMLParser):
                 self.overflow_svgs.append(w_attr)
 
         if not is_void:
+            parent_entry = self._stack[-1] if self._stack else None
             self._stack.append((tag, classes, attr_map))
             depth = len(self._stack)
 
-            if tag == "div" and "fromgame" in classes and self.fromgame_order is None:
-                self.fromgame_order = self._order
+            if tag == "div" and "fromgame" in classes:
+                self.fromgame_present = True
+                if self.fromgame_order is None:
+                    self.fromgame_order = self._order
+                if self._in_fromgame_depth is None:
+                    self._in_fromgame_depth = depth
             if tag == "main" and self._in_main_depth is None:
                 self._in_main_depth = depth
                 self.main_order = self._order
@@ -1876,6 +1928,10 @@ class _SheetHTMLParser(HTMLParser):
                 self.last_fact_section_order = self._order
             if tag == "div" and ("a-side-play" in classes or "a-play" in classes) and self.play_card_order is None:
                 self.play_card_order = self._order
+            if tag == "div" and "a-play" in classes and self._in_play_depth is None:
+                self._in_play_depth = depth
+            if tag == "div" and "a-boards" in classes:
+                self.has_standout_boards = True
             if tag == "svg" and self._in_svg_depth is None:
                 self._in_svg_depth = depth
             if "a-play-ls" in classes and self._in_play_ls_depth is None:
@@ -1884,6 +1940,20 @@ class _SheetHTMLParser(HTMLParser):
                 self._in_script_depth = depth
             if tag == "style" and self._in_style_depth is None:
                 self._in_style_depth = depth
+
+            if tag == "h1" and not self.h1_text and self._in_h1 is None:
+                self._in_h1 = (depth, [])
+            if tag == "h2" and self._in_h2 is None:
+                self._in_h2 = (depth, [])
+            if tag == "span" and parent_entry is not None and parent_entry[0] == "div" and "a-m" in parent_entry[1]:
+                self._in_meta_label = (depth, [])
+            if tag == "figcaption" and "mapcap" in classes and self._in_mapcap is None:
+                self._in_mapcap = (depth, [])
+            if self._in_play_depth is not None and self._in_play_ls_depth is None:
+                if tag == "h3" and self._in_play_h3 is None:
+                    self._in_play_h3 = (depth, [])
+                elif tag == "p" and self._in_play_p is None:
+                    self._in_play_p = (depth, [])
 
             if tag == "div" and "a-closing" in classes:
                 self.closing_present = True
@@ -1899,6 +1969,8 @@ class _SheetHTMLParser(HTMLParser):
 
             if tag == "a":
                 scopes: set[str] = set()
+                if self._in_fromgame_depth is not None:
+                    scopes.add("fromgame")
                 if self._in_closing_depth is not None:
                     scopes.add("closing")
                 if self._in_how_depth is not None:
@@ -1921,9 +1993,14 @@ class _SheetHTMLParser(HTMLParser):
                     "val": [],
                     "unit": [],
                     "rank": [],
+                    "has_nd_class": False,
                 }
             elif self._cur_fact is not None and tag == "a" and "a-f-s" in classes:
                 self._cur_fact["src_href"] = attr_map.get("href", "")
+            elif self._cur_fact is not None and tag == "b" and "a-nd" in classes:
+                self._cur_fact["has_nd_class"] = True
+            elif self._cur_fact is not None and tag == "span" and "a-rk-nd" in classes:
+                self._cur_fact["has_nd_class"] = True
 
             if tag == "figure" and "a-board" in classes and "data-axis" in attr_map:
                 self._cur_board = {
@@ -1977,21 +2054,47 @@ class _SheetHTMLParser(HTMLParser):
                 self._in_main_depth = None
             if self._in_svg_depth == depth:
                 self._in_svg_depth = None
+            if self._in_play_depth == depth:
+                self._in_play_depth = None
             if self._in_play_ls_depth == depth:
                 self._in_play_ls_depth = None
             if self._in_script_depth == depth:
                 self._in_script_depth = None
             if self._in_style_depth == depth:
                 self._in_style_depth = None
+            if self._in_fromgame_depth == depth:
+                self._in_fromgame_depth = None
             if self._in_closing_depth == depth:
                 self._in_closing_depth = None
             if self._in_how_depth == depth:
                 self._in_how_depth = None
             if self._in_subnav_depth == depth:
                 self._in_subnav_depth = None
+            if self._in_h1 is not None and self._in_h1[0] == depth:
+                self.h1_text = " ".join("".join(self._in_h1[1]).split())
+                self._in_h1 = None
+            if self._in_h2 is not None and self._in_h2[0] == depth:
+                h2_txt = " ".join("".join(self._in_h2[1]).split())
+                if h2_txt.startswith("Where ") and h2_txt.endswith(" stands out"):
+                    self.standout_headings.append(h2_txt)
+                self._in_h2 = None
+            if self._in_meta_label is not None and self._in_meta_label[0] == depth:
+                self.meta_labels.append(" ".join("".join(self._in_meta_label[1]).split()))
+                self._in_meta_label = None
+            if self._in_mapcap is not None and self._in_mapcap[0] == depth:
+                self.map_caption_text = " ".join("".join(self._in_mapcap[1]).split())
+                self._in_mapcap = None
+            if self._in_play_h3 is not None and self._in_play_h3[0] == depth:
+                self.play_h3_text = " ".join("".join(self._in_play_h3[1]).split())
+                self._in_play_h3 = None
+            if self._in_play_p is not None and self._in_play_p[0] == depth:
+                self.play_p_texts.append(" ".join("".join(self._in_play_p[1]).split()))
+                self._in_play_p = None
             if self._cur_nav_anchor is not None and self._cur_nav_anchor[0] == depth:
                 _, scopes, href, parts = self._cur_nav_anchor
                 txt = " ".join("".join(parts).split())
+                if "fromgame" in scopes:
+                    self.fromgame_links.append((href, txt))
                 if "closing" in scopes:
                     self.closing_links.append((href, txt))
                 if "how" in scopes:
@@ -2006,15 +2109,18 @@ class _SheetHTMLParser(HTMLParser):
             if self._cur_fact is not None and self._cur_fact["depth"] == depth:
                 f = self._cur_fact
                 unit_raw = "".join(f["unit"])
+                val_clean = "".join(f["val"]).strip().replace("\u2212", "-")
+                rank_clean = " ".join("".join(f["rank"]).split())
                 self.facts.append({
                     "ax": f["ax"],
                     "name": " ".join("".join(f["name"]).split()),
                     "src_text": " ".join("".join(f["src_text"]).split()),
                     "src_href": f["src_href"],
-                    "val": "".join(f["val"]).strip().replace("\u2212", "-"),
+                    "val": val_clean,
                     "unit": unit_raw.strip(),
                     "unit_has_nbsp": unit_raw.startswith("\xa0"),
-                    "rank": " ".join("".join(f["rank"]).split()),
+                    "rank": rank_clean,
+                    "is_nodata": f["has_nd_class"] or val_clean == "No data" or rank_clean == "Not ranked",
                 })
                 self._cur_fact = None
             if self._cur_mb_row is not None and self._cur_mb_row["depth"] == depth:
@@ -2048,6 +2154,21 @@ class _SheetHTMLParser(HTMLParser):
 
         if self._cur_nav_anchor is not None and self._in_svg_depth is None:
             self._cur_nav_anchor[3].append(data)
+
+        if self._in_how_depth is not None and self._in_svg_depth is None:
+            self._how_parts.append(data)
+        if self._in_h1 is not None and self._in_svg_depth is None:
+            self._in_h1[1].append(data)
+        if self._in_h2 is not None and self._in_svg_depth is None:
+            self._in_h2[1].append(data)
+        if self._in_meta_label is not None and self._in_svg_depth is None:
+            self._in_meta_label[1].append(data)
+        if self._in_mapcap is not None and self._in_svg_depth is None:
+            self._in_mapcap[1].append(data)
+        if self._in_play_h3 is not None and self._in_svg_depth is None:
+            self._in_play_h3[1].append(data)
+        if self._in_play_p is not None and self._in_svg_depth is None:
+            self._in_play_p[1].append(data)
 
         if self._cur_cnote is not None:
             self._cur_cnote[2].append(data)
@@ -2097,6 +2218,10 @@ class _SheetHTMLParser(HTMLParser):
     @property
     def main_visible_text(self) -> str:
         return " ".join("".join(self._main_visible_parts).split())
+
+    @property
+    def how_text(self) -> str:
+        return " ".join("".join(self._how_parts).split())
 
 
 def _parse_sheet_html(page: str) -> _SheetHTMLParser:
@@ -2162,7 +2287,99 @@ def _check_page_security_and_seo(rel: str, want_canon: str, parsed: _SheetHTMLPa
     return bad
 
 
-def _check_short_closing(rel: str, parsed: _SheetHTMLParser, cname: str, full_fact_count: int) -> list[str]:
+def _check_fromgame_bar(rel: str, parsed: _SheetHTMLParser, want_href: str) -> list[str]:
+    """Both short and full pages must have the .fromgame bar before <main> with one 'Back to the game' link."""
+    bad: list[str] = []
+    if not parsed.fromgame_present:
+        bad.append(f"{rel}: missing 'Back to the game' bar (.fromgame)")
+        return bad
+    if parsed.fromgame_order is None or parsed.main_order is None or not (parsed.fromgame_order < parsed.main_order):
+        bad.append(f"{rel}: 'Back to the game' bar (.fromgame) must appear before <main>")
+    if len(parsed.fromgame_links) == 0:
+        bad.append(f"{rel}: 'Back to the game' bar (.fromgame) is missing link to {want_href!r}")
+    elif len(parsed.fromgame_links) > 1:
+        bad.append(
+            f"{rel}: 'Back to the game' bar (.fromgame) must contain exactly one link "
+            f"(found {len(parsed.fromgame_links)}: {parsed.fromgame_links!r})"
+        )
+    else:
+        href, text = parsed.fromgame_links[0]
+        if href != want_href:
+            bad.append(f"{rel}: 'Back to the game' link href {href!r} must be {want_href!r}")
+        if text != "Back to the game":
+            bad.append(f"{rel}: 'Back to the game' link text {text!r} != 'Back to the game'")
+    return bad
+
+
+def _check_short_no_nodata(rel: str, parsed: _SheetHTMLParser) -> list[str]:
+    """Short pages must never show a 'No data' / 'Not ranked' fact card."""
+    bad: list[str] = []
+    for card in parsed.facts:
+        if card["is_nodata"]:
+            bad.append(f"{rel}: short page must not show a 'No data' fact card ({card['ax']!r})")
+    return bad
+
+
+def _check_country_wording(
+    rel: str,
+    iso: str,
+    cname: str,
+    layout: str,
+    parsed: _SheetHTMLParser,
+    shown_count: int | None = None,
+) -> list[str]:
+    """Verify bare <h1>, 'the'/'The' before country names in running prose, hero label, standout placement, and play card wording."""
+    bad: list[str] = []
+    cname_prose = country_in_prose(iso, cname)
+    cname_start = country_in_prose(iso, cname, start=True)
+
+    if parsed.h1_text != cname:
+        bad.append(f"{rel}: <h1> {parsed.h1_text!r} != bare country name {cname!r}")
+
+    if "Time zones" in parsed.meta_labels:
+        bad.append(f"{rel}: hero card uses 'Time zones' instead of 'Time-zone regions'")
+    if "Time-zone regions" not in parsed.meta_labels:
+        bad.append(f"{rel}: hero card is missing 'Time-zone regions' label")
+
+    want_play_h3 = f"Sort {cname_prose} against four others"
+    if parsed.play_h3_text != want_play_h3:
+        bad.append(f"{rel}: play card heading {parsed.play_h3_text!r} != {want_play_h3!r}")
+
+    want_play_prefix = f"The game has figures for {cname_prose} on "
+    matching_play = [p for p in parsed.play_p_texts if p.startswith(want_play_prefix)]
+    if not matching_play:
+        bad.append(f"{rel}: play card missing sentence starting with {want_play_prefix!r} (got {parsed.play_p_texts!r})")
+    else:
+        for p in matching_play:
+            m_same = re.search(r"\bon (\d+) of its \1 questions\.", p)
+            if m_same:
+                bad.append(
+                    f"{rel}: play card uses awkward 'on {m_same.group(1)} of its {m_same.group(1)} questions.' "
+                    f"(use 'on all {m_same.group(1)} questions.')"
+                )
+
+    if layout == "short":
+        want_standout = f"Where {cname_prose} stands out"
+        if parsed.standout_headings != [want_standout]:
+            bad.append(f"{rel}: short page standout heading {parsed.standout_headings!r} != [{want_standout!r}]")
+        if shown_count is not None:
+            want_how_prefix = f"Showing {shown_count} highlights for {cname_prose}."
+            if not parsed.how_text.startswith(want_how_prefix):
+                bad.append(f"{rel}: short page .a-how text must start with {want_how_prefix!r} (got {parsed.how_text[:80]!r})")
+    else:
+        if parsed.standout_headings or parsed.has_standout_boards or parsed.boards:
+            bad.append(f"{rel}: full page must not include 'Where ... stands out' section or mini-boards")
+
+    if iso.upper() in COUNTRIES_WITH_THE:
+        if parsed.map_caption_text.startswith(f"{cname} "):
+            bad.append(f"{rel}: map caption starts with bare {cname!r} instead of {cname_start!r}")
+        if iso.upper() == "NL" and parsed.map_caption_text.startswith("European Netherlands "):
+            bad.append(f"{rel}: map caption starts with 'European Netherlands' instead of 'The European Netherlands'")
+
+    return bad
+
+
+def _check_short_closing(rel: str, parsed: _SheetHTMLParser, iso: str, cname: str, full_fact_count: int) -> list[str]:
     """Short page closing area must sit after the last fact section, before the play card, with exactly one link to ./all/."""
     bad: list[str] = []
     if not parsed.closing_present:
@@ -2190,7 +2407,7 @@ def _check_short_closing(rel: str, parsed: _SheetHTMLParser, cname: str, full_fa
         href, text = parsed.closing_links[0]
         if href != "./all/":
             bad.append(f"{rel}: short page closing link href {href!r} must be './all/'")
-        want_text = f"See all {full_fact_count} facts about {cname}"
+        want_text = f"See all {full_fact_count} facts about {country_in_prose(iso, cname)}"
         if text != want_text:
             bad.append(f"{rel}: short page closing link text {text!r} != {want_text!r}")
     return bad
@@ -2449,14 +2666,17 @@ def _check_single_page(
     want_entry: dict,
     label: str,
     *,
+    iso: str,
     cname: str,
     full_fact_count: int,
+    fromgame_href: str,
     ref_note: str = "",
 ) -> list[str]:
     bad: list[str] = []
     bad += _check_page_security_and_seo(rel, want_canon, parsed)
     bad += _check_page_overflow(rel, parsed)
     bad += _check_page_abbreviations(rel, parsed)
+    bad += _check_fromgame_bar(rel, parsed, fromgame_href)
 
     # Check every data-axis attribute (both fact rows and standout mini-boards, any quote style)
     for ax in sorted(set(parsed.all_data_axes)):
@@ -2482,9 +2702,10 @@ def _check_single_page(
         bad.append(f"{rel}: {label} is missing 'values'")
         want_vals = {}
     want_boards = want_entry.get("boards")
-    bad += _check_boards(rel, parsed.boards, want_boards, label)
 
     if layout == "short":
+        bad += _check_boards(rel, parsed.boards, want_boards, label)
+        bad += _check_short_no_nodata(rel, parsed)
         if len(rendered) == 0:
             bad.append(f"{rel}: short page has 0 facts")
         if len(rendered) > SHORT_MAX_FACTS:
@@ -2499,8 +2720,14 @@ def _check_single_page(
                 bad.append(f"{rel}: missing short-page axis/axes {missing_ax[:5]} ({len(missing_ax)} total)")
             if extra_ax:
                 bad.append(f"{rel}: unexpected short-page axis/axes {extra_ax[:5]} ({len(extra_ax)} total)")
-        bad += _check_short_closing(rel, parsed, cname, full_fact_count)
+        bad += _check_short_closing(rel, parsed, iso, cname, full_fact_count)
+        bad += _check_country_wording(
+            rel, iso, cname, layout, parsed,
+            shown_count=len(expected_short) if isinstance(expected_short, list) else len(rendered),
+        )
     else:
+        if want_boards:
+            bad.append(f"{rel}: {label} full entry must not list mini-boards (got {len(want_boards)})")
         missing_ax = sorted(set(expected_axes) - set(rendered_map))
         extra_ax = sorted(set(rendered_map) - set(expected_axes))
         if missing_ax:
@@ -2508,11 +2735,16 @@ def _check_single_page(
         if extra_ax:
             bad.append(f"{rel}: unexpected axis/axes {extra_ax[:5]} ({len(extra_ax)} total)")
         bad += _check_full_back_link(rel, parsed)
+        bad += _check_country_wording(rel, iso, cname, layout, parsed)
 
     for ax, got_card in rendered_map.items():
+        if ax in SHEET_NAME_OVERRIDES and got_card["name"] != SHEET_NAME_OVERRIDES[ax]:
+            bad.append(f"{rel}: {ax} label {got_card['name']!r} != {SHEET_NAME_OVERRIDES[ax]!r}")
         if ax not in want_vals:
             bad.append(f"{rel}: {label} is missing values entry for rendered axis {ax!r}")
             continue
+        if layout == "short" and isinstance(want_vals[ax], dict) and want_vals[ax].get("nodata"):
+            bad.append(f"{rel}: short page axis {ax!r} has no data in {label}")
         bad += _check_card_fields(rel, ax, got_card, want_vals[ax], label)
 
     notes = parsed.consistency_notes
@@ -2575,6 +2807,10 @@ def check(
     if sm.is_file() and "/countries/" in sm.read_text(encoding="utf-8"):
         bad.append("sitemap.xml: lists /countries/ URL(s); country sheets are noindex and must stay out of sitemap.xml")
 
+    is_custom_out = out_dir is not None and out_dir.resolve() != root.resolve()
+    short_fromgame_href = _asset_prefix_for(root, out_dir if is_custom_out else None, base_depth=2)
+    full_fromgame_href = _asset_prefix_for(root, out_dir if is_custom_out else None, base_depth=3)
+
     for iso in COUNTRIES:
         if iso not in m_countries:
             bad.append(f"{MANIFEST_FILE}: missing entry for {iso}")
@@ -2590,19 +2826,27 @@ def check(
         if not isinstance(full_count, int) or full_count <= 0:
             bad.append(f"{MANIFEST_FILE}: missing or invalid 'full_fact_count' for {iso}")
             full_count = len(expected_axes)
-        elif isinstance(full_entry, dict) and isinstance(full_entry.get("shown_axes"), list):
-            if full_count != len(full_entry["shown_axes"]):
+        elif isinstance(full_entry, dict) and isinstance(full_entry.get("values"), dict):
+            want_data_count = sum(
+                1 for v in full_entry["values"].values()
+                if isinstance(v, dict) and not v.get("nodata")
+            )
+            if full_count != want_data_count:
                 bad.append(
-                    f"{MANIFEST_FILE}: {iso} full_fact_count={full_count} != len(full.shown_axes)={len(full_entry['shown_axes'])}"
+                    f"{MANIFEST_FILE}: {iso} full_fact_count={full_count} != full facts with data ({want_data_count})"
                 )
 
-        # Full page first so we can also verify short page's <N> matches actual full page fact count
+        # Full page first so we can also verify short page's <N> matches actual full page facts with data
         rel_full = f"countries/{iso}/all/index.html"
         p_full = target_dir / rel_full
         actual_full_facts: int | None = None
         if p_full.is_file():
             parsed_full = _parse_sheet_html(p_full.read_text(encoding="utf-8"))
-            actual_full_facts = len(parsed_full.facts)
+            actual_full_facts = sum(1 for f in parsed_full.facts if not f["is_nodata"])
+            if actual_full_facts != full_count:
+                bad.append(
+                    f"{rel_full}: full page has {actual_full_facts} facts with data != manifest full_fact_count={full_count}"
+                )
             bad += _check_single_page(
                 rel_full,
                 f"{SITE}/countries/{iso}/all/",
@@ -2613,8 +2857,10 @@ def check(
                 expected_axes,
                 full_entry,
                 "dataset",
+                iso=iso,
                 cname=cname,
                 full_fact_count=full_count,
+                fromgame_href=full_fromgame_href,
             )
 
         rel_short = f"countries/{iso}/index.html"
@@ -2632,8 +2878,10 @@ def check(
                 expected_axes,
                 short_entry,
                 "dataset",
+                iso=iso,
                 cname=cname,
                 full_fact_count=want_n,
+                fromgame_href=short_fromgame_href,
             )
 
     return bad
@@ -2694,13 +2942,16 @@ def check_game(
 
     # Check both short and full sheets directly against live dataset.json, web_republish and allowlist
     target_dir = out_dir if out_dir is not None else root
+    is_custom_out = out_dir is not None and out_dir.resolve() != root.resolve()
+    short_fromgame_href = _asset_prefix_for(root, out_dir if is_custom_out else None, base_depth=2)
+    full_fromgame_href = _asset_prefix_for(root, out_dir if is_custom_out else None, base_depth=3)
     policy = bundle["policy"]
     expected_axes = bundle["published_axes"]
     for iso in COUNTRIES:
         full_spec = compute_sheet_expectation(bundle, iso, layout="full")
         short_spec = compute_sheet_expectation(bundle, iso, layout="short")
         cname = full_spec["cname"]
-        full_count = len(full_spec["shown_axes"])
+        full_count = sum(1 for card in full_spec["cards"].values() if not card["nodata"])
 
         rel_full = f"countries/{iso}/all/index.html"
         p_full = target_dir / rel_full
@@ -2718,8 +2969,10 @@ def check_game(
                 expected_axes,
                 _spec_to_want_entry(full_spec),
                 f"{ref} dataset",
+                iso=iso,
                 cname=cname,
                 full_fact_count=full_count,
+                fromgame_href=full_fromgame_href,
                 ref_note=ref,
             )
 
@@ -2739,8 +2992,10 @@ def check_game(
                 expected_axes,
                 _spec_to_want_entry(short_spec),
                 f"{ref} dataset",
+                iso=iso,
                 cname=cname,
                 full_fact_count=full_count,
+                fromgame_href=short_fromgame_href,
                 ref_note=ref,
             )
 
@@ -2799,7 +3054,7 @@ def build(
         full_html, full_entry, full_flags, cname = render_sheet(
             bundle, iso, root, layout="full", asset_prefix=full_prefix,
         )
-        full_fact_count = len(full_entry["shown_axes"])
+        full_fact_count = sum(1 for v in full_entry["values"].values() if not v["nodata"])
         short_html, short_entry, short_flags, _ = render_sheet(
             bundle, iso, root, layout="short", asset_prefix=short_prefix, full_fact_count=full_fact_count,
         )
@@ -2818,6 +3073,7 @@ def build(
     for iso in COUNTRIES:
         cname = manifest_countries[iso]["name"]
         full_count = manifest_countries[iso]["full_fact_count"]
+        short_count = len(manifest_countries[iso]["short"]["shown_axes"])
 
         rel_short = f"countries/{iso}/index.html"
         parsed_short = _parse_sheet_html(short_pages_out[iso])
@@ -2825,7 +3081,10 @@ def build(
             _check_page_security_and_seo(rel_short, f"{SITE}/countries/{iso}/", parsed_short)
             + _check_page_overflow(rel_short, parsed_short)
             + _check_page_abbreviations(rel_short, parsed_short)
-            + _check_short_closing(rel_short, parsed_short, cname, full_count)
+            + _check_fromgame_bar(rel_short, parsed_short, short_prefix)
+            + _check_short_no_nodata(rel_short, parsed_short)
+            + _check_short_closing(rel_short, parsed_short, iso, cname, full_count)
+            + _check_country_wording(rel_short, iso, cname, "short", parsed_short, shown_count=short_count)
         )
         rel_full = f"countries/{iso}/all/index.html"
         parsed_full = _parse_sheet_html(full_pages_out[iso])
@@ -2833,7 +3092,9 @@ def build(
             _check_page_security_and_seo(rel_full, f"{SITE}/countries/{iso}/all/", parsed_full)
             + _check_page_overflow(rel_full, parsed_full)
             + _check_page_abbreviations(rel_full, parsed_full)
+            + _check_fromgame_bar(rel_full, parsed_full, full_prefix)
             + _check_full_back_link(rel_full, parsed_full)
+            + _check_country_wording(rel_full, iso, cname, "full", parsed_full)
         )
         if problems:
             raise SheetError("refusing to write invalid sheet:\n  " + "\n  ".join(problems))

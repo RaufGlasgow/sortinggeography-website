@@ -2129,8 +2129,8 @@ sheet_guard_case(
 sheet_guard_case(
     "abbreviation (GDP) appearing before its full form goes red",
     True,
-    lambda r: edit(r, "countries/us/index.html", '<h2 class="left">Where United States stands out</h2>',
-                   '<h2 class="left">Where United States stands out (GDP)</h2>'),
+    lambda r: edit(r, "countries/us/index.html", '<h2 class="left">Where the United States stands out</h2>',
+                   '<h2 class="left">Where the United States stands out (GDP)</h2>'),
     must_match="abbreviation 'GDP' appears before its full form 'gross domestic product'",
 )
 sheet_guard_case(
@@ -2247,7 +2247,7 @@ sheet_guard_case(
     True,
     lambda r: edit(
         r, "countries/us/index.html",
-        '<a class="a-more-link" href="./all/">See all 140 facts about United States</a>',
+        '<a class="a-more-link" href="./all/">See all 140 facts about the United States</a>',
         "",
     ),
     must_match="short page closing area is missing link to './all/'",
@@ -2279,10 +2279,10 @@ sheet_guard_case(
     True,
     lambda r: edit(
         r, "countries/us/index.html",
-        "See all 140 facts about United States",
-        "See all 139 facts about United States",
+        "See all 140 facts about the United States",
+        "See all 139 facts about the United States",
     ),
-    must_match="short page closing link text 'See all 139 facts about United States' != 'See all 140 facts about United States'",
+    must_match="short page closing link text 'See all 139 facts about the United States' != 'See all 140 facts about the United States'",
 )
 sheet_guard_case(
     "missing all/ page on disk (countries/eg/all/index.html deleted) goes red",
@@ -2335,6 +2335,178 @@ sheet_guard_case(
     True,
     _add_six_extra_short_facts,
     must_match="short page has 26 facts (max 25)",
+)
+
+
+def _inject_nodata_card_on_short(root: pathlib.Path) -> None:
+    """Replace one short-page card on GB with a 'No data' card and mirror it in manifest so only the short-nodata guard catches it."""
+    manifest = json.loads((root / build_sheets.MANIFEST_FILE).read_text(encoding="utf-8"))
+    gb_full = manifest["countries"]["gb"]["full"]["values"]["football_matches_all_time"]
+    gb_short = manifest["countries"]["gb"]["short"]
+    drop_ax = gb_short["shown_axes"][-1]
+    gb_short["shown_axes"].remove(drop_ax)
+    gb_short["shown_axes"].append("football_matches_all_time")
+    gb_short["shown_axes"].sort()
+    gb_short["values"].pop(drop_ax)
+    gb_short["values"]["football_matches_all_time"] = gb_full
+    (root / build_sheets.MANIFEST_FILE).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    p = root / "countries/gb/index.html"
+    txt = p.read_text(encoding="utf-8")
+    pat = re.compile(rf'<div class="band a-f" data-axis="{re.escape(drop_ax)}">.*?</div></div>', re.S)
+    nodata_card = (
+        '<div class="band a-f" data-axis="football_matches_all_time">'
+        '<div class="a-f-l"><span class="a-f-n">Football internationals played, all time</span>'
+        f'<a class="a-f-s" href="{gb_full["url"]}" rel="noopener noreferrer">{gb_full["src_text"]}</a></div>'
+        '<div class="a-f-r"><b class="a-nd">No data</b><span class="a-rk a-rk-nd">Not ranked</span></div></div>'
+    )
+    new, n = pat.subn(nodata_card, txt, count=1)
+    if n != 1:
+        raise SystemExit(f"test setup: could not replace {drop_ax!r} in countries/gb/index.html")
+    p.write_text(new, encoding="utf-8")
+
+
+def _count_nodata_in_see_all(root: pathlib.Path) -> None:
+    """Bump Japan's See all link AND manifest full_fact_count to 140 (counting No data rows as facts)."""
+    edit(root, "countries/jp/index.html", "See all 122 facts about Japan", "See all 140 facts about Japan")
+    _mutate_manifest(root, lambda m: m["countries"]["jp"].__setitem__("full_fact_count", 140))
+
+
+def _remove_fromgame_bar(root: pathlib.Path, rel: str) -> None:
+    p = root / rel
+    txt = p.read_text(encoding="utf-8")
+    new, n = re.subn(r'<div class="fromgame">.*?</div>\s*</div>', "", txt, count=1, flags=re.S)
+    if n != 1:
+        raise SystemExit(f"test setup: .fromgame bar not found in {rel}")
+    p.write_text(new, encoding="utf-8")
+
+
+# Round 3 findings + "the" before country names: break-on-purpose cases (1, 2, 3, 4, 5, 6, 7, 8)
+sheet_guard_case(
+    "r3-1: short page showing a 'No data' fact card goes red",
+    True,
+    _inject_nodata_card_on_short,
+    must_match="short page must not show a 'No data' fact card ('football_matches_all_time')",
+)
+sheet_guard_case(
+    "r3-2: short page 'See all N facts' counting 'No data' rows (Japan 140 instead of 122) goes red",
+    True,
+    lambda r: edit(r, "countries/jp/index.html", "See all 122 facts about Japan", "See all 140 facts about Japan"),
+    must_match="short page closing link text 'See all 140 facts about Japan' != 'See all 122 facts about Japan'",
+)
+sheet_guard_case(
+    "r3-2b: manifest + short page both counting 'No data' rows (Japan 140) still goes red",
+    True,
+    _count_nodata_in_see_all,
+    must_match="full page has 122 facts with data != manifest full_fact_count=140",
+)
+sheet_guard_case(
+    "r3-3: play card saying '190 of its 190 questions' instead of 'all 190 questions' goes red",
+    True,
+    lambda r: edit(
+        r, "countries/us/index.html",
+        "The game has figures for the United States on all 190 questions.",
+        "The game has figures for the United States on 190 of its 190 questions.",
+    ),
+    must_match="awkward 'on 190 of its 190 questions.'",
+)
+sheet_guard_case(
+    "r3-4: full page repeating 'Where ... stands out' section goes red",
+    True,
+    lambda r: edit(
+        r, "countries/us/all/index.html",
+        '<div class="a-fcols">',
+        '<section class="a-fs"><h2 class="left">Where the United States stands out</h2><div class="a-boards"></div></section><div class="a-fcols">',
+    ),
+    must_match="full page must not include 'Where ... stands out' section or mini-boards",
+)
+sheet_guard_case(
+    "r3-5: hero card using 'Time zones' instead of 'Time-zone regions' goes red",
+    True,
+    lambda r: edit(r, "countries/us/index.html", "<span>Time-zone regions</span>", "<span>Time zones</span>"),
+    must_match="hero card uses 'Time zones' instead of 'Time-zone regions'",
+)
+sheet_guard_case(
+    "r3-6: foreign_born_share_pct reverted to duplicate 'People born abroad' label goes red",
+    True,
+    lambda r: edit(
+        r, "countries/us/all/index.html",
+        'data-axis="foreign_born_share_pct"><div class="a-f-l"><span class="a-f-n">Share of people born abroad</span>',
+        'data-axis="foreign_born_share_pct"><div class="a-f-l"><span class="a-f-n">People born abroad</span>',
+    ),
+    must_match="foreign_born_share_pct label 'People born abroad' != 'Share of people born abroad'",
+)
+sheet_guard_case(
+    "r3-7a: short page missing .fromgame bar goes red",
+    True,
+    lambda r: _remove_fromgame_bar(r, "countries/us/index.html"),
+    must_match="missing 'Back to the game' bar (.fromgame)",
+)
+sheet_guard_case(
+    "r3-7b: short page .fromgame 'Back to the game' link href broken goes red",
+    True,
+    lambda r: edit(r, "countries/us/index.html", '<div class="fromgame-in">\n    <a href="../../">', '<div class="fromgame-in">\n    <a href="../../../">'),
+    must_match="'Back to the game' link href '../../../' must be '../../'",
+)
+sheet_guard_case(
+    "r3-7c: full page missing .fromgame bar goes red",
+    True,
+    lambda r: _remove_fromgame_bar(r, "countries/us/all/index.html"),
+    must_match="missing 'Back to the game' bar (.fromgame)",
+)
+sheet_guard_case(
+    "r3-7d: full page .fromgame 'Back to the game' link href broken goes red",
+    True,
+    lambda r: edit(r, "countries/us/all/index.html", '<div class="fromgame-in">\n    <a href="../../../">', '<div class="fromgame-in">\n    <a href="../../">'),
+    must_match="'Back to the game' link href '../../' must be '../../../'",
+)
+sheet_guard_case(
+    "r3-7e: full page .fromgame 'Back to the game' link text changed goes red",
+    True,
+    lambda r: edit(r, "countries/us/all/index.html", "Back to the game</a>", "Back home</a>"),
+    must_match="'Back to the game' link text 'Back home' != 'Back to the game'",
+)
+sheet_guard_case(
+    "r3-8a: dropping 'the' in 'See all N facts about the United States' goes red",
+    True,
+    lambda r: edit(r, "countries/us/index.html", "See all 140 facts about the United States", "See all 140 facts about United States"),
+    must_match="short page closing link text 'See all 140 facts about United States' != 'See all 140 facts about the United States'",
+)
+sheet_guard_case(
+    "r3-8b: dropping 'the' in 'Where the United Kingdom stands out' goes red",
+    True,
+    lambda r: edit(r, "countries/gb/index.html", "Where the United Kingdom stands out", "Where United Kingdom stands out"),
+    must_match="short page standout heading ['Where United Kingdom stands out'] != ['Where the United Kingdom stands out']",
+)
+sheet_guard_case(
+    "r3-8c: dropping 'the' in 'Showing 20 highlights for the Netherlands.' goes red",
+    True,
+    lambda r: edit(r, "countries/nl/index.html", "Showing 20 highlights for the Netherlands.", "Showing 20 highlights for Netherlands."),
+    must_match="short page .a-how text must start with 'Showing 20 highlights for the Netherlands.'",
+)
+sheet_guard_case(
+    "r3-8d: dropping 'the' in 'Sort the United States against four others' goes red",
+    True,
+    lambda r: edit(r, "countries/us/index.html", "Sort the United States against four others", "Sort United States against four others"),
+    must_match="play card heading 'Sort United States against four others' != 'Sort the United States against four others'",
+)
+sheet_guard_case(
+    "r3-8e: dropping 'the' in 'The game has figures for the United Kingdom on' goes red",
+    True,
+    lambda r: edit(r, "countries/gb/all/index.html", "The game has figures for the United Kingdom on", "The game has figures for United Kingdom on"),
+    must_match="play card missing sentence starting with 'The game has figures for the United Kingdom on '",
+)
+sheet_guard_case(
+    "r3-8f: dropping capitalised 'The' at sentence start in UK map caption goes red",
+    True,
+    lambda r: edit(r, "countries/gb/index.html", "The United Kingdom as the game counts it.", "United Kingdom as the game counts it."),
+    must_match="map caption starts with bare 'United Kingdom' instead of 'The United Kingdom'",
+)
+sheet_guard_case(
+    "r3-8g: adding 'the' to bare <h1> title goes red",
+    True,
+    lambda r: edit(r, "countries/us/index.html", '<h1 class="left">United States</h1>', '<h1 class="left">the United States</h1>'),
+    must_match="<h1> 'the United States' != bare country name 'United States'",
 )
 
 
