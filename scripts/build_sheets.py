@@ -370,8 +370,12 @@ def _abbr_token_re(short: str) -> re.Pattern[str]:
 
 
 _ABBR_BY_SHORT: dict[str, tuple[str, str]] = {short: (full, mode) for short, full, mode in ABBREVIATIONS}
-_ABBR_SINGLE_RE: dict[str, re.Pattern[str]] = {short: _abbr_token_re(short) for short, _, _ in ABBREVIATIONS}
 _ABBR_COMBINED_RE = re.compile("|".join(_abbr_token_re(short).pattern for short, _, _ in ABBREVIATIONS))
+_ABBR_INTRO_RE: dict[str, re.Pattern[str]] = {
+    short: re.compile(r"(?<![A-Za-z0-9_])(?i:" + re.escape(full) + r")\s+\(" + re.escape(short) + r"\)")
+    for short, full, mode in ABBREVIATIONS
+    if mode == "first"
+}
 
 
 class AbbrevExpander:
@@ -1769,7 +1773,7 @@ class _SheetHTMLParser(HTMLParser):
         elif tag == "link":
             rels = set(attr_map.get("rel", "").lower().split())
             href = attr_map.get("href", "").strip()
-            if "canonical" in rels:
+            if rels == {"canonical"}:
                 if href:
                     self.canonical_hrefs.append(href)
             elif href and _is_external_or_data_url(href):
@@ -2080,19 +2084,26 @@ def _check_page_security_and_seo(rel: str, iso: str, parsed: _SheetHTMLParser) -
 
 
 def _check_page_abbreviations(rel: str, parsed: _SheetHTMLParser) -> list[str]:
-    """Fail if any known abbreviation appears unexpanded or before its full form on the page (Finding 8)."""
+    """Fail if any known abbreviation appears unexpanded or before its full (short) introduction (Finding 8)."""
     bad: list[str] = []
     text = parsed.main_visible_text
+    first_pos: dict[str, int] = {}
+    for m in _ABBR_COMBINED_RE.finditer(text):
+        short = m.group(0)
+        if short not in first_pos:
+            first_pos[short] = m.start()
     for short, full, mode in ABBREVIATIONS:
-        m_abbr = _ABBR_SINGLE_RE[short].search(text)
-        if m_abbr is None:
+        pos = first_pos.get(short)
+        if pos is None:
             continue
         if mode == "always":
             bad.append(f"{rel}: unexpanded abbreviation {short!r} (spell out as {full!r})")
             continue
-        m_full = re.search(r"(?<![A-Za-z0-9_])" + re.escape(full) + r"(?![A-Za-z0-9_])", text, re.I)
-        if m_full is None or m_full.start() > m_abbr.start():
-            bad.append(f"{rel}: abbreviation {short!r} appears before its full form {full!r}")
+        m_intro = _ABBR_INTRO_RE[short].search(text)
+        if m_intro is None or (m_intro.end() - len(short) - 1) > pos:
+            bad.append(
+                f"{rel}: abbreviation {short!r} appears before its full form {full!r} (expected '{full} ({short})')"
+            )
     return bad
 
 
@@ -2226,8 +2237,13 @@ def _check_boards(rel: str, got_boards: list[dict], want_boards: list[dict] | No
                         f"for distinct ranks {rows[i]['rank']!r} and {rows[j]['rank']!r}"
                     )
 
-    if want_boards is None:
+    if not isinstance(want_boards, list):
+        bad.append(f"{rel}: {label} is missing mini-boards ('boards')")
         return bad
+    for wb in want_boards:
+        if not isinstance(wb, dict) or not all(k in wb for k in ("ax", "unit", "bsrc", "rows")):
+            bad.append(f"{rel}: {label} mini-board entry is malformed or missing required fields")
+            return bad
     got_axes = [b["ax"] for b in got_boards]
     want_axes = [b["ax"] for b in want_boards]
     if got_axes != want_axes:
@@ -2254,19 +2270,24 @@ def _check_boards(rel: str, got_boards: list[dict], want_boards: list[dict] | No
 
 def _check_card_fields(rel: str, ax: str, got: dict, exp: dict, label: str) -> list[str]:
     bad: list[str] = []
-    if got["val"] != exp["val"]:
+    if not isinstance(exp, dict):
+        return [f"{rel}: {ax} {label} entry is missing or invalid"]
+    for req_key in ("val", "rank", "unit", "src_text", "url"):
+        if req_key not in exp or not isinstance(exp[req_key], str):
+            bad.append(f"{rel}: {ax} {label} entry is missing required field {req_key!r}")
+    if "val" in exp and isinstance(exp["val"], str) and got["val"] != exp["val"]:
         bad.append(f"{rel}: {ax} value {got['val']!r} != {label} value {exp['val']!r}")
-    if got["rank"] != exp["rank"]:
+    if "rank" in exp and isinstance(exp["rank"], str) and got["rank"] != exp["rank"]:
         bad.append(f"{rel}: {ax} rank {got['rank']!r} != {label} rank {exp['rank']!r}")
     if exp.get("nodata") and (got["val"] != "No data" or got["rank"] != "Not ranked"):
         bad.append(
             f"{rel}: {ax} has no data and must read 'No data' / 'Not ranked', not {got['val']!r} / {got['rank']!r}"
         )
-    if "unit" in exp and got["unit"] != exp["unit"]:
+    if "unit" in exp and isinstance(exp["unit"], str) and got["unit"] != exp["unit"]:
         bad.append(f"{rel}: {ax} unit {got['unit']!r} != {label} unit {exp['unit']!r}")
-    if "src_text" in exp and got["src_text"] != exp["src_text"]:
+    if "src_text" in exp and isinstance(exp["src_text"], str) and got["src_text"] != exp["src_text"]:
         bad.append(f"{rel}: {ax} source/year {got['src_text']!r} != {label} {exp['src_text']!r}")
-    if "url" in exp and got["src_href"] != exp["url"]:
+    if "url" in exp and isinstance(exp["url"], str) and got["src_href"] != exp["url"]:
         bad.append(f"{rel}: {ax} source URL {got['src_href']!r} != {label} URL {exp['url']!r}")
     return bad
 
@@ -2342,7 +2363,10 @@ def check(
         if iso not in m_countries:
             bad.append(f"{MANIFEST_FILE}: missing entry for {iso}")
             continue
-        want_vals = m_countries[iso].get("values") or {}
+        want_vals = m_countries[iso].get("values")
+        if not isinstance(want_vals, dict):
+            bad.append(f"{rel}: {MANIFEST_FILE} is missing 'values' for {iso}")
+            want_vals = {}
         want_boards = m_countries[iso].get("boards")
         bad += _check_boards(rel, parsed.boards, want_boards, "dataset")
 
@@ -2352,7 +2376,9 @@ def check(
             if len(rendered) > SHORT_MAX_FACTS:
                 bad.append(f"{rel}: short layout has {len(rendered)} facts (max {SHORT_MAX_FACTS})")
             expected_short = m_countries[iso].get("shown_axes")
-            if expected_short is not None:
+            if not isinstance(expected_short, list):
+                bad.append(f"{rel}: {MANIFEST_FILE} is missing 'shown_axes' for {iso}")
+            else:
                 missing_ax = sorted(set(expected_short) - set(rendered_map))
                 extra_ax = sorted(set(rendered_map) - set(expected_short))
                 if missing_ax:
@@ -2374,6 +2400,7 @@ def check(
 
         for ax, got_card in rendered_map.items():
             if ax not in want_vals:
+                bad.append(f"{rel}: {MANIFEST_FILE} is missing values entry for rendered axis {ax!r}")
                 continue
             bad += _check_card_fields(rel, ax, got_card, want_vals[ax], "dataset")
 
@@ -2480,6 +2507,7 @@ def check_game(
 
         for ax, got_card in rendered.items():
             if ax not in want_cards:
+                bad.append(f"{rel}: rendered axis {ax!r} is missing from {ref} dataset expectations")
                 continue
             bad += _check_card_fields(rel, ax, got_card, want_cards[ax], f"{ref} dataset")
 

@@ -1900,6 +1900,13 @@ def _remove_assetsignore_line(root: pathlib.Path, entry: str) -> None:
     p.write_text("\n".join(kept) + "\n", encoding="utf-8")
 
 
+def _mutate_manifest(root: pathlib.Path, fn) -> None:
+    p = root / build_sheets.MANIFEST_FILE
+    data = json.loads(p.read_text(encoding="utf-8"))
+    fn(data)
+    p.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
 sheet_guard_case("the 20 country sheets as built", False)
 sheet_guard_case(
     "assetsignore: _preview-short removed from .assetsignore goes red",
@@ -2034,6 +2041,45 @@ sheet_guard_case(
     must_match="loads external or data resource 'https://evil.example/a.css'",
 )
 sheet_guard_case(
+    "link rel='canonical stylesheet' with external href goes red",
+    True,
+    lambda r: edit(
+        r, "countries/us/index.html", "</head>",
+        '<link rel="canonical stylesheet" href="https://evil.example/a.css">\n</head>',
+    ),
+    must_match="loads external or data resource 'https://evil.example/a.css'",
+)
+sheet_guard_case(
+    "manifest missing boards fails closed",
+    True,
+    lambda r: _mutate_manifest(r, lambda m: m["countries"]["us"].pop("boards")),
+    must_match="is missing mini-boards ('boards')",
+)
+sheet_guard_case(
+    "manifest missing rendered axis values entry fails closed",
+    True,
+    lambda r: _mutate_manifest(r, lambda m: m["countries"]["us"]["values"].pop("population")),
+    must_match="is missing values entry for rendered axis 'population'",
+)
+sheet_guard_case(
+    "manifest card entry missing 'unit' fails closed",
+    True,
+    lambda r: _mutate_manifest(r, lambda m: m["countries"]["us"]["values"]["population"].pop("unit")),
+    must_match="population dataset entry is missing required field 'unit'",
+)
+sheet_guard_case(
+    "manifest card entry missing 'src_text' fails closed",
+    True,
+    lambda r: _mutate_manifest(r, lambda m: m["countries"]["us"]["values"]["population"].pop("src_text")),
+    must_match="population dataset entry is missing required field 'src_text'",
+)
+sheet_guard_case(
+    "manifest card entry missing 'url' fails closed",
+    True,
+    lambda r: _mutate_manifest(r, lambda m: m["countries"]["us"]["values"]["population"].pop("url")),
+    must_match="population dataset entry is missing required field 'url'",
+)
+sheet_guard_case(
     "Google Fonts stylesheet added to a country sheet",
     True,
     lambda r: edit(r, "countries/eg/index.html", "</head>", '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter">\n</head>'),
@@ -2081,6 +2127,22 @@ sheet_guard_case(
     True,
     lambda r: edit(r, "countries/us/index.html", "<small> hectares</small>", "<small> ha</small>"),
     must_match="unexpanded abbreviation 'ha'",
+)
+sheet_guard_case(
+    "abbreviation: bare 'km' after 'square kilometres (km²)' goes red",
+    True,
+    lambda r: edit(r, "countries/us/index.html", "<small> kilometres (km)</small>", "<small> km</small>"),
+    must_match="abbreviation 'km' appears before its full form 'kilometres' (expected 'kilometres (km)')",
+)
+sheet_guard_case(
+    "abbreviation: bare 'UN' after 'United Nations Department ... (UN DESA)' goes red",
+    True,
+    lambda r: edit(
+        r, "countries/us/index.html",
+        "United Nations (UN) World Population Prospects 2024",
+        "UN World Population Prospects 2024",
+    ),
+    must_match="abbreviation 'UN' appears before its full form 'United Nations' (expected 'United Nations (UN)')",
 )
 sheet_guard_case(
     "overflow: fixed width > 360px added to country-sheet CSS",
@@ -2331,19 +2393,23 @@ def sheet_game_fixture_case(
     pop_policy: str | None = "allowed",
     must_match: str | None = None,
     check_built_with_mutated_game: bool = False,
+    mutate_built=None,
 ) -> None:
     """Exercise real build_sheets.build() and check_game() against a minimal fixture game repo."""
     root = copy_site()
     g = _make_fixture_game_repo(game_countries, pop_policy=pop_policy)
     g_clean = None
+    all_problems: list[str] = []
     try:
         if check_built_with_mutated_game:
             # First build clean sheets from a clean fixture, then run check_game() against the mutated game repo.
             g_clean = _make_fixture_game_repo(list(build_sheets.COUNTRIES), pop_policy="allowed")
             build_sheets.build(g_clean, ref="main", root=root)
-            problems = build_sheets.check_game(g, ref="main", root=root)
-            red = bool(problems)
-            detail = problems[:3]
+            if mutate_built is not None:
+                mutate_built(root)
+            all_problems = build_sheets.check_game(g, ref="main", root=root)
+            red = bool(all_problems)
+            detail = all_problems[:3]
         else:
             try:
                 build_sheets.build(g, ref="main", root=root)
@@ -2352,17 +2418,20 @@ def sheet_game_fixture_case(
                 build_err = str(e)
             if build_err is not None:
                 red = True
+                all_problems = [build_err]
                 detail = [build_err]
             else:
-                problems = build_sheets.check_game(g, ref="main", root=root)
-                red = bool(problems)
-                detail = problems[:3]
+                if mutate_built is not None:
+                    mutate_built(root)
+                all_problems = build_sheets.check_game(g, ref="main", root=root)
+                red = bool(all_problems)
+                detail = all_problems[:3]
     finally:
         shutil.rmtree(g)
         if g_clean is not None:
             shutil.rmtree(g_clean)
         shutil.rmtree(root)
-    matched = True if (must_match is None or not expect_red) else any(must_match in d for d in detail)
+    matched = True if (must_match is None or not expect_red) else any(must_match in d for d in all_problems)
     ok = (red == expect_red) and matched
     extra = "" if ok else f"  <- got {detail!r}, want match {must_match!r}"
     print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'red  ' if red else 'green'} {name}{extra}")
@@ -2428,6 +2497,19 @@ sheet_game_fixture_case(
     True,
     pop_policy=None,
     must_match="missing or invalid web_republish",
+)
+sheet_game_fixture_case(
+    "fixture check_game(): injected non-SECTIONS forbidden axis (wine_lpc) caught by per-page policy guard",
+    list(build_sheets.COUNTRIES),
+    True,
+    pop_policy="allowed",
+    mutate_built=lambda r: edit(
+        r, "countries/us/index.html", '<div class="band a-f" data-axis="population">',
+        '<div class="band a-f" data-axis="wine_lpc"><div class="a-f-l"><span class="a-f-n">Wine</span></div>'
+        '<div class="a-f-r"><b>10</b><span class="a-rk">1st of 10</span></div></div>'
+        '<div class="band a-f" data-axis="population">',
+    ),
+    must_match="axis 'wine_lpc' is web_republish='forbidden' at main (refusing non-allowed axis)",
 )
 
 if failures:
