@@ -23,7 +23,7 @@ MARKS = ("<!--", "-->")
 
 
 def served_pages(root: pathlib.Path) -> list[pathlib.Path]:
-    ignored = {"docs", "src", "scripts", "node_modules", ".git", ".github", ".wrangler", "functions"}
+    ignored = {"docs", "src", "scripts", "node_modules", ".git", ".github", ".wrangler", "functions", "_preview-short"}
     return sorted(p for p in root.rglob("*.html") if not (set(p.relative_to(root).parts) & ignored))
 
 

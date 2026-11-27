@@ -7,9 +7,9 @@ countries, styled with the site's existing `style.css` and self-hosted fonts
 (no Google Fonts, no third-party scripts).
 
 Usage:
-    python3 scripts/build_sheets.py --game ../Sorting-Geography [--ref origin/main]
-    python3 scripts/build_sheets.py --check
-    python3 scripts/build_sheets.py --check --game ../Sorting-Geography [--ref origin/main] [--countries-ref REF]
+    python3 scripts/build_sheets.py --game ../Sorting-Geography [--ref origin/main] [--countries-ref REF] [--layout full|short] [--out DIR]
+    python3 scripts/build_sheets.py --check [--layout full|short] [--out DIR]
+    python3 scripts/build_sheets.py --check --game ../Sorting-Geography [--ref origin/main] [--countries-ref REF] [--layout full|short] [--out DIR]
 
 Modes:
   - Build (`--game PATH`): reads dataset.json, axes.yaml, fields.yaml,
@@ -125,6 +125,28 @@ SECTIONS: list[tuple[str, str, list[str]]] = [
         "football_matches_all_time", "football_home_win_pct", "football_goal_difference",
         "football_opponents_faced", "football_years_playing", "chess_grandmasters",
     ]),
+]
+
+# Short-layout selection rule (ONE place, deterministic, never hand-picked per country):
+# Start with 12 core staples from Sally's themed sections (filtered to web_republish: allowed
+# and non-denied), then fill up to SHORT_TARGET_FACTS (20) with each country's strongest-ranked
+# remaining allowed facts with data (lowest rank/n ratio, untied first, then ties <= 2, then
+# remaining ties, tie-breaking on rank and axis id), grouped into Sally's 5 themed sections.
+SHORT_TARGET_FACTS = 20
+SHORT_MAX_FACTS = 25
+SHORT_CORE_AXES: tuple[str, ...] = (
+    "land_area_km2", "coastline_km", "land_neighbour_count",
+    "highest_point_m", "mean_elevation_m", "forest_pct",
+    "population", "population_density", "median_age", "life_expectancy",
+    "airports_count",
+    "football_matches_all_time",
+)
+SHORT_SECTIONS: list[tuple[str, str, tuple[str, ...]]] = [
+    ("size", "Size, sea and borders", ("size",)),
+    ("land", "Land and height", ("height-water", "land")),
+    ("people", "People", ("people",)),
+    ("work", "Food, power and travel", ("economy", "farming", "food", "energy", "transport")),
+    ("play", "Football and chess", ("play",)),
 ]
 
 # Rule ID -> axes involved, mirroring pipeline/src/sorting_geography_content/fact_consistency.py.
@@ -608,10 +630,10 @@ def ic_back() -> str:
     )
 
 
-def flag_img(iso: str, cls: str = "", w: int = 32, h: int = 24, lazy: bool = True) -> str:
+def flag_img(iso: str, cls: str = "", w: int = 32, h: int = 24, lazy: bool = True, prefix: str = "../../") -> str:
     extra = f" {cls}" if cls else ""
     ld = ' loading="lazy"' if lazy else ""
-    return f'<img class="flag{extra}" src="../../images/flags/{iso.lower()}.svg" alt="" width="{w}" height="{h}"{ld}>'
+    return f'<img class="flag{extra}" src="{prefix}images/flags/{iso.lower()}.svg" alt="" width="{w}" height="{h}"{ld}>'
 
 
 # ---------------------------------------------------------------------------
@@ -1043,6 +1065,43 @@ def sections_for(published_axes: list[str]) -> list[tuple[str, str, list[str]]]:
     return out
 
 
+def select_short_axes(facts: dict[str, dict]) -> list[str]:
+    """Deterministic short-layout selection: core Sally staples + country's strongest ranks up to 20."""
+    selected: list[str] = [ax for ax in SHORT_CORE_AXES if ax in facts]
+    chosen = set(selected)
+    remaining = [f for ax, f in facts.items() if ax not in chosen and not f["nodata"]]
+    remaining.sort(
+        key=lambda f: (
+            0 if f["tied"] == 0 else (1 if f["tied"] <= 2 else 2),
+            f["rank"] / f["n"],
+            f["rank"],
+            f["ax"],
+        )
+    )
+    for f in remaining:
+        if len(selected) >= SHORT_TARGET_FACTS:
+            break
+        selected.append(f["ax"])
+    return selected
+
+
+def short_sections_for(selected_axes: list[str]) -> list[tuple[str, str, list[str]]]:
+    """Group selected short-layout axes into Sally's themed sections."""
+    sel = set(selected_axes)
+    full_by_key = {key: axs for key, _title, axs in SECTIONS}
+    used: set[str] = set()
+    out: list[tuple[str, str, list[str]]] = []
+    for key, title, full_keys in SHORT_SECTIONS:
+        ordered = [a for fk in full_keys for a in full_by_key.get(fk, []) if a in sel]
+        if ordered:
+            out.append((key, title, ordered))
+            used.update(ordered)
+    leftover = sorted(sel - used)
+    if leftover:
+        out.append(("other", "Other measures", leftover))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Page rendering
 # ---------------------------------------------------------------------------
@@ -1077,26 +1136,35 @@ def render_sheet(
     bundle: dict,
     iso_lower: str,
     root: pathlib.Path,
+    layout: str = "full",
+    asset_prefix: str = "../../",
 ) -> tuple[str, dict, set[str]]:
     """Render one country sheet HTML, its manifest record, and the flag ISOs it needs."""
+    if layout not in {"full", "short"}:
+        raise SheetError(f"unsupported layout {layout!r} (must be 'full' or 'short')")
     iso = iso_lower.upper()
     roster = bundle["roster"]
     if iso not in roster:
         raise SheetError(f"{iso}: not in pipeline/roster/countries.json")
     cname = roster[iso]["name"]
     ds = bundle["dataset"]
-    facts = compute_axis_facts(bundle, iso)
-    standout = standout_facts(facts)
-    rules = active_consistency_rules(bundle, iso, facts)
-    secs = sections_for(bundle["published_axes"])
+    all_facts = compute_axis_facts(bundle, iso)
+    if layout == "short":
+        selected_axes = select_short_axes(all_facts)
+        shown_facts = {ax: all_facts[ax] for ax in selected_axes}
+        secs = short_sections_for(selected_axes)
+    else:
+        shown_facts = all_facts
+        secs = sections_for(bundle["published_axes"])
+    standout = standout_facts(shown_facts)
+    rules = active_consistency_rules(bundle, iso, shown_facts)
 
     needed_flags: set[str] = {iso_lower}
     e = html.escape
 
-    # Hero metadata card
+    # Hero metadata card (Region shows continent only in both layouts)
     continent = ds["facets"]["continent"][iso]
-    subregion = ds["facets"]["subregion"][iso]
-    region_txt = subregion if subregion == continent else f"{subregion}, {continent}"
+    region_txt = continent
     capital = bundle["capitals"].get(iso)
     cap_lat = ds["attributes"].get("capital_lat", {}).get(iso)
     cap_lon = ds["attributes"].get("capital_lon", {}).get(iso)
@@ -1117,7 +1185,7 @@ def render_sheet(
 
     hero_html = (
         f'<div class="card a-sh">'
-        f'<div class="a-sh-top">{flag_img(iso, "flag-xl", 88, 66, lazy=False)}'
+        f'<div class="a-sh-top">{flag_img(iso, "flag-xl", 88, 66, lazy=False, prefix=asset_prefix)}'
         f'<div><p class="a-crumb">Countries &rsaquo; {e(continent)}</p><h1 class="left">{e(cname)}</h1></div></div>'
         f'<div class="a-meta">{meta_html}</div>'
         f'</div>'
@@ -1136,7 +1204,7 @@ def render_sheet(
             rows.append(
                 f'<div class="band a-mb{me_cls}">'
                 f'<span class="a-mb-n">{ordinal(r)}</span>'
-                f'{flag_img(other_iso, "", 28, 21)}'
+                f'{flag_img(other_iso, "", 28, 21, prefix=asset_prefix)}'
                 f'<span class="bname">{e(roster[other_iso]["name"])}</span>'
                 f'<b class="a-mb-v">{fmt_html(val, f["unit"])}</b>'
                 f'</div>'
@@ -1180,7 +1248,7 @@ def render_sheet(
         )
         row_parts: list[str] = []
         for ax in axs:
-            f = facts[ax]
+            f = shown_facts[ax]
             src_host = host_label(f["url"]) if f["url"] else ""
             src_label = f'{e(f["src"])}, {e(f["year"])}' + (f" &middot; {e(src_host)}" if src_host else "")
             src_el = (
@@ -1206,17 +1274,24 @@ def render_sheet(
             f'</section>'
         )
 
-    how_html = (
-        f'<p class="a-how">Rank counts from the highest value among the countries that have data: '
-        f'1st is the most. Ties share a rank. Data version {bundle["vnum"]}, {e(bundle["vdate"])}.</p>'
-    )
-
     n_all_axes = len(ds["axes"])
     n_have_all = sum(
         1 for a in ds["axes"]
         if iso in ds["axes"][a] and isinstance(ds["axes"][a][iso], dict)
         and not isinstance(ds["axes"][a][iso].get("sort_value"), dict)
     )
+    if layout == "short":
+        how_html = (
+            f'<p class="a-how">Showing {len(shown_facts)} highlights for {e(cname)}. '
+            f'Rank counts from the highest value among the countries that have data: '
+            f'1st is the most. Ties share a rank. Data version {bundle["vnum"]}, {e(bundle["vdate"])}.</p>'
+        )
+    else:
+        how_html = (
+            f'<p class="a-how">Rank counts from the highest value among the countries that have data: '
+            f'1st is the most. Ties share a rank. Data version {bundle["vnum"]}, {e(bundle["vdate"])}.</p>'
+        )
+
     play_html = (
         f'<div class="card a-play">'
         f'<h3>Sort {e(cname)} against four others</h3>'
@@ -1239,27 +1314,27 @@ def render_sheet(
 <meta name="description" content="{e(desc, quote=True)}">
 <!-- seo:head --><!-- /seo:head -->
 <meta name="robots" content="noindex,follow">
-<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="{asset_prefix}style.css">
 </head>
 <body>
 <header class="hd">
   <div class="hd-in">
-    <a class="wm" href="../../">{ic_globe("ic wm-ic")}<span>Sorting&nbsp;Geography</span></a>
+    <a class="wm" href="{asset_prefix}">{ic_globe("ic wm-ic")}<span>Sorting&nbsp;Geography</span></a>
     <nav class="hd-links">
-      <a href="../../#how-to-play">How to play</a>
-      <a href="../../#daily">Daily</a>
-      <a href="../../#faq">FAQ</a>
+      <a href="{asset_prefix}#how-to-play">How to play</a>
+      <a href="{asset_prefix}#daily">Daily</a>
+      <a href="{asset_prefix}#faq">FAQ</a>
     </nav>
     <div class="hd-end">
-      <a class="btn btn-sm only-pre" href="../../#notify">Get notified</a>
-      <a class="btn btn-sm only-post" href="../../#launch">Get the app</a>
+      <a class="btn btn-sm only-pre" href="{asset_prefix}#notify">Get notified</a>
+      <a class="btn btn-sm only-post" href="{asset_prefix}#launch">Get the app</a>
     </div>
   </div>
 </header>
 
 <div class="fromgame">
   <div class="fromgame-in">
-    <a href="../../">{ic_back()}Back to the game</a>
+    <a href="{asset_prefix}">{ic_back()}Back to the game</a>
     <span>Opened from the game</span>
   </div>
 </div>
@@ -1286,15 +1361,15 @@ def render_sheet(
 <footer class="ft">
   <div class="ft-in">
     <div class="ft-brand">
-      <a class="wm" href="../../">{ic_globe("ic wm-ic")}<span>Sorting&nbsp;Geography</span></a>
+      <a class="wm" href="{asset_prefix}">{ic_globe("ic wm-ic")}<span>Sorting&nbsp;Geography</span></a>
     </div>
     <nav class="ft-links">
-      <a href="../../#faq">FAQ</a>
-      <a href="../../credits.html">Data sources</a>
-      <a href="../../press/">Press</a>
-      <a href="../../support/">Support</a>
-      <a href="../../privacy/">Privacy</a>
-      <a href="../../terms/">Terms</a>
+      <a href="{asset_prefix}#faq">FAQ</a>
+      <a href="{asset_prefix}credits.html">Data sources</a>
+      <a href="{asset_prefix}press/">Press</a>
+      <a href="{asset_prefix}support/">Support</a>
+      <a href="{asset_prefix}privacy/">Privacy</a>
+      <a href="{asset_prefix}terms/">Terms</a>
     </nav>
     <p class="ft-fam">Part of the Sorting family, with Sorting History.</p>
   </div>
@@ -1304,13 +1379,14 @@ def render_sheet(
 """
     # Fill seo:head and launch:sheet-play regions cleanly using the site's builders.
     ms = build_launch.release_ms(root)
-    gen_launch = build_launch.regions(ms, lang="en", root=root, root_prefix="../../")
+    gen_launch = build_launch.regions(ms, lang="en", root=root, root_prefix=asset_prefix)
     rendered = build_launch.render(raw_html, gen_launch, rel)
     rendered = build_seo.render(rel, rendered)
 
     manifest_entry = {
         "name": cname,
-        "values": {ax: {"val": f["val_plain"], "rank": f["rank_txt"], "nodata": f["nodata"]} for ax, f in facts.items()},
+        "shown_axes": sorted(shown_facts),
+        "values": {ax: {"val": f["val_plain"], "rank": f["rank_txt"], "nodata": f["nodata"]} for ax, f in all_facts.items()},
         "consistency_rules": [r["rule"] for r in rules],
     }
     return rendered, manifest_entry, needed_flags
@@ -1522,7 +1598,11 @@ def _check_page_overflow(rel: str, page: str) -> list[str]:
     return bad
 
 
-def check(root: pathlib.Path = ROOT) -> list[str]:
+def check(
+    root: pathlib.Path = ROOT,
+    out_dir: pathlib.Path | None = None,
+    layout: str | None = None,
+) -> list[str]:
     """Offline CI check: verifies every sheet against COUNTRIES, deny-list, manifest, sitemap, and overflow rules."""
     bad: list[str] = []
     bad += _check_sheet_css_overflow(root)
@@ -1531,16 +1611,21 @@ def check(root: pathlib.Path = ROOT) -> list[str]:
     except SheetError as e:
         return [str(e)]
 
-    mp = root / MANIFEST_FILE
+    target_dir = out_dir if out_dir is not None else root
+    mp = (out_dir / "sheets_manifest.json") if (out_dir is not None and (out_dir / "sheets_manifest.json").is_file()) else (root / MANIFEST_FILE)
     if not mp.is_file():
-        return [f"{MANIFEST_FILE} is missing; run scripts/build_sheets.py --game <path>"]
+        return [f"{mp} is missing; run scripts/build_sheets.py --game <path>"]
     manifest = json.loads(mp.read_text(encoding="utf-8"))
+    eff_layout = layout or manifest.get("layout", "full")
+    if eff_layout not in {"full", "short"}:
+        return [f"unsupported layout {eff_layout!r} (must be 'full' or 'short')"]
+
     policy: dict[str, str] = manifest.get("axis_policy") or {}
     m_countries: dict[str, dict] = manifest.get("countries") or {}
     expected_axes = sorted(ax for ax, st in policy.items() if st == "allowed" and ax not in deny_list)
 
     # Check exact set of countries on disk matches COUNTRIES
-    cdir = root / "countries"
+    cdir = target_dir / "countries"
     on_disk = sorted(
         p.parent.name for p in cdir.glob("*/index.html")
     ) if cdir.is_dir() else []
@@ -1558,7 +1643,7 @@ def check(root: pathlib.Path = ROOT) -> list[str]:
 
     for iso in COUNTRIES:
         rel = f"countries/{iso}/index.html"
-        p = root / rel
+        p = target_dir / rel
         if not p.is_file():
             continue
         page = p.read_text(encoding="utf-8")
@@ -1583,12 +1668,33 @@ def check(root: pathlib.Path = ROOT) -> list[str]:
             bad.append(f"{MANIFEST_FILE}: missing entry for {iso}")
             continue
         want_vals = m_countries[iso].get("values") or {}
-        missing_ax = sorted(set(expected_axes) - set(rendered_map))
-        extra_ax = sorted(set(rendered_map) - set(expected_axes))
-        if missing_ax:
-            bad.append(f"{rel}: missing allowed axis/axes {missing_ax[:5]} ({len(missing_ax)} total)")
-        if extra_ax:
-            bad.append(f"{rel}: unexpected axis/axes {extra_ax[:5]} ({len(extra_ax)} total)")
+
+        if eff_layout == "short":
+            if len(rendered) == 0:
+                bad.append(f"{rel}: short layout has 0 facts")
+            if len(rendered) > SHORT_MAX_FACTS:
+                bad.append(f"{rel}: short layout has {len(rendered)} facts (max {SHORT_MAX_FACTS})")
+            expected_short = m_countries[iso].get("shown_axes")
+            if expected_short is not None:
+                missing_ax = sorted(set(expected_short) - set(rendered_map))
+                extra_ax = sorted(set(rendered_map) - set(expected_short))
+                if missing_ax:
+                    bad.append(f"{rel}: missing short-layout axis/axes {missing_ax[:5]} ({len(missing_ax)} total)")
+                if extra_ax:
+                    bad.append(f"{rel}: unexpected short-layout axis/axes {extra_ax[:5]} ({len(extra_ax)} total)")
+            # Short page must end with a plain line linking nowhere new
+            m_how = re.search(r'<p\s+class="a-how">(.*?)</p>', page, re.S)
+            if not m_how:
+                bad.append(f"{rel}: short layout missing closing .a-how line")
+            elif re.search(r"<a\b", m_how.group(1), re.I):
+                bad.append(f"{rel}: short layout closing .a-how line must not contain a link")
+        else:
+            missing_ax = sorted(set(expected_axes) - set(rendered_map))
+            extra_ax = sorted(set(rendered_map) - set(expected_axes))
+            if missing_ax:
+                bad.append(f"{rel}: missing allowed axis/axes {missing_ax[:5]} ({len(missing_ax)} total)")
+            if extra_ax:
+                bad.append(f"{rel}: unexpected axis/axes {extra_ax[:5]} ({len(extra_ax)} total)")
 
         for ax, (got_val, got_rk) in rendered_map.items():
             if ax not in want_vals:
@@ -1616,9 +1722,13 @@ def check_game(
     ref: str = "origin/main",
     root: pathlib.Path = ROOT,
     countries_ref: str | None = None,
+    out_dir: pathlib.Path | None = None,
+    layout: str = "full",
 ) -> list[str]:
     """Live check against the game repo: dataset values, web_republish policy, FR-55, and kCountrySheetCountries."""
     bad: list[str] = []
+    if layout not in {"full", "short"}:
+        return [f"unsupported layout {layout!r} (must be 'full' or 'short')"]
     try:
         deny_list = load_deny_list(root)
         bundle = load_game_bundle(game, ref, deny_list)
@@ -1647,11 +1757,12 @@ def check_game(
             )
 
     # Check every sheet directly against live dataset.json, web_republish and allowlist
+    target_dir = out_dir if out_dir is not None else root
     policy = bundle["policy"]
     expected_axes = set(bundle["published_axes"])
     for iso in COUNTRIES:
         rel = f"countries/{iso}/index.html"
-        p = root / rel
+        p = target_dir / rel
         if not p.is_file():
             bad.append(f"{rel}: missing")
             continue
@@ -1666,10 +1777,25 @@ def check_game(
                 bad.append(f"{rel}: axis {ax!r} is on {DENY_FILE}")
 
         facts = compute_axis_facts(bundle, iso.upper())
-        rendered = dict((ax, (val, rk)) for ax, val, rk in _extract_rendered_facts(page))
-        missing_ax = sorted(expected_axes - set(rendered))
-        if missing_ax:
-            bad.append(f"{rel}: missing allowed axis/axes at {ref}: {missing_ax[:5]}")
+        rendered_list = _extract_rendered_facts(page)
+        rendered = dict((ax, (val, rk)) for ax, val, rk in rendered_list)
+        if layout == "short":
+            if len(rendered_list) > SHORT_MAX_FACTS:
+                bad.append(f"{rel}: short layout has {len(rendered_list)} facts (max {SHORT_MAX_FACTS})")
+            want_short = set(select_short_axes(facts))
+            missing_ax = sorted(want_short - set(rendered))
+            extra_ax = sorted(set(rendered) - want_short)
+            if missing_ax:
+                bad.append(f"{rel}: missing short-layout axis/axes at {ref}: {missing_ax[:5]}")
+            if extra_ax:
+                bad.append(f"{rel}: unexpected short-layout axis/axes at {ref}: {extra_ax[:5]}")
+            active_facts = {ax: facts[ax] for ax in rendered if ax in facts}
+        else:
+            missing_ax = sorted(expected_axes - set(rendered))
+            if missing_ax:
+                bad.append(f"{rel}: missing allowed axis/axes at {ref}: {missing_ax[:5]}")
+            active_facts = facts
+
         for ax, (got_val, got_rk) in rendered.items():
             if ax not in facts:
                 continue
@@ -1680,13 +1806,24 @@ def check_game(
                 bad.append(f"{rel}: {ax} rank {got_rk!r} != {ref} dataset rank {f['rank_txt']!r}")
 
         notes = _extract_consistency_notes(page)
-        for r in active_consistency_rules(bundle, iso.upper(), facts):
+        for r in active_consistency_rules(bundle, iso.upper(), active_facts):
             if len(notes.get(r["rule"], "")) < 20:
                 bad.append(f"{rel}: FR-55 rule {r['rule']!r} from {ref} rendered without its note")
 
     # Also verify offline checks (manifest, sitemap, etc.) stay in sync
-    bad += check(root)
+    bad += check(root, out_dir=out_dir, layout=layout)
     return bad
+
+
+def _asset_prefix_for(root: pathlib.Path, out_dir: pathlib.Path | None) -> str:
+    if out_dir is None:
+        return "../../"
+    try:
+        rel_out = out_dir.resolve().relative_to(root.resolve())
+        depth = len(rel_out.parts)
+        return "../" * (2 + depth)
+    except ValueError:
+        return "../../"
 
 
 def build(
@@ -1694,7 +1831,11 @@ def build(
     ref: str = "origin/main",
     root: pathlib.Path = ROOT,
     countries_ref: str | None = None,
+    layout: str = "full",
+    out_dir: pathlib.Path | None = None,
 ) -> None:
+    if layout not in {"full", "short"}:
+        raise SheetError(f"unsupported layout {layout!r} (must be 'full' or 'short')")
     deny_list = load_deny_list(root)
     bundle = load_game_bundle(game, ref, deny_list)
 
@@ -1713,12 +1854,16 @@ def build(
     elif countries_ref is not None:
         raise SheetError(f"{game}: cannot read {SHEET_URL_DART} at {countries_ref}")
 
+    target_dir = out_dir if out_dir is not None else root
+    is_custom_out = out_dir is not None and out_dir.resolve() != root.resolve()
+    asset_prefix = _asset_prefix_for(root, out_dir if is_custom_out else None)
+
     manifest_countries: dict[str, dict] = {}
     all_flags: set[str] = set()
     pages_out: dict[str, str] = {}
 
     for iso in COUNTRIES:
-        rendered, entry, flags = render_sheet(bundle, iso, root)
+        rendered, entry, flags = render_sheet(bundle, iso, root, layout=layout, asset_prefix=asset_prefix)
         pages_out[iso] = rendered
         manifest_countries[iso] = entry
         all_flags.update(flags)
@@ -1726,12 +1871,20 @@ def build(
     # Validate every generated page BEFORE writing anything (fail closed).
     for iso, page in pages_out.items():
         rel = f"countries/{iso}/index.html"
-        problems = _check_page_security_and_seo(rel, iso, page)
+        problems = _check_page_security_and_seo(rel, iso, page) + _check_page_overflow(rel, page)
         if problems:
             raise SheetError("refusing to write invalid sheet:\n  " + "\n  ".join(problems))
 
     # Copy referenced flag SVGs from the game repo at ref.
-    flags_dir = root / "images" / "flags"
+    # For a preview --out inside root, share root/images/flags without deleting flags used by countries/.
+    if is_custom_out:
+        try:
+            target_dir.resolve().relative_to(root.resolve())
+            flags_dir = root / "images" / "flags"
+        except ValueError:
+            flags_dir = target_dir / "images" / "flags"
+    else:
+        flags_dir = root / "images" / "flags"
     flags_dir.mkdir(parents=True, exist_ok=True)
     for iso in sorted(all_flags):
         svg_bytes = game_show_bytes(game, ref, f"app/assets/flags/{iso}.svg")
@@ -1741,19 +1894,20 @@ def build(
         if not dest.exists() or dest.read_bytes() != svg_bytes:
             dest.write_bytes(svg_bytes)
 
-    # Remove any stale flag SVGs not needed by the generated pages.
-    for existing in list(flags_dir.glob("*.svg")):
-        if existing.stem not in all_flags:
-            existing.unlink()
+    # Remove any stale flag SVGs only when building into root itself.
+    if not is_custom_out:
+        for existing in list(flags_dir.glob("*.svg")):
+            if existing.stem not in all_flags:
+                existing.unlink()
 
     # Write the 20 HTML sheets.
     for iso, page in pages_out.items():
-        dest = root / "countries" / iso / "index.html"
+        dest = target_dir / "countries" / iso / "index.html"
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(page, encoding="utf-8")
 
     # Remove any stray country folders outside COUNTRIES.
-    cdir = root / "countries"
+    cdir = target_dir / "countries"
     if cdir.is_dir():
         for sub in list(cdir.iterdir()):
             if sub.is_dir() and sub.name not in COUNTRIES:
@@ -1762,8 +1916,9 @@ def build(
                         f.unlink()
                 sub.rmdir()
 
-    # Write offline verification manifest (in src/, ignored by .assetsignore).
+    # Write offline verification manifest (in src/ for root builds, or <out>/sheets_manifest.json for --out).
     manifest = {
+        "layout": layout,
         "dataset_version": bundle["version"],
         "version_num": bundle["vnum"],
         "version_date": bundle["vdate"],
@@ -1773,18 +1928,21 @@ def build(
         "published_axes": bundle["published_axes"],
         "countries": manifest_countries,
     }
-    (root / MANIFEST_FILE).write_text(
+    manifest_dest = (target_dir / "sheets_manifest.json") if is_custom_out else (root / MANIFEST_FILE)
+    manifest_dest.write_text(
         json.dumps(manifest, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
 
     # Run offline check immediately to guarantee our own output passes.
-    problems = check(root)
+    problems = check(root, out_dir=(target_dir if is_custom_out else None), layout=layout)
     if problems:
         raise SheetError("generated sheets failed self-check:\n  " + "\n  ".join(problems))
 
+    dest_note = f" -> {target_dir}" if is_custom_out else ""
     print(
-        f"ok   built {len(COUNTRIES)} country sheets ({len(bundle['published_axes'])} allowed axes, "
+        f"ok   built {len(COUNTRIES)} country sheets ({layout} layout{dest_note}, "
+        f"{len(bundle['published_axes'])} allowed axes, "
         f"{sum(1 for v in bundle['policy'].values() if v != 'allowed')} not allowed, "
         f"{len(deny_list)} denied, {len(all_flags)} flags, {bundle['version']})"
     )
@@ -1799,33 +1957,51 @@ def main(argv: list[str]) -> int:
         if "--countries-ref" in argv and argv.index("--countries-ref") + 1 < len(argv)
         else None
     )
+    layout = (
+        argv[argv.index("--layout") + 1]
+        if "--layout" in argv and argv.index("--layout") + 1 < len(argv)
+        else "full"
+    )
+    if layout not in {"full", "short"}:
+        print(f"build_sheets FAILED: --layout must be 'full' or 'short', got {layout!r}", file=sys.stderr)
+        return 2
+    out_arg = (
+        argv[argv.index("--out") + 1]
+        if "--out" in argv and argv.index("--out") + 1 < len(argv)
+        else None
+    )
+    out_dir = (ROOT / out_arg) if out_arg is not None else None
 
     if check_mode and game is not None:
-        problems = check_game(game, ref, ROOT, countries_ref=cref)
+        problems = check_game(game, ref, ROOT, countries_ref=cref, out_dir=out_dir, layout=layout)
         if problems:
-            print(f"country sheet check FAILED against {ref}:")
+            print(f"country sheet check FAILED against {ref} ({layout} layout):")
             for b in problems:
                 print("  " + b)
             return 1
-        print(f"ok   country sheets: {len(COUNTRIES)} pages match {ref} and kCountrySheetCountries")
+        print(f"ok   country sheets ({layout}): {len(COUNTRIES)} pages match {ref} and kCountrySheetCountries")
         return 0
 
     if check_mode:
-        problems = check(ROOT)
+        problems = check(ROOT, out_dir=out_dir, layout=layout)
         if problems:
-            print("country sheet check FAILED (Story 18.6):")
+            print(f"country sheet check FAILED (Story 18.6, {layout} layout):")
             for b in problems:
                 print("  " + b)
             return 1
-        print(f"ok   country sheets: {len(COUNTRIES)} pages pass all Story 18.6 checks")
+        print(f"ok   country sheets ({layout}): {len(COUNTRIES)} pages pass all Story 18.6 checks")
         return 0
 
     if game is None:
-        print("usage: build_sheets.py --game PATH [--ref REF] [--countries-ref REF] | --check [--game PATH]", file=sys.stderr)
+        print(
+            "usage: build_sheets.py --game PATH [--ref REF] [--countries-ref REF] [--layout full|short] [--out DIR] "
+            "| --check [--game PATH] [--layout full|short] [--out DIR]",
+            file=sys.stderr,
+        )
         return 2
 
     try:
-        build(game, ref, ROOT, countries_ref=cref)
+        build(game, ref, ROOT, countries_ref=cref, layout=layout, out_dir=out_dir)
     except SheetError as e:
         print(f"build_sheets FAILED: {e}", file=sys.stderr)
         return 1

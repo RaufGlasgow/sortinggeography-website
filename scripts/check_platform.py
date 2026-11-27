@@ -38,7 +38,7 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-IGNORED_DIRS = {"docs", "src", "scripts", "node_modules", ".git", ".github", ".wrangler"}
+IGNORED_DIRS = {"docs", "src", "scripts", "node_modules", ".git", ".github", ".wrangler", "_preview-short"}
 
 DEVICE = re.compile(r"\biP(?:hone|ad)s?\b", re.I)
 APPLE = re.compile(r"\b(?:iOS|iPadOS|App\s+Store|Apple|iCloud)\b")

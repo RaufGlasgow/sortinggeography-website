@@ -180,7 +180,7 @@ REGION = re.compile(r"(<!-- launch:([a-z0-9-]+) -->)(.*?)(<!-- /launch:\2 -->)",
 
 
 def served_pages(root: pathlib.Path = ROOT) -> list[pathlib.Path]:
-    ignored = {"docs", "src", "scripts", "node_modules", ".git", ".github", ".wrangler"}
+    ignored = {"docs", "src", "scripts", "node_modules", ".git", ".github", ".wrangler", "_preview-short"}
     return sorted(p for p in root.rglob("*.html")
                   if not (set(p.relative_to(root).parts) & ignored))
 

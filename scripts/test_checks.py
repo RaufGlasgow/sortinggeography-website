@@ -42,7 +42,7 @@ failures: list[str] = []
 def copy_site() -> pathlib.Path:
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="sg-site-"))
     for item in ROOT.iterdir():
-        if item.name in {".git", ".wrangler", "node_modules"}:
+        if item.name in {".git", ".wrangler", "node_modules", "_preview-short"}:
             continue
         if item.is_dir():
             shutil.copytree(item, tmp / item.name)
@@ -1118,7 +1118,7 @@ def broken_links(root):
     from urllib.parse import urlparse
     bad = []
     for p in sorted(root.rglob("*.html")):
-        if set(p.relative_to(root).parts) & {"docs", "src", "scripts", "node_modules", ".git", ".github", ".wrangler"}:
+        if set(p.relative_to(root).parts) & {"docs", "src", "scripts", "node_modules", ".git", ".github", ".wrangler", "_preview-short"}:
             continue
         for target in re.findall(r'(?:href|src)\s*=\s*"([^"]+)"', p.read_text(encoding="utf-8")):
             u = urlparse(target)
@@ -1911,6 +1911,79 @@ sheet_guard_case("overflow: inline fixed width > 360px injected into a country s
     r, "countries/us/index.html", '<div class="card a-sh">', '<div class="card a-sh" style="width: 500px">'))
 sheet_guard_case("overflow: non-breaking &nbsp; unit glue in fact value", True, lambda r: edit(
     r, "countries/us/index.html", "<small> thousand barrels a day</small>", "<small>&nbsp;thousand barrels a day</small>"))
+
+
+def _make_short_fixture(root: pathlib.Path, count_for_us: int = 20) -> pathlib.Path:
+    """Build a valid short-layout fixture in `<root>/_tmp_short` from the site's full sheets."""
+    out = root / "_tmp_short"
+    manifest = json.loads((root / build_sheets.MANIFEST_FILE).read_text(encoding="utf-8"))
+    manifest["layout"] = "short"
+    card_re = re.compile(r'<div class="band a-f" data-axis="([^"]+)">.*?</div></div>', re.S)
+    for iso in build_sheets.COUNTRIES:
+        src = root / "countries" / iso / "index.html"
+        page = src.read_text(encoding="utf-8")
+        cards = list(card_re.finditer(page))
+        limit = count_for_us if iso == "us" else 20
+        kept_axes: list[str] = []
+        idx = 0
+
+        def _keep_first(m: re.Match[str]) -> str:
+            nonlocal idx
+            idx += 1
+            if idx <= limit:
+                kept_axes.append(m.group(1))
+                return m.group(0)
+            return ""
+
+        trimmed = card_re.sub(_keep_first, page)
+        dest = out / "countries" / iso / "index.html"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(trimmed, encoding="utf-8")
+        manifest["countries"][iso]["shown_axes"] = sorted(kept_axes)
+    (out / "sheets_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return out
+
+
+def short_sheet_guard_case(name: str, expect_red: bool, mutate=None, count_for_us: int = 20) -> None:
+    root = copy_site()
+    try:
+        out = _make_short_fixture(root, count_for_us=count_for_us)
+        if mutate:
+            mutate(out)
+        red = bool(build_sheets.check(root, out_dir=out, layout="short"))
+    finally:
+        shutil.rmtree(root)
+    ok = red == expect_red
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'red  ' if red else 'green'} {name}")
+    if not ok:
+        failures.append(f"sheet186: {name}")
+
+
+short_sheet_guard_case("short layout: clean 20-fact short sheets pass", False)
+short_sheet_guard_case(
+    "short layout: forbidden axis (wine_lpc) injected onto a short page",
+    True,
+    lambda o: edit(
+        o, "countries/us/index.html", '<div class="band a-f" data-axis="land_area_km2">',
+        '<div class="band a-f" data-axis="wine_lpc"><div class="a-f-l"><span class="a-f-n">Wine</span></div>'
+        '<div class="a-f-r"><b>10</b><span class="a-rk">1st of 10</span></div></div>'
+        '<div class="band a-f" data-axis="land_area_km2">',
+    ),
+)
+short_sheet_guard_case(
+    "short layout: more than 25 facts (26 allowed facts) goes red",
+    True,
+    count_for_us=26,
+)
+short_sheet_guard_case(
+    "short layout: closing line with a link goes red",
+    True,
+    lambda o: edit(
+        o, "countries/us/index.html",
+        '<p class="a-how">',
+        '<p class="a-how"><a href="../../">See all facts</a> ',
+    ),
+)
 
 
 def sheet_game_countries_case(name: str, game_countries: list[str] | None, expect_red: bool) -> None:
