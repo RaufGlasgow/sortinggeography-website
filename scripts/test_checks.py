@@ -39,10 +39,57 @@ EARLY = RELEASE - 30 * build_launch.DAY_MS        # a month before: store-link r
 failures: list[str] = []
 
 
-def copy_site() -> pathlib.Path:
+def write_safe(p: pathlib.Path, text: str) -> None:
+    """Write text to p, breaking any symlink first so ROOT is never mutated."""
+    if p.is_symlink():
+        p.unlink()
+    p.write_text(text, encoding="utf-8")
+
+
+def copy_site(copy_assets: bool = False, copy_countries: str = "symlink") -> pathlib.Path:
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="sg-site-"))
     for item in ROOT.iterdir():
         if item.name in {".git", ".wrangler", "node_modules"}:
+            continue
+        if not copy_assets and item.name in {"images", "fonts"} and item.is_dir():
+            (tmp / item.name).symlink_to(item)
+            continue
+        if item.name == "countries" and item.is_dir():
+            if copy_countries == "skip":
+                continue
+            if copy_countries == "symlink":
+                (tmp / "countries").symlink_to(item)
+                continue
+            if copy_countries == "links":
+                croot = tmp / "countries"
+                croot.mkdir()
+                for sub in item.iterdir():
+                    if not sub.is_dir():
+                        continue
+                    dst_sub = croot / sub.name
+                    dst_sub.mkdir()
+                    for child in sub.iterdir():
+                        if child.is_dir():
+                            dst_child = dst_sub / child.name
+                            dst_child.mkdir()
+                            for f in child.iterdir():
+                                (dst_child / f.name).symlink_to(f)
+                        else:
+                            (dst_sub / child.name).symlink_to(child)
+                continue
+        if item.name == "src" and item.is_dir():
+            src_dst = tmp / "src"
+            src_dst.mkdir()
+            for child in item.iterdir():
+                if child.name == "sheets_manifest.json":
+                    if copy_countries == "skip":
+                        continue
+                    (src_dst / child.name).symlink_to(child)
+                    continue
+                if child.is_dir():
+                    shutil.copytree(child, src_dst / child.name)
+                else:
+                    shutil.copy2(child, src_dst / child.name)
             continue
         if item.is_dir():
             shutil.copytree(item, tmp / item.name)
@@ -74,7 +121,7 @@ def edit(root: pathlib.Path, rel: str, old: str, new: str) -> None:
     text = p.read_text(encoding="utf-8")
     if old not in text:
         raise SystemExit(f"test setup: {old!r} not found in {rel}")
-    p.write_text(text.replace(old, new, 1), encoding="utf-8")
+    write_safe(p, text.replace(old, new, 1))
 
 
 def launch_case(name: str, expect_red: bool, mutate=None, now_ms: int = EARLY) -> None:
@@ -799,10 +846,8 @@ def sheets(root, langs, isos=("ad", "ae", "fr")):
 def sheet_case(name, dart, expect_red, have=(), have_isos=("ad", "ae", "fr"), extra=None, mutate_site=None):
     files = {} if dart is None else {check_sheet_links.SHEET_URL_DART: dart}
     files.update(extra or {})
-    g, root = sheet_game(files), copy_site()
+    g, root = sheet_game(files), copy_site(copy_countries="skip")
     try:
-        if (root / "countries").exists():
-            shutil.rmtree(root / "countries")
         sheets(root, have, have_isos)
         if mutate_site:
             mutate_site(root)
@@ -1828,9 +1873,15 @@ game_case("play reminders on both sides", (False, False, False, False, True), RE
 half_reminders_case("reminder_service.dart on main but main.dart does not reference it: refuse to guess", "service-only")
 half_reminders_case("main.dart references ReminderService but no reminder_service.dart: refuse to guess", "main-only")
 
-# ---- 18.6: country sheets (launch slice, 20 English pages) ---------------------
-def sheet_guard_case(name: str, expect_red: bool, mutate=None, must_match: str | None = None) -> None:
-    root = copy_site()
+# ---- 18.6 / 18.6b: country sheets (all 195 roster countries) ----------------
+def sheet_guard_case(
+    name: str,
+    expect_red: bool,
+    mutate=None,
+    must_match: str | None = None,
+    copy_assets: bool = False,
+) -> None:
+    root = copy_site(copy_assets=copy_assets, copy_countries="links")
     try:
         if mutate:
             mutate(root)
@@ -1853,7 +1904,7 @@ def _edit_population_value(root: pathlib.Path) -> None:
     if not m:
         raise SystemExit("test setup: population card not found in countries/us/index.html")
     bumped = f"{int(m.group(2).replace(',', '')) + 1:,}"
-    p.write_text(txt[:m.start(2)] + bumped + txt[m.end(2):], encoding="utf-8")
+    write_safe(p, txt[:m.start(2)] + bumped + txt[m.end(2):])
 
 
 def _edit_nodata_to_zero(root: pathlib.Path) -> None:
@@ -1868,7 +1919,7 @@ def _edit_nodata_to_zero(root: pathlib.Path) -> None:
     )
     if n != 1:
         raise SystemExit("test setup: mangrove_area_km2 no-data card not found in countries/ch/all/index.html")
-    p.write_text(new, encoding="utf-8")
+    write_safe(p, new)
 
 
 def _remove_consistency_note(root: pathlib.Path, rel: str, rule_id: str) -> None:
@@ -1877,7 +1928,7 @@ def _remove_consistency_note(root: pathlib.Path, rel: str, rule_id: str) -> None
     new = re.sub(rf'<p class="a-cnote" data-consistency-rule="{re.escape(rule_id)}"[^>]*>.*?</p>', "", txt, count=1, flags=re.S)
     if new == txt:
         raise SystemExit(f"test setup: note {rule_id!r} not found in {rel}")
-    p.write_text(new, encoding="utf-8")
+    write_safe(p, new)
 
 
 def _edit_first_board_value(root: pathlib.Path) -> None:
@@ -1886,7 +1937,7 @@ def _edit_first_board_value(root: pathlib.Path) -> None:
     m = re.search(r'(<figure class="a-board"[^>]*>.*?<b class="a-mb-v">)([^<]+)(</b>)', txt, re.S)
     if not m:
         raise SystemExit("test setup: mini-board value not found in countries/us/index.html")
-    p.write_text(txt[:m.start(2)] + "999" + txt[m.end(2):], encoding="utf-8")
+    write_safe(p, txt[:m.start(2)] + "999" + txt[m.end(2):])
 
 
 def _inject_board_axis(root: pathlib.Path, ax: str) -> None:
@@ -1915,10 +1966,10 @@ def _mutate_manifest(root: pathlib.Path, fn) -> None:
     p = root / build_sheets.MANIFEST_FILE
     data = json.loads(p.read_text(encoding="utf-8"))
     fn(data)
-    p.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    write_safe(p, json.dumps(data, indent=2))
 
 
-sheet_guard_case("the 20 country sheets (short + all/) as built", False)
+sheet_guard_case("the 195 country sheets (short + all/) as built", False)
 sheet_guard_case(
     "assetsignore: .gitignore removed from .assetsignore goes red",
     True,
@@ -2221,14 +2272,15 @@ def _add_six_extra_short_facts(root: pathlib.Path) -> None:
         manifest["countries"]["us"]["short"]["shown_axes"].append(ax)
         manifest["countries"]["us"]["short"]["values"][ax] = manifest["countries"]["us"]["full"]["values"][ax]
     manifest["countries"]["us"]["short"]["shown_axes"].sort()
-    (root / build_sheets.MANIFEST_FILE).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    write_safe(root / build_sheets.MANIFEST_FILE, json.dumps(manifest, indent=2))
 
 
 def _out_dir_missing_manifest_case() -> None:
     root = copy_site()
     try:
         out = root / "_tmp_out"
-        shutil.copytree(root / "countries", out / "countries")
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "countries").symlink_to(ROOT / "countries")
         problems = build_sheets.check(root, out_dir=out)
         red = bool(problems)
     finally:
@@ -2349,7 +2401,7 @@ def _inject_nodata_card_on_short(root: pathlib.Path) -> None:
     gb_short["shown_axes"].sort()
     gb_short["values"].pop(drop_ax)
     gb_short["values"]["football_matches_all_time"] = gb_full
-    (root / build_sheets.MANIFEST_FILE).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    write_safe(root / build_sheets.MANIFEST_FILE, json.dumps(manifest, indent=2))
 
     p = root / "countries/gb/index.html"
     txt = p.read_text(encoding="utf-8")
@@ -2363,7 +2415,7 @@ def _inject_nodata_card_on_short(root: pathlib.Path) -> None:
     new, n = pat.subn(nodata_card, txt, count=1)
     if n != 1:
         raise SystemExit(f"test setup: could not replace {drop_ax!r} in countries/gb/index.html")
-    p.write_text(new, encoding="utf-8")
+    write_safe(p, new)
 
 
 def _count_nodata_in_see_all(root: pathlib.Path) -> None:
@@ -2378,7 +2430,7 @@ def _remove_fromgame_bar(root: pathlib.Path, rel: str) -> None:
     new, n = re.subn(r'<div class="fromgame">.*?</div>\s*</div>', "", txt, count=1, flags=re.S)
     if n != 1:
         raise SystemExit(f"test setup: .fromgame bar not found in {rel}")
-    p.write_text(new, encoding="utf-8")
+    write_safe(p, new)
 
 
 # Round 3 findings + "the" before country names: break-on-purpose cases (1, 2, 3, 4, 5, 6, 7, 8)
@@ -2510,23 +2562,186 @@ sheet_guard_case(
 )
 
 
+# ---- 18.6b: all 195 countries (COUNTRIES_WITH_THE, missing roster, data gaps)
+def _check_countries_with_the_list() -> None:
+    expected_the: dict[str, str] = {
+        "AE": "United Arab Emirates",
+        "BS": "Bahamas",
+        "CF": "Central African Republic",
+        "DO": "Dominican Republic",
+        "GB": "United Kingdom",
+        "GM": "Gambia",
+        "KM": "Comoros",
+        "MH": "Marshall Islands",
+        "MV": "Maldives",
+        "NL": "Netherlands",
+        "PH": "Philippines",
+        "PS": "State of Palestine",
+        "SB": "Solomon Islands",
+        "SC": "Seychelles",
+        "US": "United States",
+        "VA": "Holy See",
+    }
+    expected_without_the: dict[str, str] = {
+        "CD": "Congo (DRC)",
+        "CG": "Congo",
+        "CZ": "Czechia",
+        "FM": "Micronesia",
+    }
+    errs: list[str] = []
+    if set(build_sheets.COUNTRIES_WITH_THE) != set(expected_the):
+        errs.append(
+            f"COUNTRIES_WITH_THE {sorted(build_sheets.COUNTRIES_WITH_THE)} != {sorted(expected_the)}"
+        )
+    manifest = json.loads((ROOT / build_sheets.MANIFEST_FILE).read_text(encoding="utf-8"))
+    for iso_u, want_name in expected_the.items():
+        iso = iso_u.lower()
+        got_name = (manifest.get("countries", {}).get(iso) or {}).get("name")
+        if got_name != want_name:
+            errs.append(f"{iso}: manifest name {got_name!r} != {want_name!r}")
+            continue
+        html_short = (ROOT / f"countries/{iso}/index.html").read_text(encoding="utf-8")
+        if f'<h1 class="left">{want_name}</h1>' not in html_short:
+            errs.append(f"{iso}: <h1> is not bare {want_name!r}")
+        if f"about the {want_name}" not in html_short:
+            errs.append(f"{iso}: missing 'about the {want_name}' in short sheet")
+        if f"Sort the {want_name} against four others" not in html_short:
+            errs.append(f"{iso}: missing 'Sort the {want_name} against four others' in short sheet")
+    for iso_u, want_name in expected_without_the.items():
+        iso = iso_u.lower()
+        got_name = (manifest.get("countries", {}).get(iso) or {}).get("name")
+        if got_name != want_name:
+            errs.append(f"{iso}: manifest name {got_name!r} != {want_name!r}")
+            continue
+        html_short = (ROOT / f"countries/{iso}/index.html").read_text(encoding="utf-8")
+        if f"about the {want_name}" in html_short or f"Sort the {want_name} " in html_short:
+            errs.append(f"{iso}: roster name {want_name!r} should not take 'the'")
+    ok = not errs
+    extra = "" if ok else f"  <- {errs[:3]!r}"
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'green' if ok else 'red  '} 18.6b: COUNTRIES_WITH_THE lists all 16 roster 'the' countries and skips CD/CG/CZ/FM{extra}")
+    if not ok:
+        failures.append("sheet186: 18.6b COUNTRIES_WITH_THE list")
+
+
+_check_countries_with_the_list()
+
+
+def _drop_roster_country_from_site(root: pathlib.Path, iso: str, drop_roster: bool = False) -> None:
+    def _mut(d: dict) -> None:
+        d["countries_list"] = [c for c in d["countries_list"] if c != iso]
+        if drop_roster:
+            d["roster_countries"] = [c for c in d["roster_countries"] if c != iso]
+        d["countries"].pop(iso, None)
+
+    _mutate_manifest(root, _mut)
+    shutil.rmtree(root / f"countries/{iso}")
+
+
+sheet_guard_case(
+    "18.6b: roster country missing from website set in manifest goes red",
+    True,
+    lambda r: _drop_roster_country_from_site(r, "va", drop_roster=False),
+    must_match="roster country/countries missing from website set: ['va']",
+)
+sheet_guard_case(
+    "18.6b: roster country dropped from both manifest lists vs facts.json (195) goes red",
+    True,
+    lambda r: _drop_roster_country_from_site(r, "va", drop_roster=True),
+    must_match="website set has 194 countries != src/facts.json countries (195)",
+)
+sheet_guard_case(
+    "18.6b: missing flag SVG for a roster country goes red",
+    True,
+    lambda r: (r / "images/flags/va.svg").unlink(),
+    must_match="images/flags/: missing flag SVG(s) for ['va']",
+    copy_assets=True,
+)
+sheet_guard_case(
+    "18.6b: empty section heading injected onto country sheet goes red",
+    True,
+    lambda r: edit(
+        r,
+        "countries/va/index.html",
+        '<div class="a-fcols">',
+        '<div class="a-fcols"><section class="a-fs" id="sec-empty"><h2 class="left">Empty</h2></section>',
+    ),
+    must_match="empty section heading 'Empty'",
+)
+sheet_guard_case(
+    "18.6b: 'null' literal injected into visible text goes red",
+    True,
+    lambda r: edit(
+        r,
+        "countries/va/index.html",
+        "<span>Region</span><b>Europe</b>",
+        "<span>Region</span><b>null</b>",
+    ),
+    must_match="contains forbidden literal 'null'",
+)
+sheet_guard_case(
+    "18.6b: 'NaN' literal injected into visible text goes red",
+    True,
+    lambda r: edit(
+        r,
+        "countries/va/index.html",
+        "<span>Region</span><b>Europe</b>",
+        "<span>Region</span><b>NaN</b>",
+    ),
+    must_match="contains forbidden literal 'NaN'",
+)
+sheet_guard_case(
+    "18.6b: 'undefined' literal injected into visible text goes red",
+    True,
+    lambda r: edit(
+        r,
+        "countries/va/index.html",
+        "<span>Region</span><b>Europe</b>",
+        "<span>Region</span><b>undefined</b>",
+    ),
+    must_match="contains forbidden literal 'undefined'",
+)
+
+
+def _check_data_gap_edge_cases() -> None:
+    errs: list[str] = []
+    va_short = (ROOT / "countries/va/index.html").read_text(encoding="utf-8")
+    if "Food, power and travel" in va_short:
+        errs.append("va short sheet should omit empty 'Food, power and travel' section")
+    vc_short = (ROOT / "countries/vc/index.html").read_text(encoding="utf-8")
+    if "<span>Borders</span><b>None (island)</b>" not in vc_short:
+        errs.append("vc short sheet missing 'None (island)' borders entry")
+    ps_short = (ROOT / "countries/ps/index.html").read_text(encoding="utf-8")
+    if "<span>Capital</span>" in ps_short:
+        errs.append("ps short sheet should omit empty Capital row")
+    ok = not errs
+    extra = "" if ok else f"  <- {errs!r}"
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'green' if ok else 'red  '} 18.6b: data-gap edge cases (va empty section omitted, vc island, ps no capital){extra}")
+    if not ok:
+        failures.append("sheet186: 18.6b data-gap edge cases")
+
+
+_check_data_gap_edge_cases()
+
+FIXTURE_COUNTRIES: tuple[str, ...] = (
+    "au", "br", "ca", "ch", "cn", "de", "eg", "fr", "gb", "il",
+    "in", "it", "jp", "mx", "nl", "ru", "tr", "ua", "us", "za",
+)
+
+
 def _make_fixture_game_repo(
     game_countries: list[str] | None,
     pop_policy: str | None = "allowed",
+    roster_list: tuple[str, ...] = FIXTURE_COUNTRIES,
 ) -> pathlib.Path:
     """Create a minimal git game repo that exercises real build_sheets.build() and check_game()."""
     g = pathlib.Path(tempfile.mkdtemp(prefix="sg-s186-game-"))
-    isos_u = [c.upper() for c in build_sheets.COUNTRIES]
+    isos_u = [c.upper() for c in roster_list]
     roster = {
         "countries": {
             iso: {"name": f"Testland {i + 1}"}
             for i, iso in enumerate(isos_u)
         }
     }
-    if game_countries:
-        for i, c in enumerate(game_countries):
-            cu = c.upper()
-            roster["countries"].setdefault(cu, {"name": f"Extra {i + 1}"})
 
     axes_spec = [
         ("land_area_km2", "Land area (km²)", "axisLandArea", 10000.0, "World Bank WDI"),
@@ -2605,7 +2820,7 @@ def _make_fixture_game_repo(
     )
     _write("app/lib/play/puzzle.dart", f"final axes = {{\n{puzzle_entries}\n}};\n")
     _write("packages/sort_platform/l10n/app_en.arb", json.dumps({key: lbl for _ax, lbl, key, _b, _s in axes_spec}))
-    for iso in build_sheets.COUNTRIES:
+    for iso in roster_list:
         _write(f"app/assets/flags/{iso}.svg", '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 3"></svg>')
     if game_countries is not None:
         body = ", ".join(f"'{c}'" for c in game_countries)
@@ -2629,16 +2844,22 @@ def sheet_game_fixture_case(
     must_match: str | None = None,
     check_built_with_mutated_game: bool = False,
     mutate_built=None,
+    countries_ref: str | None = None,
 ) -> None:
     """Exercise real build_sheets.build() and check_game() against a minimal fixture game repo."""
-    root = copy_site()
+    root = copy_site(copy_assets=True, copy_countries="skip")
+    facts_p = root / build_sheets.FACTS_FILE
+    facts = json.loads(facts_p.read_text(encoding="utf-8"))
+    facts["countries"] = len(FIXTURE_COUNTRIES)
+    facts_p.write_text(json.dumps(facts, indent=2) + "\n", encoding="utf-8")
+
     g = _make_fixture_game_repo(game_countries, pop_policy=pop_policy)
     g_clean = None
     all_problems: list[str] = []
     try:
         if check_built_with_mutated_game:
             # First build clean sheets from a clean fixture, then run check_game() against the mutated game repo.
-            g_clean = _make_fixture_game_repo(list(build_sheets.COUNTRIES), pop_policy="allowed")
+            g_clean = _make_fixture_game_repo(list(FIXTURE_COUNTRIES), pop_policy="allowed")
             build_sheets.build(g_clean, ref="main", root=root)
             if mutate_built is not None:
                 mutate_built(root)
@@ -2647,7 +2868,7 @@ def sheet_game_fixture_case(
             detail = all_problems[:3]
         else:
             try:
-                build_sheets.build(g, ref="main", root=root)
+                build_sheets.build(g, ref="main", root=root, countries_ref=countries_ref)
                 build_err: str | None = None
             except build_sheets.SheetError as e:
                 build_err = str(e)
@@ -2676,33 +2897,36 @@ def sheet_game_fixture_case(
 
 sheet_game_fixture_case(
     "fixture build() + check_game(): matching kCountrySheetCountries passes",
-    list(build_sheets.COUNTRIES),
+    list(FIXTURE_COUNTRIES),
     False,
 )
 sheet_game_fixture_case(
-    "fixture build(): extra country in kCountrySheetCountries raises SheetError",
-    [*build_sheets.COUNTRIES, "pt"],
+    "fixture build(--countries-ref): extra country in kCountrySheetCountries raises SheetError",
+    [*FIXTURE_COUNTRIES, "pt"],
     True,
     must_match="COUNTRIES differs from app/lib/play/country_sheet_url.dart",
+    countries_ref="main",
 )
 sheet_game_fixture_case(
     "fixture check_game(): extra country in kCountrySheetCountries goes red",
-    [*build_sheets.COUNTRIES, "pt"],
+    [*FIXTURE_COUNTRIES, "pt"],
     True,
     must_match="COUNTRIES differs from app/lib/play/country_sheet_url.dart",
     check_built_with_mutated_game=True,
 )
 sheet_game_fixture_case(
-    "fixture build(): dropped country in kCountrySheetCountries raises SheetError",
-    [c for c in build_sheets.COUNTRIES if c != "za"],
+    "fixture build(--countries-ref): dropped country in kCountrySheetCountries raises SheetError",
+    [c for c in FIXTURE_COUNTRIES if c != "za"],
     True,
     must_match="COUNTRIES differs from app/lib/play/country_sheet_url.dart",
+    countries_ref="main",
 )
 sheet_game_fixture_case(
-    "fixture build(): missing country_sheet_url.dart fails closed with SheetError",
+    "fixture build(--countries-ref): missing country_sheet_url.dart fails closed with SheetError",
     None,
     True,
     must_match="cannot read app/lib/play/country_sheet_url.dart",
+    countries_ref="main",
 )
 sheet_game_fixture_case(
     "fixture check_game(): missing country_sheet_url.dart goes red",
@@ -2712,15 +2936,22 @@ sheet_game_fixture_case(
     check_built_with_mutated_game=True,
 )
 sheet_game_fixture_case(
+    "fixture check_game(): roster country missing from website set goes red",
+    list(FIXTURE_COUNTRIES),
+    True,
+    mutate_built=lambda r: _drop_roster_country_from_site(r, "za", drop_roster=True),
+    must_match="website set is missing roster country/countries from main: ['za']",
+)
+sheet_game_fixture_case(
     "fixture build(): published axis (population) flipped to 'flag' raises SheetError",
-    list(build_sheets.COUNTRIES),
+    list(FIXTURE_COUNTRIES),
     True,
     pop_policy="flag",
     must_match="web_republish='flag'",
 )
 sheet_game_fixture_case(
     "fixture check_game(): published axis (population) flipped to 'flag' goes red",
-    list(build_sheets.COUNTRIES),
+    list(FIXTURE_COUNTRIES),
     True,
     pop_policy="flag",
     must_match="web_republish='flag'",
@@ -2728,14 +2959,14 @@ sheet_game_fixture_case(
 )
 sheet_game_fixture_case(
     "fixture build(): axis missing web_republish policy raises SheetError",
-    list(build_sheets.COUNTRIES),
+    list(FIXTURE_COUNTRIES),
     True,
     pop_policy=None,
     must_match="missing or invalid web_republish",
 )
 sheet_game_fixture_case(
     "fixture check_game(): injected non-SECTIONS forbidden axis (wine_lpc) caught by per-page policy guard",
-    list(build_sheets.COUNTRIES),
+    list(FIXTURE_COUNTRIES),
     True,
     pop_policy="allowed",
     mutate_built=lambda r: edit(
@@ -2748,7 +2979,7 @@ sheet_game_fixture_case(
 )
 sheet_game_fixture_case(
     "fixture check_game(): missing all/ page goes red",
-    list(build_sheets.COUNTRIES),
+    list(FIXTURE_COUNTRIES),
     True,
     pop_policy="allowed",
     mutate_built=lambda r: (r / "countries/eg/all/index.html").unlink(),
@@ -2756,7 +2987,7 @@ sheet_game_fixture_case(
 )
 sheet_game_fixture_case(
     "fixture check_game(): short page link pointing elsewhere goes red",
-    list(build_sheets.COUNTRIES),
+    list(FIXTURE_COUNTRIES),
     True,
     pop_policy="allowed",
     mutate_built=lambda r: edit(r, "countries/us/index.html", 'href="./all/"', 'href="https://example.com/"'),

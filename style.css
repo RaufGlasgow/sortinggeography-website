@@ -1018,7 +1018,7 @@ table.facts th {
   min-width: 0;
 }
 .da .a-sh-top h1 {
-  font-size: 30px;
+  font-size: clamp(24px, 6.5vw, 30px);
   line-height: 1.15;
   text-align: left;
   overflow-wrap: anywhere;

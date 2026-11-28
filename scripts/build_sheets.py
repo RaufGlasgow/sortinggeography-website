@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Generate and verify the English country sheets (Story 18.6, launch slice).
+"""Generate and verify the English country sheets (Stories 18.6 & 18.6b).
 
 Reads the game repo via `git show <ref>:<path>` (nothing checked out) and
-generates BOTH static HTML sheets for each of the 20 launch countries in one
-run, styled with the site's existing `style.css` and self-hosted fonts
+generates BOTH static HTML sheets for every country in the game's roster (195)
+in one run, styled with the site's existing `style.css` and self-hosted fonts
 (no Google Fonts, no third-party scripts):
   - `countries/<iso>/index.html`      — short summary page (the URL the game opens)
   - `countries/<iso>/all/index.html`  — full page with every published fact
@@ -14,28 +14,30 @@ Usage:
     python3 scripts/build_sheets.py --check --game ../Sorting-Geography [--ref origin/main] [--countries-ref REF] [--out DIR]
 
 Modes:
-  - Build (`--game PATH`): reads dataset.json, axes.yaml, fields.yaml,
-    fact_consistency_allowlist.yaml, roster/countries.json, capital_name.csv,
+  - Build (`--game PATH`): derives the full country roster from the game repo at
+    `--ref` (`pipeline/roster/countries.json`) and reads dataset.json, axes.yaml,
+    fields.yaml, fact_consistency_allowlist.yaml, capital_name.csv,
     ne_50m_admin_0_countries.geojson, puzzle.dart, app_en.arb, version-log.json,
-    and flag SVGs from the game repo at `--ref`; writes
-    `countries/<iso>/index.html` (short), `countries/<iso>/all/index.html` (full),
-    `images/flags/<iso>.svg`, and `src/sheets_manifest.json`. Refuses (exit 1)
-    if any axis to be published is not `web_republish: allowed` or is in
-    `src/sheet_deny_axes.json`.
+    and flag SVGs; writes `countries/<iso>/index.html` (short),
+    `countries/<iso>/all/index.html` (full), `images/flags/<iso>.svg`, and
+    `src/sheets_manifest.json`. Refuses (exit 1) if any axis to be published is
+    not `web_republish: allowed` or is in `src/sheet_deny_axes.json`.
   - Offline check (`--check`, used in CI): verifies both pages for every
-    country against COUNTRIES, `src/sheet_deny_axes.json`,
-    `src/sheets_manifest.json`, and `sitemap.xml` (allowed-only axes, exact
-    dataset values, FR-55 notes, noindex,follow, self-canonical, short<->full
-    links, no third-party scripts/fonts, no Daily).
+    roster country against `src/sheets_manifest.json`, `src/facts.json`,
+    `src/sheet_deny_axes.json`, and `sitemap.xml` (complete roster, allowed-only
+    axes, exact dataset values, FR-55 notes, no empty sections, no null/NaN/
+    undefined, noindex,follow, self-canonical, short<->full links, no third-party
+    scripts/fonts, no Daily).
   - Live game check (`--check --game PATH`): runs all offline checks plus
-    re-checks both pages directly against the game repo at `--ref` and compares
-    COUNTRIES against `kCountrySheetCountries` in
-    `app/lib/play/country_sheet_url.dart`.
+    re-checks every roster country directly against the game repo at `--ref`
+    and compares the website country set against `kCountrySheetCountries` in
+    `app/lib/play/country_sheet_url.dart` (fail closed on any difference).
 """
 from __future__ import annotations
 
 import csv
 import datetime
+import functools
 import html
 from html.parser import HTMLParser
 import io
@@ -57,23 +59,38 @@ import build_seo  # noqa: E402
 SITE = "https://sortinggeography.com"
 DENY_FILE = "src/sheet_deny_axes.json"
 MANIFEST_FILE = "src/sheets_manifest.json"
+FACTS_FILE = "src/facts.json"
 SHEET_URL_DART = "app/lib/play/country_sheet_url.dart"
 
-# The ONE place the 20 launch countries live on the website (Story 18.6).
-# `--check --game` compares this set with `kCountrySheetCountries` on the game
-# repo and fails on any difference.
-COUNTRIES: tuple[str, ...] = (
-    "au", "br", "ca", "ch", "cn", "de", "eg", "fr", "gb", "il",
-    "in", "it", "jp", "mx", "nl", "ru", "tr", "ua", "us", "za",
-)
+# Country sheets cover every country in the game's roster (195, Story 18.6b).
+# The country list is derived directly from `pipeline/roster/countries.json` at
+# `--ref` (never hand-typed here) and recorded in `src/sheets_manifest.json`.
+# `--check --game` compares the website set against both the game's roster and
+# `kCountrySheetCountries` in `app/lib/play/country_sheet_url.dart` (fail closed).
 
-# ONE table of country ISO2 codes whose English name takes "the" in running prose.
-# Standalone titles/labels (<h1>, short-page <title>, mini-board rows, Borders list)
-# stay the bare name; running sentences use country_in_prose(iso, cname, start=...).
+# ONE table of country ISO2 codes whose English name in `pipeline/roster/countries.json`
+# takes "the" in running prose. Standalone titles/labels (<h1>, short-page <title>,
+# mini-board rows, Borders list) stay the bare name; running sentences use
+# country_in_prose(iso, cname, start=...).
+# Note: the roster names CD "Congo (DRC)", CG "Congo", CZ "Czechia", and
+# FM "Micronesia", so those do not take "the" in running prose.
 COUNTRIES_WITH_THE: frozenset[str] = frozenset({
+    "AE",  # the United Arab Emirates
+    "BS",  # the Bahamas
+    "CF",  # the Central African Republic
+    "DO",  # the Dominican Republic
     "GB",  # the United Kingdom
+    "GM",  # the Gambia
+    "KM",  # the Comoros
+    "MH",  # the Marshall Islands
+    "MV",  # the Maldives
     "NL",  # the Netherlands
+    "PH",  # the Philippines
+    "PS",  # the State of Palestine
+    "SB",  # the Solomon Islands
+    "SC",  # the Seychelles
     "US",  # the United States
+    "VA",  # the Holy See
 })
 
 # Sheet-only display label overrides (do not touch the game's app_en.arb).
@@ -303,6 +320,10 @@ PLAIN_CONSISTENCY_NOTES: dict[str, tuple[str, str]] = {
         "Different years",
         "Wheat grown is from 2022 while cereal production is from 2023.",
     ),
+    "female_share_outside_40_60": (
+        "Why this is below 40%",
+        "A large, mostly male expatriate and migrant workforce pushes the female share of the total resident population below 40%.",
+    ),
 }
 
 SOURCE_RULES: list[tuple[str, str]] = [
@@ -322,6 +343,7 @@ SOURCE_RULES: list[tuple[str, str]] = [
     (r"^FAOSTAT QCL.*via Our World in Data", "FAOSTAT, via Our World in Data"),
     (r"^FAOSTAT", "FAOSTAT"),
     (r"^GeoNames", "GeoNames"),
+    (r"^Holy See official \(Annuario Pontificio\)", "Holy See (Annuario Pontificio), via UN"),
     (r"^IANA Time Zone Database", "IANA Time Zone Database 2026a"),
     (r"^ILO\b.*via World Bank WDI", "ILO, via World Bank, WDI"),
     (r"^JRC Global Human Settlement Layer", "EU JRC Global Human Settlement Layer"),
@@ -334,10 +356,12 @@ SOURCE_RULES: list[tuple[str, str]] = [
     (r"^UN DESA Population Division, Database on Household Size", "UN DESA Household Size and Composition"),
     (r"^UN DESA World Urbanization Prospects 2025", "UN DESA World Urbanization Prospects 2025"),
     (r"^UN IGME", "UN IGME, via World Bank, WDI"),
+    (r"^UN Statistics Division Demographic Yearbook", "UN Statistics Division, Demographic Yearbook"),
     (r"^UN WPP 2024 via Our World in Data", "UN World Population Prospects 2024, via Our World in Data"),
     (r"^UN World Population Prospects 2024.*via World Bank WDI", "UN World Population Prospects 2024, via World Bank, WDI"),
     (r"^UN World Population Prospects 2024", "UN World Population Prospects 2024"),
     (r"^UN World Urbanization Prospects 2025.*via World Bank WDI", "UN DESA World Urbanization Prospects 2025, via World Bank, WDI"),
+    (r"^UN World Urbanization Prospects 2024", "UN World Urbanization Prospects 2024"),
     (r"^UNDP Human Development Report 2025", "UNDP Human Development Report 2025"),
     (r"^US Energy Information Administration", "United States Energy Information Administration"),
     (r"^Wikidata", "Wikidata"),
@@ -440,7 +464,9 @@ class AbbrevExpander:
 MAP_FRAMES: dict[str, tuple[float, float, float, float, str | None, str]] = {
     "AU": (108.0, 159.0, -45.5, -8.5, None, "Mainland Australia and Tasmania shown."),
     "CA": (-146.0, -48.0, 40.0, 84.0, None, "Canada as the game counts it."),
+    "FJ": (175.0, 184.0, -21.0, -12.0, "east", "Fiji as the game counts it."),
     "FR": (-8.5, 13.0, 40.5, 52.2, None, "Metropolitan France and Corsica shown; figures count the whole country."),
+    "KI": (168.0, 212.0, -14.0, 8.0, "east", "Kiribati as the game counts it."),
     "NL": (1.5, 9.0, 49.8, 54.5, None, "The European Netherlands shown."),
     "RU": (14.0, 196.0, 38.0, 80.5, "east", "Russia as the game counts it."),
     "US": (-172.0, -62.0, 17.0, 73.0, "west", "The 50 states of the United States shown."),
@@ -452,6 +478,8 @@ COUNTRY_CONST = re.compile(
     re.M,
 )
 ISO_RE = re.compile(r"[a-z]{2}")
+ISO_UPPER_RE = re.compile(r"[A-Z]{2}")
+BAD_LITERAL_RE = re.compile(r"\b(?:null|NULL|NaN|undefined)\b")
 THIRD_PARTY_FONT_RE = re.compile(
     r"fonts\.googleapis\.com|fonts\.gstatic\.com|use\.typekit\.net|fonts\.bunny\.net",
     re.I,
@@ -460,6 +488,10 @@ DAILY_LEAK_RE = re.compile(
     r"\btoday'?s\s+daily\b|\bdaily\s+(?:answer|question|puzzle|challenge)\b",
     re.I,
 )
+
+
+def _is_valid_number(v: object) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
 
 
 class SheetError(Exception):
@@ -898,13 +930,13 @@ def render_locator_map(
         slon = _shift_lon(lon, shift_mode)
         return ((slon - lon0) * sx, (lat1 - lat) * sy)
 
-    def ring_d(ring: list) -> str:
+    def ring_d(ring: list, *, tol_in: float = 1.4) -> str:
         pts: list[tuple[float, float]] = []
         last: tuple[float, float] | None = None
         for lon, lat in ring:
             x, y = proj(lon, lat)
             in_view = -20.0 <= x <= W + 20.0 and -20.0 <= y <= H + 20.0
-            tol = 1.4 if in_view else 18.0
+            tol = tol_in if in_view else 18.0
             if last is not None and abs(x - last[0]) < tol and abs(y - last[1]) < tol:
                 continue
             pts.append((x, y))
@@ -913,7 +945,7 @@ def render_locator_map(
             return ""
         return "M" + "L".join(f"{x:.1f} {y:.1f}" for x, y in pts) + "Z"
 
-    def feat_d(feat: dict) -> str:
+    def feat_d(feat: dict, *, is_target: bool = False) -> str:
         out = []
         for poly in _feature_polys(feat):
             ring = poly[0]
@@ -925,21 +957,53 @@ def render_locator_map(
             if max(slons) < lon0 - 2 or min(slons) > lon1 + 2 or max(lats) < lat0 - 2 or min(lats) > lat1 + 2:
                 continue
             d = ring_d(ring)
+            if not d and is_target:
+                d = ring_d(ring, tol_in=0.0)
             if d:
                 out.append(d)
         return "".join(out)
 
     others: list[str] = []
     target_paths: list[str] = []
+    target_xs: list[float] = []
+    target_ys: list[float] = []
     for feat in geo["features"]:
         code = feat["properties"].get("ISO_A2_EH")
-        d = feat_d(feat)
+        is_tgt = code == iso and (feat["properties"].get("TYPE") != "Dependency" or iso not in {"AU"})
+        d = feat_d(feat, is_target=is_tgt)
+        if is_tgt:
+            for poly in _feature_polys(feat):
+                ring = poly[0]
+                slons = [_shift_lon(pt[0], shift_mode) for pt in ring]
+                lats = [pt[1] for pt in ring]
+                if max(slons) - min(slons) > 180.0:
+                    continue
+                if max(slons) < lon0 or min(slons) > lon1 or max(lats) < lat0 or min(lats) > lat1:
+                    continue
+                for lon, lat in ring:
+                    px, py = proj(lon, lat)
+                    if 0 <= px <= W and 0 <= py <= H:
+                        target_xs.append(px)
+                        target_ys.append(py)
         if not d:
             continue
-        if code == iso and (feat["properties"].get("TYPE") != "Dependency" or iso not in {"AU"}):
+        if is_tgt:
             target_paths.append(d)
         else:
             others.append(d)
+
+    # For tiny microstates / atolls whose projected outline is < 8px across, add a subtle locator ring.
+    micro_svg = ""
+    if target_xs and target_ys:
+        span_x = max(target_xs) - min(target_xs)
+        span_y = max(target_ys) - min(target_ys)
+        if span_x < 8.0 and span_y < 8.0:
+            mx = (min(target_xs) + max(target_xs)) / 2.0
+            my = (min(target_ys) + max(target_ys)) / 2.0
+            micro_svg = (
+                f'<circle cx="{mx:.1f}" cy="{my:.1f}" r="7" '
+                'style="fill:var(--map-pt);fill-opacity:.25;stroke:var(--map-pt);stroke-width:1.6"></circle>'
+            )
 
     # Graticule lines spaced cleanly for the frame size.
     step = 20 if (lon1 - lon0) > 70 else 10 if (lon1 - lon0) > 25 else 5 if (lon1 - lon0) > 10 else 2
@@ -958,7 +1022,7 @@ def render_locator_map(
         g_lat += step
 
     cap_svg = ""
-    if capital and cap_lat is not None and cap_lon is not None:
+    if capital and _is_valid_number(cap_lat) and _is_valid_number(cap_lon):
         cx, cy = proj(cap_lon, cap_lat)
         if 8 <= cx <= W - 8 and 8 <= cy <= H - 8:
             anchor = "end" if cx > W * 0.65 else "start"
@@ -979,7 +1043,7 @@ def render_locator_map(
         f'<path d="{"".join(grat)}" style="fill:none;stroke:var(--map-grid);stroke-width:.8"></path>'
         f'<path d="{"".join(others)}" style="fill:var(--map-land);stroke:var(--map-edge);stroke-width:.8;stroke-linejoin:round"></path>'
         f'<path d="{"".join(target_paths)}" style="fill:var(--map-pt);stroke:var(--map-pt);stroke-width:1.2;stroke-linejoin:round"></path>'
-        f'{cap_svg}'
+        f'{micro_svg}{cap_svg}'
         '</svg>'
         f'<figcaption class="mapcap">{html.escape(cap_text)}Map: Natural Earth 1:50 million, public domain.</figcaption>'
         '</figure>'
@@ -1086,6 +1150,51 @@ def load_game_bundle(game: pathlib.Path, ref: str, deny_list: dict[str, str]) ->
     }
 
 
+def roster_countries(bundle: dict) -> tuple[str, ...]:
+    """Derive the sorted lowercase ISO2 country roster from the game bundle (fail closed)."""
+    roster = bundle.get("roster")
+    if not isinstance(roster, dict) or not roster:
+        raise SheetError("pipeline/roster/countries.json has no countries")
+    bad_codes = sorted(k for k in roster if not isinstance(k, str) or not ISO_UPPER_RE.fullmatch(k))
+    if bad_codes:
+        raise SheetError(f"pipeline/roster/countries.json has invalid ISO2 code(s): {bad_codes}")
+    continents = (bundle.get("dataset") or {}).get("facets", {}).get("continent") or {}
+    missing_continent = sorted(k for k in roster if k not in continents or not isinstance(continents[k], str) or not continents[k].strip())
+    if missing_continent:
+        raise SheetError(f"dataset.json facets.continent is missing roster country/countries: {missing_continent}")
+    return tuple(sorted(k.lower() for k in roster))
+
+
+def _validate_iso_list(raw: object, field: str, label: str) -> tuple[list[str] | None, list[str]]:
+    if not isinstance(raw, list) or not raw:
+        return None, [f"{label}: missing or empty {field!r}"]
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in raw:
+        if not isinstance(item, str) or not ISO_RE.fullmatch(item) or item in seen:
+            return None, [f"{label}: invalid or duplicate ISO2 entry {item!r} in {field!r}"]
+        seen.add(item)
+        out.append(item)
+    return sorted(out), []
+
+
+def manifest_countries_lists(manifest: dict, label: str = MANIFEST_FILE) -> tuple[list[str], list[str], list[str]]:
+    """Return (roster_list, site_list, errors) from a sheets manifest (fail closed)."""
+    bad: list[str] = []
+    roster_list, err_r = _validate_iso_list(manifest.get("roster_countries"), "roster_countries", label)
+    site_list, err_s = _validate_iso_list(manifest.get("countries_list"), "countries_list", label)
+    bad += err_r + err_s
+    if roster_list is None or site_list is None:
+        return roster_list or [], site_list or [], bad
+    missing_from_site = sorted(set(roster_list) - set(site_list))
+    extra_in_site = sorted(set(site_list) - set(roster_list))
+    if missing_from_site:
+        bad.append(f"{label}: roster country/countries missing from website set: {missing_from_site}")
+    if extra_in_site:
+        bad.append(f"{label}: unexpected country/countries outside roster: {extra_in_site}")
+    return roster_list, site_list, bad
+
+
 def _axis_default_ver(axis_recs: dict) -> dict:
     for rec in axis_recs.values():
         if isinstance(rec, dict) and rec.get("verification"):
@@ -1116,12 +1225,12 @@ def compute_axis_facts(bundle: dict, iso_upper: str) -> dict[str, dict]:
         unit = normalize_unit(raw_unit)
         unit_txt = unit[1:].strip() if unit.startswith("%") else unit
         vals = sorted(
-            (c["sort_value"] for c in cs.values() if isinstance(c, dict) and not isinstance(c.get("sort_value"), dict)),
+            (c["sort_value"] for c in cs.values() if isinstance(c, dict) and _is_valid_number(c.get("sort_value"))),
             reverse=True,
         )
         rec = cs.get(iso_upper)
         default_ver = _axis_default_ver(cs)
-        if rec is None or isinstance(rec.get("sort_value"), dict):
+        if rec is None or not isinstance(rec, dict) or not _is_valid_number(rec.get("sort_value")):
             ver = default_ver
             facts[ax] = {
                 "ax": ax,
@@ -1136,8 +1245,8 @@ def compute_axis_facts(bundle: dict, iso_upper: str) -> dict[str, dict]:
                 "tied": 0,
                 "rank_txt": "Not ranked",
                 "src": short_source(ver["declared_source"]),
-                "year": str(ver.get("vintage", "")),
-                "url": str(ver.get("source_url", "")),
+                "year": str(ver.get("vintage") or ""),
+                "url": str(ver.get("source_url") or ""),
             }
             continue
 
@@ -1160,8 +1269,8 @@ def compute_axis_facts(bundle: dict, iso_upper: str) -> dict[str, dict]:
             "tied": tied,
             "rank_txt": rank_txt,
             "src": short_source(ver["declared_source"]),
-            "year": str(ver.get("vintage", "")),
-            "url": str(ver.get("source_url", "")),
+            "year": str(ver.get("vintage") or ""),
+            "url": str(ver.get("source_url") or ""),
         }
     return facts
 
@@ -1208,7 +1317,7 @@ def active_consistency_rules(bundle: dict, iso_upper: str, facts: dict[str, dict
 def sorted_neighbours(bundle: dict, ax: str, iso_upper: str) -> list[tuple[int, str, float | int]]:
     cs = bundle["dataset"]["axes"][ax]
     rows = sorted(
-        ((c["sort_value"], i) for i, c in cs.items() if isinstance(c, dict) and not isinstance(c.get("sort_value"), dict)),
+        ((c["sort_value"], i) for i, c in cs.items() if isinstance(c, dict) and _is_valid_number(c.get("sort_value"))),
         key=lambda t: (-t[0], t[1]),
     )
     idx = [i for _, i in rows].index(iso_upper)
@@ -1228,10 +1337,12 @@ def sorted_neighbours(bundle: dict, ax: str, iso_upper: str) -> list[tuple[int, 
 
 
 def standout_facts(facts: dict[str, dict]) -> list[dict]:
-    """Top 4 axes where the country stands out (best rank/n ratio, skipping ties)."""
+    """Top 4 axes where the country stands out (best rank/n ratio, preferring untied)."""
     clean = [f for f in facts.values() if not f["nodata"] and f["tied"] == 0]
     if len(clean) < 4:
         clean = [f for f in facts.values() if not f["nodata"] and f["tied"] <= 2]
+    if len(clean) < 4:
+        clean = [f for f in facts.values() if not f["nodata"]]
     clean.sort(key=lambda f: (f["rank"] / f["n"], f["rank"], f["ax"]))
     return clean[:4]
 
@@ -1344,12 +1455,12 @@ def compute_sheet_expectation(bundle: dict, iso_lower: str, layout: str = "full"
     exp = AbbrevExpander()
 
     continent = ds["facets"]["continent"][iso]
-    capital = bundle["capitals"].get(iso)
+    capital = (bundle["capitals"].get(iso) or "").strip() or None
     cap_lat = ds["attributes"].get("capital_lat", {}).get(iso)
     cap_lon = ds["attributes"].get("capital_lon", {}).get(iso)
-    neighbours = ds["field_sets"].get("land_neighbours", {}).get(iso, [])
+    neighbours = ds["field_sets"].get("land_neighbours", {}).get(iso) or []
     border_names = ", ".join(neighbour_name(n, roster, bundle["geo"]) for n in neighbours) if neighbours else "None (island)"
-    tz_count = len(ds["field_sets"].get("time_zones", {}).get(iso, []))
+    tz_count = len(ds["field_sets"].get("time_zones", {}).get(iso) or [])
 
     meta_items: list[tuple[str, str, bool]] = []
     if capital:
@@ -1377,7 +1488,8 @@ def compute_sheet_expectation(bundle: dict, iso_lower: str, layout: str = "full"
                 "val": val_plain,
             })
         b_src = exp.expand(f["src"], capitalize_start=True)
-        b_bsrc = f'{f["rank_txt"]} \u00b7 {b_src}, {f["year"]}'
+        b_src_yr = f'{b_src}, {f["year"]}' if f["year"] else b_src
+        b_bsrc = f'{f["rank_txt"]} \u00b7 {b_src_yr}'
         boards.append({
             "ax": f["ax"],
             "title": b_title,
@@ -1405,6 +1517,8 @@ def compute_sheet_expectation(bundle: dict, iso_lower: str, layout: str = "full"
     rendered_sections: list[dict] = []
     cards_by_ax: dict[str, dict] = {}
     for key, title, axs in secs:
+        if not axs:
+            continue
         sec_notes: list[dict] = []
         for r in sec_rules.get(key, []):
             sec_notes.append({
@@ -1419,7 +1533,8 @@ def compute_sheet_expectation(bundle: dict, iso_lower: str, layout: str = "full"
             c_name = exp.expand(f["name"], capitalize_start=True)
             c_src = exp.expand(f["src"], capitalize_start=True)
             src_host = host_label(f["url"]) if f["url"] else ""
-            src_text = f'{c_src}, {f["year"]}' + (f" \u00b7 {src_host}" if src_host else "")
+            src_head = f'{c_src}, {f["year"]}' if f["year"] else c_src
+            src_text = src_head + (f" \u00b7 {src_host}" if src_host else "")
             if f["nodata"]:
                 c_unit = ""
             else:
@@ -1512,12 +1627,13 @@ def render_sheet(
             )
             manifest_rows.append({"rank": row["rank"], "name": row["name"], "val": row["val"]})
         unit_disp = e(b["unit"]) if b["unit"] else "&nbsp;"
+        b_src_yr = f'{e(b["src"])}, {e(b["year"])}' if b["year"] else e(b["src"])
         boards_parts.append(
             f'<figure class="a-board" data-axis="{e(b["ax"])}">'
             f'<figcaption><span class="a-bq">{e(b["title"])}</span><span class="a-bu">{unit_disp}</span></figcaption>'
             f'<div class="cap">&#9650; MOST</div>'
             f'{"".join(rows_html)}'
-            f'<p class="a-bsrc">{e(b["rank_txt"])} &middot; {e(b["src"])}, {e(b["year"])}</p>'
+            f'<p class="a-bsrc">{e(b["rank_txt"])} &middot; {b_src_yr}</p>'
             f'</figure>'
         )
         manifest_boards.append({
@@ -1527,7 +1643,7 @@ def render_sheet(
             "bsrc": b["bsrc"],
             "rows": manifest_rows,
         })
-    if layout == "short":
+    if layout == "short" and boards_parts:
         standout_block = (
             f'      <section class="a-fs">'
             f'<h2 class="left">Where {e(cname_prose)} stands out</h2>'
@@ -1540,6 +1656,8 @@ def render_sheet(
     # Fact sections
     sec_parts: list[str] = []
     for sec in spec["sections"]:
+        if not sec["cards"]:
+            continue
         notes_html = "".join(
             f'<p class="a-cnote" data-consistency-rule="{e(r["rule"])}" '
             f'data-consistency-axes="{e(",".join(r["axes"]))}">'
@@ -1549,7 +1667,8 @@ def render_sheet(
         row_parts: list[str] = []
         for card in sec["cards"]:
             src_host = host_label(card["url"]) if card["url"] else ""
-            src_label = f'{e(card["src"])}, {e(card["year"])}' + (f" &middot; {e(src_host)}" if src_host else "")
+            src_head = f'{e(card["src"])}, {e(card["year"])}' if card["year"] else e(card["src"])
+            src_label = src_head + (f" &middot; {e(src_host)}" if src_host else "")
             src_el = (
                 f'<a class="a-f-s" href="{e(card["url"], quote=True)}" rel="noopener noreferrer">{src_label}</a>'
                 if card["url"] else f'<span class="a-f-s">{src_label}</span>'
@@ -1577,7 +1696,7 @@ def render_sheet(
     n_have_all = sum(
         1 for a in ds["axes"]
         if iso in ds["axes"][a] and isinstance(ds["axes"][a][iso], dict)
-        and not isinstance(ds["axes"][a][iso].get("sort_value"), dict)
+        and _is_valid_number(ds["axes"][a][iso].get("sort_value"))
     )
     if layout == "short":
         if full_fact_count is None:
@@ -1777,6 +1896,7 @@ class _SheetHTMLParser(HTMLParser):
         self.play_h3_text = ""
         self.play_p_texts: list[str] = []
         self.map_caption_text = ""
+        self.sections_summary: list[tuple[str, int]] = []
 
         # DOM placement tracking
         self.fromgame_order: int | None = None
@@ -1790,6 +1910,7 @@ class _SheetHTMLParser(HTMLParser):
         self._main_visible_parts: list[str] = []
         self._how_parts: list[str] = []
 
+        self._cur_section: list | None = None  # [depth, heading_parts, item_count]
         self._cur_fact: dict | None = None
         self._cur_board: dict | None = None
         self._cur_mb_row: dict | None = None
@@ -1811,6 +1932,19 @@ class _SheetHTMLParser(HTMLParser):
         self._in_mapcap: tuple[int, list[str]] | None = None
         self._in_script_depth: int | None = None
         self._in_style_depth: int | None = None
+        # Fast depth flags for fact-card and mini-board inner elements
+        self._f_name_d: int | None = None
+        self._f_src_d: int | None = None
+        self._f_r_d: int | None = None
+        self._f_b_d: int | None = None
+        self._f_small_d: int | None = None
+        self._f_rk_d: int | None = None
+        self._b_title_d: int | None = None
+        self._b_unit_d: int | None = None
+        self._b_bsrc_d: int | None = None
+        self._mb_n_d: int | None = None
+        self._mb_name_d: int | None = None
+        self._mb_v_d: int | None = None
 
     def _check_srcset(self, srcset: str) -> None:
         for cand in srcset.split(","):
@@ -1924,8 +2058,11 @@ class _SheetHTMLParser(HTMLParser):
             if tag == "main" and self._in_main_depth is None:
                 self._in_main_depth = depth
                 self.main_order = self._order
-            if tag == "section" and "a-fs" in classes and attr_map.get("id", "").startswith("sec-"):
-                self.last_fact_section_order = self._order
+            if tag == "section" and "a-fs" in classes:
+                if attr_map.get("id", "").startswith("sec-"):
+                    self.last_fact_section_order = self._order
+                if self._cur_section is None:
+                    self._cur_section = [depth, [], 0]
             if tag == "div" and ("a-side-play" in classes or "a-play" in classes) and self.play_card_order is None:
                 self.play_card_order = self._order
             if tag == "div" and "a-play" in classes and self._in_play_depth is None:
@@ -1984,6 +2121,8 @@ class _SheetHTMLParser(HTMLParser):
                 self._cur_cnote = (depth, attr_map["data-consistency-rule"], [])
 
             if tag == "div" and "a-f" in classes and "data-axis" in attr_map:
+                if self._cur_section is not None:
+                    self._cur_section[2] += 1
                 self._cur_fact = {
                     "depth": depth,
                     "ax": attr_map["data-axis"],
@@ -1995,14 +2134,33 @@ class _SheetHTMLParser(HTMLParser):
                     "rank": [],
                     "has_nd_class": False,
                 }
-            elif self._cur_fact is not None and tag == "a" and "a-f-s" in classes:
-                self._cur_fact["src_href"] = attr_map.get("href", "")
-            elif self._cur_fact is not None and tag == "b" and "a-nd" in classes:
-                self._cur_fact["has_nd_class"] = True
-            elif self._cur_fact is not None and tag == "span" and "a-rk-nd" in classes:
-                self._cur_fact["has_nd_class"] = True
+            elif self._cur_fact is not None:
+                if tag == "span" and "a-f-n" in classes and self._f_name_d is None:
+                    self._f_name_d = depth
+                elif tag in {"a", "span"} and "a-f-s" in classes:
+                    if self._f_src_d is None:
+                        self._f_src_d = depth
+                    if tag == "a":
+                        self._cur_fact["src_href"] = attr_map.get("href", "")
+                elif tag == "div" and "a-f-r" in classes and self._f_r_d is None:
+                    self._f_r_d = depth
+                elif self._f_r_d is not None:
+                    if tag == "b":
+                        if self._f_b_d is None:
+                            self._f_b_d = depth
+                        if "a-nd" in classes:
+                            self._cur_fact["has_nd_class"] = True
+                    elif tag == "small" and self._f_b_d is not None and self._f_small_d is None:
+                        self._f_small_d = depth
+                    elif tag == "span" and "a-rk" in classes:
+                        if self._f_rk_d is None:
+                            self._f_rk_d = depth
+                        if "a-rk-nd" in classes:
+                            self._cur_fact["has_nd_class"] = True
 
             if tag == "figure" and "a-board" in classes and "data-axis" in attr_map:
+                if self._cur_section is not None:
+                    self._cur_section[2] += 1
                 self._cur_board = {
                     "depth": depth,
                     "ax": attr_map["data-axis"],
@@ -2011,13 +2169,28 @@ class _SheetHTMLParser(HTMLParser):
                     "bsrc": [],
                     "rows": [],
                 }
-            elif self._cur_board is not None and tag == "div" and "a-mb" in classes:
-                self._cur_mb_row = {
-                    "depth": depth,
-                    "rank": [],
-                    "name": [],
-                    "val": [],
-                }
+            elif self._cur_board is not None:
+                if tag == "div" and "a-mb" in classes:
+                    self._cur_mb_row = {
+                        "depth": depth,
+                        "rank": [],
+                        "name": [],
+                        "val": [],
+                    }
+                elif self._cur_mb_row is not None:
+                    if tag == "span" and "a-mb-n" in classes and self._mb_n_d is None:
+                        self._mb_n_d = depth
+                    elif tag == "span" and "bname" in classes and self._mb_name_d is None:
+                        self._mb_name_d = depth
+                    elif tag == "b" and "a-mb-v" in classes and self._mb_v_d is None:
+                        self._mb_v_d = depth
+                else:
+                    if tag == "span" and "a-bq" in classes and self._b_title_d is None:
+                        self._b_title_d = depth
+                    elif tag == "span" and "a-bu" in classes and self._b_unit_d is None:
+                        self._b_unit_d = depth
+                    elif tag == "p" and "a-bsrc" in classes and self._b_bsrc_d is None:
+                        self._b_bsrc_d = depth
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self._on_open(tag, attrs, is_void=(tag.lower() in VOID_TAGS))
@@ -2075,9 +2248,39 @@ class _SheetHTMLParser(HTMLParser):
                 self._in_h1 = None
             if self._in_h2 is not None and self._in_h2[0] == depth:
                 h2_txt = " ".join("".join(self._in_h2[1]).split())
+                if self._cur_section is not None and not self._cur_section[1]:
+                    self._cur_section[1].append(h2_txt)
                 if h2_txt.startswith("Where ") and h2_txt.endswith(" stands out"):
                     self.standout_headings.append(h2_txt)
                 self._in_h2 = None
+            if self._cur_section is not None and self._cur_section[0] == depth:
+                sec_h = " ".join(self._cur_section[1]).strip()
+                self.sections_summary.append((sec_h, self._cur_section[2]))
+                self._cur_section = None
+            if self._f_name_d == depth:
+                self._f_name_d = None
+            if self._f_src_d == depth:
+                self._f_src_d = None
+            if self._f_r_d == depth:
+                self._f_r_d = None
+            if self._f_b_d == depth:
+                self._f_b_d = None
+            if self._f_small_d == depth:
+                self._f_small_d = None
+            if self._f_rk_d == depth:
+                self._f_rk_d = None
+            if self._b_title_d == depth:
+                self._b_title_d = None
+            if self._b_unit_d == depth:
+                self._b_unit_d = None
+            if self._b_bsrc_d == depth:
+                self._b_bsrc_d = None
+            if self._mb_n_d == depth:
+                self._mb_n_d = None
+            if self._mb_name_d == depth:
+                self._mb_name_d = None
+            if self._mb_v_d == depth:
+                self._mb_v_d = None
             if self._in_meta_label is not None and self._in_meta_label[0] == depth:
                 self.meta_labels.append(" ".join("".join(self._in_meta_label[1]).split()))
                 self._in_meta_label = None
@@ -2174,41 +2377,32 @@ class _SheetHTMLParser(HTMLParser):
             self._cur_cnote[2].append(data)
 
         if self._cur_fact is not None:
-            tags_in_fact = self._stack[self._cur_fact["depth"]:]
-            in_name = any(t == "span" and "a-f-n" in c for t, c, _ in tags_in_fact)
-            in_src = any(t in {"a", "span"} and "a-f-s" in c for t, c, _ in tags_in_fact)
-            in_r = any(t == "div" and "a-f-r" in c for t, c, _ in tags_in_fact)
-            if in_name:
+            if self._f_name_d is not None:
                 self._cur_fact["name"].append(data)
-            if in_src:
+            if self._f_src_d is not None:
                 self._cur_fact["src_text"].append(data)
-            if in_r:
-                in_b = any(t == "b" for t, _, _ in tags_in_fact)
-                in_small = any(t == "small" for t, _, _ in tags_in_fact)
-                in_rk = any(t == "span" and "a-rk" in c for t, c, _ in tags_in_fact)
-                if in_small and in_b:
+            if self._f_r_d is not None:
+                if self._f_small_d is not None and self._f_b_d is not None:
                     self._cur_fact["unit"].append(data)
-                elif in_b:
+                elif self._f_b_d is not None:
                     self._cur_fact["val"].append(data)
-                if in_rk:
+                if self._f_rk_d is not None:
                     self._cur_fact["rank"].append(data)
 
         if self._cur_board is not None:
-            tags_in_board = self._stack[self._cur_board["depth"]:]
             if self._cur_mb_row is not None:
-                tags_in_row = self._stack[self._cur_mb_row["depth"]:]
-                if any(t == "span" and "a-mb-n" in c for t, c, _ in tags_in_row):
+                if self._mb_n_d is not None:
                     self._cur_mb_row["rank"].append(data)
-                if any(t == "span" and "bname" in c for t, c, _ in tags_in_row):
+                if self._mb_name_d is not None:
                     self._cur_mb_row["name"].append(data)
-                if any(t == "b" and "a-mb-v" in c for t, c, _ in tags_in_row):
+                if self._mb_v_d is not None:
                     self._cur_mb_row["val"].append(data)
             else:
-                if any(t == "span" and "a-bq" in c for t, c, _ in tags_in_board):
+                if self._b_title_d is not None:
                     self._cur_board["title"].append(data)
-                if any(t == "span" and "a-bu" in c for t, c, _ in tags_in_board):
+                if self._b_unit_d is not None:
                     self._cur_board["unit"].append(data)
-                if any(t == "p" and "a-bsrc" in c for t, c, _ in tags_in_board):
+                if self._b_bsrc_d is not None:
                     self._cur_board["bsrc"].append(data)
 
     @property
@@ -2224,6 +2418,7 @@ class _SheetHTMLParser(HTMLParser):
         return " ".join("".join(self._how_parts).split())
 
 
+@functools.lru_cache(maxsize=512)
 def _parse_sheet_html(page: str) -> _SheetHTMLParser:
     parser = _SheetHTMLParser()
     parser.feed(page)
@@ -2360,8 +2555,12 @@ def _check_country_wording(
 
     if layout == "short":
         want_standout = f"Where {cname_prose} stands out"
-        if parsed.standout_headings != [want_standout]:
-            bad.append(f"{rel}: short page standout heading {parsed.standout_headings!r} != [{want_standout!r}]")
+        if parsed.boards:
+            if parsed.standout_headings != [want_standout]:
+                bad.append(f"{rel}: short page standout heading {parsed.standout_headings!r} != [{want_standout!r}]")
+        else:
+            if parsed.standout_headings:
+                bad.append(f"{rel}: short page has standout heading {parsed.standout_headings!r} with no mini-boards")
         if shown_count is not None:
             want_how_prefix = f"Showing {shown_count} highlights for {cname_prose}."
             if not parsed.how_text.startswith(want_how_prefix):
@@ -2655,6 +2854,17 @@ def _check_card_fields(rel: str, ax: str, got: dict, exp: dict, label: str) -> l
     return bad
 
 
+def _check_no_empty_sections_or_bad_literals(rel: str, parsed: _SheetHTMLParser) -> list[str]:
+    bad: list[str] = []
+    for heading, item_count in parsed.sections_summary:
+        if item_count == 0:
+            bad.append(f"{rel}: empty section heading {heading!r} (must never render an empty section)")
+    m_lit = BAD_LITERAL_RE.search(parsed.all_visible_text)
+    if m_lit:
+        bad.append(f"{rel}: contains forbidden literal {m_lit.group(0)!r} in visible text")
+    return bad
+
+
 def _check_single_page(
     rel: str,
     want_canon: str,
@@ -2677,6 +2887,7 @@ def _check_single_page(
     bad += _check_page_overflow(rel, parsed)
     bad += _check_page_abbreviations(rel, parsed)
     bad += _check_fromgame_bar(rel, parsed, fromgame_href)
+    bad += _check_no_empty_sections_or_bad_literals(rel, parsed)
 
     # Check every data-axis attribute (both fact rows and standout mini-boards, any quote style)
     for ax in sorted(set(parsed.all_data_axes)):
@@ -2760,7 +2971,7 @@ def check(
     root: pathlib.Path = ROOT,
     out_dir: pathlib.Path | None = None,
 ) -> list[str]:
-    """Offline CI check: verifies both short and full sheets for every country against COUNTRIES, deny-list, manifest, sitemap, .assetsignore, abbreviations, and overflow rules."""
+    """Offline CI check: verifies both short and full sheets for every roster country against manifest, facts.json, deny-list, sitemap, .assetsignore, flags, abbreviations, and overflow rules."""
     bad: list[str] = []
     bad += _check_assetsignore(root)
     bad += _check_sheet_css_overflow(root)
@@ -2776,42 +2987,70 @@ def check(
         return [f"{mp} is missing; run scripts/build_sheets.py --game <path>"]
     manifest = json.loads(mp.read_text(encoding="utf-8"))
 
+    roster_list, site_list, list_errs = manifest_countries_lists(manifest, label=MANIFEST_FILE)
+    bad += list_errs
+    expected_countries = sorted(set(roster_list) | set(site_list))
+    if not expected_countries:
+        return bad
+
+    # Verify website country count matches src/facts.json ("countries": 195) on root checks
+    is_custom_out = out_dir is not None and out_dir.resolve() != root.resolve()
+    facts_path = root / FACTS_FILE
+    if not is_custom_out and facts_path.is_file():
+        facts_countries = json.loads(facts_path.read_text(encoding="utf-8")).get("countries")
+        if isinstance(facts_countries, int) and len(site_list) != facts_countries:
+            bad.append(
+                f"{MANIFEST_FILE}: website set has {len(site_list)} countries != {FACTS_FILE} countries ({facts_countries})"
+            )
+
     policy: dict[str, str] = manifest.get("axis_policy") or {}
     m_countries: dict[str, dict] = manifest.get("countries") or {}
     expected_axes = sorted(ax for ax, st in policy.items() if st == "allowed" and ax not in deny_list)
 
-    # Check exact set of short and full pages on disk matches COUNTRIES
+    # Check exact set of short and full pages on disk matches the roster/website country set
     cdir = target_dir / "countries"
     on_disk_short = sorted(
         p.parent.name for p in cdir.glob("*/index.html")
     ) if cdir.is_dir() else []
-    missing_short = sorted(set(COUNTRIES) - set(on_disk_short))
-    extra_short = sorted(set(on_disk_short) - set(COUNTRIES))
+    missing_short = sorted(set(expected_countries) - set(on_disk_short))
+    extra_short = sorted(set(on_disk_short) - set(expected_countries))
     if missing_short:
         bad.append(f"countries/: missing sheet(s) for {missing_short}")
     if extra_short:
-        bad.append(f"countries/: unexpected sheet(s) outside COUNTRIES: {extra_short}")
+        bad.append(f"countries/: unexpected sheet(s) outside roster: {extra_short}")
 
     on_disk_full = sorted(
         p.parent.parent.name for p in cdir.glob("*/all/index.html")
     ) if cdir.is_dir() else []
-    missing_full = sorted(set(COUNTRIES) - set(on_disk_full))
-    extra_full = sorted(set(on_disk_full) - set(COUNTRIES))
+    missing_full = sorted(set(expected_countries) - set(on_disk_full))
+    extra_full = sorted(set(on_disk_full) - set(expected_countries))
     if missing_full:
         bad.append(f"countries/: missing full sheet(s) (all/) for {missing_full}")
     if extra_full:
-        bad.append(f"countries/: unexpected full sheet(s) (all/) outside COUNTRIES: {extra_full}")
+        bad.append(f"countries/: unexpected full sheet(s) (all/) outside roster: {extra_full}")
+
+    # Every country in the website set must have its flag SVG on disk
+    if is_custom_out:
+        try:
+            target_dir.resolve().relative_to(root.resolve())
+            flags_dir = root / "images" / "flags"
+        except ValueError:
+            flags_dir = target_dir / "images" / "flags"
+    else:
+        flags_dir = root / "images" / "flags"
+    missing_flags = [iso for iso in expected_countries if not (flags_dir / f"{iso}.svg").is_file()]
+    if missing_flags:
+        bad.append(f"images/flags/: missing flag SVG(s) for {missing_flags[:10]} ({len(missing_flags)} total)")
 
     # Country sheets (short or full) must never appear in sitemap.xml
     sm = root / "sitemap.xml"
     if sm.is_file() and "/countries/" in sm.read_text(encoding="utf-8"):
         bad.append("sitemap.xml: lists /countries/ URL(s); country sheets are noindex and must stay out of sitemap.xml")
 
-    is_custom_out = out_dir is not None and out_dir.resolve() != root.resolve()
     short_fromgame_href = _asset_prefix_for(root, out_dir if is_custom_out else None, base_depth=2)
     full_fromgame_href = _asset_prefix_for(root, out_dir if is_custom_out else None, base_depth=3)
 
-    for iso in COUNTRIES:
+    for iso in expected_countries:
         if iso not in m_countries:
             bad.append(f"{MANIFEST_FILE}: missing entry for {iso}")
             continue
@@ -2911,15 +3150,33 @@ def check_game(
     countries_ref: str | None = None,
     out_dir: pathlib.Path | None = None,
 ) -> list[str]:
-    """Live check against the game repo: both short and full sheets, dataset values, mini-boards, units/sources, web_republish policy, FR-55, links, and kCountrySheetCountries."""
+    """Live check against the game repo: every roster country (short + full), dataset values, mini-boards, units/sources, web_republish policy, FR-55, links, and kCountrySheetCountries."""
     bad: list[str] = []
     try:
         deny_list = load_deny_list(root)
         bundle = load_game_bundle(game, ref, deny_list)
+        roster = roster_countries(bundle)
     except SheetError as e:
         return [str(e)]
 
-    # Compare COUNTRIES with kCountrySheetCountries on the game repo (fail closed)
+    target_dir = out_dir if out_dir is not None else root
+    mp = (out_dir / "sheets_manifest.json") if out_dir is not None else (root / MANIFEST_FILE)
+    site_countries: list[str] = []
+    if mp.is_file():
+        manifest = json.loads(mp.read_text(encoding="utf-8"))
+        _, site_list, _ = manifest_countries_lists(manifest, label=MANIFEST_FILE)
+        site_countries = site_list
+        missing_roster = sorted(set(roster) - set(site_countries))
+        extra_site = sorted(set(site_countries) - set(roster))
+        if missing_roster:
+            bad.append(f"{MANIFEST_FILE}: website set is missing roster country/countries from {ref}: {missing_roster}")
+        if extra_site:
+            bad.append(f"{MANIFEST_FILE}: website set has country/countries not in {ref} roster: {extra_site}")
+    else:
+        cdir = target_dir / "countries"
+        site_countries = sorted(p.parent.name for p in cdir.glob("*/index.html")) if cdir.is_dir() else []
+
+    # Compare the website country set with kCountrySheetCountries on the game repo (fail closed)
     cref = countries_ref or ref
     try:
         require_ref(game, cref)
@@ -2930,24 +3187,24 @@ def check_game(
         bad.append(f"{game}: cannot read {SHEET_URL_DART} at {cref} to verify kCountrySheetCountries")
     else:
         game_countries = parse_game_countries(dart)
+        compare_site = site_countries if site_countries else list(roster)
         if game_countries is None:
             bad.append(f"{SHEET_URL_DART} at {cref}: malformed or missing kCountrySheetCountries")
-        elif sorted(game_countries) != sorted(COUNTRIES):
-            only_game = sorted(set(game_countries) - set(COUNTRIES))
-            only_site = sorted(set(COUNTRIES) - set(game_countries))
+        elif sorted(game_countries) != sorted(compare_site):
+            only_game = sorted(set(game_countries) - set(compare_site))
+            only_site = sorted(set(compare_site) - set(game_countries))
             bad.append(
                 f"COUNTRIES differs from {SHEET_URL_DART} kCountrySheetCountries at {cref} "
                 f"(only in game: {only_game}, only in site: {only_site})"
             )
 
-    # Check both short and full sheets directly against live dataset.json, web_republish and allowlist
-    target_dir = out_dir if out_dir is not None else root
+    # Check both short and full sheets for every roster country directly against live dataset.json, web_republish and allowlist
     is_custom_out = out_dir is not None and out_dir.resolve() != root.resolve()
     short_fromgame_href = _asset_prefix_for(root, out_dir if is_custom_out else None, base_depth=2)
     full_fromgame_href = _asset_prefix_for(root, out_dir if is_custom_out else None, base_depth=3)
     policy = bundle["policy"]
     expected_axes = bundle["published_axes"]
-    for iso in COUNTRIES:
+    for iso in roster:
         full_spec = compute_sheet_expectation(bundle, iso, layout="full")
         short_spec = compute_sheet_expectation(bundle, iso, layout="short")
         cname = full_spec["cname"]
@@ -2999,7 +3256,7 @@ def check_game(
                 ref_note=ref,
             )
 
-    # Also verify offline checks (manifest, sitemap, .assetsignore, etc.) stay in sync
+    # Also verify offline checks (manifest, sitemap, .assetsignore, flags, etc.) stay in sync
     bad += check(root, out_dir=out_dir)
     return bad
 
@@ -3024,21 +3281,33 @@ def build(
 ) -> None:
     deny_list = load_deny_list(root)
     bundle = load_game_bundle(game, ref, deny_list)
+    countries = roster_countries(bundle)
 
-    # Always enforce exact match with country_sheet_url.dart at cref (fail closed — Finding 3).
-    cref = countries_ref or ref
-    require_ref(game, cref)
-    dart = game_show(game, cref, SHEET_URL_DART)
-    if dart is None:
-        raise SheetError(f"{game}: cannot read {SHEET_URL_DART} at {cref}")
-    game_countries = parse_game_countries(dart)
-    if game_countries is None:
-        raise SheetError(f"{SHEET_URL_DART} at {cref}: malformed kCountrySheetCountries")
-    if sorted(game_countries) != sorted(COUNTRIES):
-        raise SheetError(
-            f"COUNTRIES differs from {SHEET_URL_DART} kCountrySheetCountries at {cref}: "
-            f"site={sorted(COUNTRIES)} vs game={sorted(game_countries)}"
-        )
+    # When --countries-ref is explicitly given, enforce exact match with kCountrySheetCountries (fail closed).
+    # Otherwise, build all roster countries from --ref and note any difference vs kCountrySheetCountries
+    # (`--check --game` always fails closed on any difference).
+    if countries_ref is not None:
+        require_ref(game, countries_ref)
+        dart = game_show(game, countries_ref, SHEET_URL_DART)
+        if dart is None:
+            raise SheetError(f"{game}: cannot read {SHEET_URL_DART} at {countries_ref}")
+        game_countries = parse_game_countries(dart)
+        if game_countries is None:
+            raise SheetError(f"{SHEET_URL_DART} at {countries_ref}: malformed kCountrySheetCountries")
+        if sorted(game_countries) != sorted(countries):
+            raise SheetError(
+                f"COUNTRIES differs from {SHEET_URL_DART} kCountrySheetCountries at {countries_ref}: "
+                f"site={len(countries)} vs game={len(game_countries)}"
+            )
+    else:
+        dart = game_show(game, ref, SHEET_URL_DART)
+        if dart is not None:
+            game_countries = parse_game_countries(dart)
+            if game_countries is not None and sorted(game_countries) != sorted(countries):
+                print(
+                    f"note {SHEET_URL_DART} kCountrySheetCountries at {ref} has {len(game_countries)} countries "
+                    f"vs {len(countries)} in roster; run --check --game once the game branch updates it"
+                )
 
     target_dir = out_dir if out_dir is not None else root
     is_custom_out = out_dir is not None and out_dir.resolve() != root.resolve()
@@ -3050,7 +3319,7 @@ def build(
     short_pages_out: dict[str, str] = {}
     full_pages_out: dict[str, str] = {}
 
-    for iso in COUNTRIES:
+    for iso in countries:
         full_html, full_entry, full_flags, cname = render_sheet(
             bundle, iso, root, layout="full", asset_prefix=full_prefix,
         )
@@ -3070,7 +3339,7 @@ def build(
         all_flags.update(short_flags)
 
     # Validate every generated page (short and full) BEFORE writing anything (fail closed).
-    for iso in COUNTRIES:
+    for iso in countries:
         cname = manifest_countries[iso]["name"]
         full_count = manifest_countries[iso]["full_fact_count"]
         short_count = len(manifest_countries[iso]["short"]["shown_axes"])
@@ -3082,6 +3351,7 @@ def build(
             + _check_page_overflow(rel_short, parsed_short)
             + _check_page_abbreviations(rel_short, parsed_short)
             + _check_fromgame_bar(rel_short, parsed_short, short_prefix)
+            + _check_no_empty_sections_or_bad_literals(rel_short, parsed_short)
             + _check_short_no_nodata(rel_short, parsed_short)
             + _check_short_closing(rel_short, parsed_short, iso, cname, full_count)
             + _check_country_wording(rel_short, iso, cname, "short", parsed_short, shown_count=short_count)
@@ -3093,6 +3363,7 @@ def build(
             + _check_page_overflow(rel_full, parsed_full)
             + _check_page_abbreviations(rel_full, parsed_full)
             + _check_fromgame_bar(rel_full, parsed_full, full_prefix)
+            + _check_no_empty_sections_or_bad_literals(rel_full, parsed_full)
             + _check_full_back_link(rel_full, parsed_full)
             + _check_country_wording(rel_full, iso, cname, "full", parsed_full)
         )
@@ -3123,8 +3394,8 @@ def build(
             if existing.stem not in all_flags:
                 existing.unlink()
 
-    # Write all 40 HTML sheets (20 short + 20 full).
-    for iso in COUNTRIES:
+    # Write all short and full HTML sheets (2 per roster country).
+    for iso in countries:
         short_dest = target_dir / "countries" / iso / "index.html"
         short_dest.parent.mkdir(parents=True, exist_ok=True)
         short_dest.write_text(short_pages_out[iso], encoding="utf-8")
@@ -3133,11 +3404,12 @@ def build(
         full_dest.parent.mkdir(parents=True, exist_ok=True)
         full_dest.write_text(full_pages_out[iso], encoding="utf-8")
 
-    # Remove any stray country folders outside COUNTRIES.
+    # Remove any stray country folders outside the roster.
     cdir = target_dir / "countries"
+    countries_set = set(countries)
     if cdir.is_dir():
         for sub in list(cdir.iterdir()):
-            if sub.is_dir() and sub.name not in COUNTRIES:
+            if sub.is_dir() and sub.name not in countries_set:
                 shutil.rmtree(sub)
 
     # Write offline verification manifest (in src/ for root builds, or <out>/sheets_manifest.json for --out).
@@ -3145,7 +3417,8 @@ def build(
         "dataset_version": bundle["version"],
         "version_num": bundle["vnum"],
         "version_date": bundle["vdate"],
-        "countries_list": list(COUNTRIES),
+        "roster_countries": list(countries),
+        "countries_list": list(countries),
         "axis_policy": bundle["policy"],
         "denied_axes": sorted(deny_list),
         "published_axes": bundle["published_axes"],
@@ -3153,7 +3426,7 @@ def build(
     }
     manifest_dest = (target_dir / "sheets_manifest.json") if is_custom_out else (root / MANIFEST_FILE)
     manifest_dest.write_text(
-        json.dumps(manifest, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        json.dumps(manifest, sort_keys=True, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
 
@@ -3164,11 +3437,18 @@ def build(
 
     dest_note = f" -> {target_dir}" if is_custom_out else ""
     print(
-        f"ok   built {len(COUNTRIES)} country sheets x 2 (short + all/{dest_note}, "
+        f"ok   built {len(countries)} country sheets x 2 (short + all/{dest_note}, "
         f"{len(bundle['published_axes'])} allowed axes, "
         f"{sum(1 for v in bundle['policy'].values() if v != 'allowed')} not allowed, "
         f"{len(deny_list)} denied, {len(all_flags)} flags, {bundle['version']})"
     )
+
+
+def _manifest_country_count(root: pathlib.Path, out_dir: pathlib.Path | None) -> int:
+    mp = (out_dir / "sheets_manifest.json") if out_dir is not None else (root / MANIFEST_FILE)
+    if not mp.is_file():
+        return 0
+    return len(json.loads(mp.read_text(encoding="utf-8")).get("countries_list") or [])
 
 
 def main(argv: list[str]) -> int:
@@ -3194,7 +3474,8 @@ def main(argv: list[str]) -> int:
             for b in problems:
                 print("  " + b)
             return 1
-        print(f"ok   country sheets: {len(COUNTRIES)} countries (short + all/, {len(COUNTRIES) * 2} pages) match {ref} and kCountrySheetCountries")
+        n = _manifest_country_count(ROOT, out_dir)
+        print(f"ok   country sheets: {n} countries (short + all/, {n * 2} pages) match {ref} and kCountrySheetCountries")
         return 0
 
     if check_mode:
@@ -3204,7 +3485,8 @@ def main(argv: list[str]) -> int:
             for b in problems:
                 print("  " + b)
             return 1
-        print(f"ok   country sheets: {len(COUNTRIES)} countries (short + all/, {len(COUNTRIES) * 2} pages) pass all Story 18.6 checks")
+        n = _manifest_country_count(ROOT, out_dir)
+        print(f"ok   country sheets: {n} countries (short + all/, {n * 2} pages) pass all Story 18.6 checks")
         return 0
 
     if game is None:
