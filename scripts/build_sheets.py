@@ -72,8 +72,8 @@ SHEET_URL_DART = "app/lib/play/country_sheet_url.dart"
 # takes "the" in running prose. Standalone titles/labels (<h1>, short-page <title>,
 # mini-board rows, Borders list) stay the bare name; running sentences use
 # country_in_prose(iso, cname, start=...).
-# Note: the roster names CD "Congo (DRC)", CG "Congo", CZ "Czechia", and
-# FM "Micronesia", so those do not take "the" in running prose.
+# Note: the roster names CD "Congo (DRC)", CG "Congo", CZ "Czechia",
+# FM "Micronesia", and VA "Vatican City", so those do not take "the" in running prose.
 COUNTRIES_WITH_THE: frozenset[str] = frozenset({
     "AE",  # the United Arab Emirates
     "BS",  # the Bahamas
@@ -90,7 +90,6 @@ COUNTRIES_WITH_THE: frozenset[str] = frozenset({
     "SB",  # the Solomon Islands
     "SC",  # the Seychelles
     "US",  # the United States
-    "VA",  # the Holy See
 })
 
 # Sheet-only display label overrides (do not touch the game's app_en.arb).
@@ -396,6 +395,7 @@ ABBREVIATIONS: list[tuple[str, str, str]] = [
     ("ICP", "International Comparison Program", "first"),
     ("EEZ", "Exclusive Economic Zone", "first"),
     ("GDP", "gross domestic product", "first"),
+    ("DRC", "Democratic Republic of the Congo", "first"),
     ("CO₂", "carbon dioxide", "first"),
     ("US$", "United States dollars", "first"),
     ("kWh", "kilowatt-hours", "always"),
@@ -422,6 +422,8 @@ def _abbr_token_re(short: str) -> re.Pattern[str]:
 
 _ABBR_BY_SHORT: dict[str, tuple[str, str]] = {short: (full, mode) for short, full, mode in ABBREVIATIONS}
 _ABBR_COMBINED_RE = re.compile("|".join(_abbr_token_re(short).pattern for short, _, _ in ABBREVIATIONS))
+_CONGO_DRC_PAT = r"(?<![A-Za-z0-9_'\u2019])Congo\s+\(DRC\)"
+_EXPAND_COMBINED_RE = re.compile(_CONGO_DRC_PAT + "|" + _ABBR_COMBINED_RE.pattern)
 _ABBR_INTRO_RE: dict[str, re.Pattern[str]] = {
     short: re.compile(r"(?<![A-Za-z0-9_])(?i:" + re.escape(full) + r")\s+\(" + re.escape(short) + r"\)")
     for short, full, mode in ABBREVIATIONS
@@ -440,7 +442,13 @@ class AbbrevExpander:
             return text
 
         def _repl(m: re.Match[str]) -> str:
-            short = m.group(0)
+            matched = m.group(0)
+            if matched != "DRC" and matched.startswith("Congo") and matched.endswith("(DRC)"):
+                if "DRC" in self.seen:
+                    return matched
+                self.seen.add("DRC")
+                return "Democratic Republic of the Congo (DRC)"
+            short = matched
             full, mode = _ABBR_BY_SHORT[short]
             use_full = full
             if capitalize_start and full[0].islower():
@@ -454,7 +462,7 @@ class AbbrevExpander:
             self.seen.add(short)
             return f"{use_full} ({short})"
 
-        return _ABBR_COMBINED_RE.sub(_repl, text)
+        return _EXPAND_COMBINED_RE.sub(_repl, text)
 
 
 # Custom locator map frames for countries with distant overseas territories or
@@ -480,6 +488,9 @@ COUNTRY_CONST = re.compile(
 ISO_RE = re.compile(r"[a-z]{2}")
 ISO_UPPER_RE = re.compile(r"[A-Z]{2}")
 BAD_LITERAL_RE = re.compile(r"\b(?:null|NULL|NaN|undefined)\b")
+STRAY_NONE_RE = re.compile(r"\bNone\b(?!\s*\(island\))")
+MAP_HINT_LOCAL = "Tap the map to see where it is in the world"
+MAP_HINT_WORLD = "Tap the map to zoom back in"
 THIRD_PARTY_FONT_RE = re.compile(
     r"fonts\.googleapis\.com|fonts\.gstatic\.com|use\.typekit\.net|fonts\.bunny\.net",
     re.I,
@@ -765,37 +776,72 @@ def fmt_plain_to_html(s: str) -> str:
     return html.escape(s).replace("-", "&minus;")
 
 
-def format_board_values(rows: list[tuple[int, str, float | int]], unit: str) -> list[str]:
-    """Format mini-board values, adding decimals when needed so distinct raw values never collide."""
+def _formatted_decimals(s: str) -> int:
+    m = re.search(r"\.(\d+)", s)
+    return len(m.group(1)) if m else 0
+
+
+def _format_at_decimals(vals: list[float | int], unit: str, d: int) -> list[str]:
+    use_pct = unit.startswith("%")
+    use_tril = not use_pct and any(abs(v) >= 1_000_000_000_000 for v in vals)
+    use_bil = not use_pct and not use_tril and unit == "US$" and any(abs(v) >= 10_000_000_000 for v in vals)
+    if use_pct:
+        return [f"{v:.{d}f}%" for v in vals]
+    if use_tril:
+        return [f"{v / 1e12:,.{d}f} trillion" for v in vals]
+    if use_bil:
+        return [f"{v / 1e9:,.{d}f} billion" for v in vals]
+    return [f"{v:,.{d}f}" for v in vals]
+
+
+def format_board_values(
+    rows: list[tuple[int, str, float | int]],
+    unit: str,
+    card_val: str | None = None,
+) -> tuple[list[str], list[int]]:
+    """Format mini-board values without float noise (at most +2 decimals beyond card precision).
+
+    Returns (formatted_values, display_ranks). Values that remain equal at the maximum
+    allowed precision (card_dec + 2) are treated as ties and share the same display rank.
+    """
     vals = [v for _, _, v in rows]
+    orig_ranks = [r for r, _, _ in rows]
     default = [fmt_plain(v, unit) for v in vals]
 
-    def has_collision(strs: list[str]) -> bool:
+    def has_collision(strs: list[str], equiv: list[str] | None = None) -> bool:
         for i in range(len(vals)):
             for j in range(i + 1, len(vals)):
-                if vals[i] != vals[j] and strs[i] == strs[j]:
+                if equiv is not None:
+                    if equiv[i] != equiv[j] and strs[i] == strs[j]:
+                        return True
+                elif vals[i] != vals[j] and strs[i] == strs[j]:
                     return True
         return False
 
     if not has_collision(default):
-        return default
+        return default, orig_ranks
 
-    use_pct = unit.startswith("%")
-    use_tril = not use_pct and any(abs(v) >= 1_000_000_000_000 for v in vals)
-    use_bil = not use_pct and not use_tril and unit == "US$" and any(abs(v) >= 10_000_000_000 for v in vals)
+    card_dec = _formatted_decimals(card_val) if card_val is not None else max(
+        (_formatted_decimals(s) for s in default), default=0
+    )
+    max_dec = card_dec + 2
+    max_strs = _format_at_decimals(vals, unit, max_dec)
 
-    for d in range(1, 9):
-        if use_pct:
-            cand = [f"{v:.{d}f}%" for v in vals]
-        elif use_tril:
-            cand = [f"{v / 1e12:,.{d}f} trillion" for v in vals]
-        elif use_bil:
-            cand = [f"{v / 1e9:,.{d}f} billion" for v in vals]
-        else:
-            cand = [f"{v:,.{d}f}" for v in vals]
-        if not has_collision(cand):
-            return cand
-    return [f"{v:g}%" if use_pct else f"{v:g}" for v in vals]
+    chosen = max_strs
+    if not has_collision(default, equiv=max_strs):
+        chosen = default
+    else:
+        for d in range(card_dec + 1, max_dec + 1):
+            cand = _format_at_decimals(vals, unit, d)
+            if not has_collision(cand, equiv=max_strs):
+                chosen = cand
+                break
+
+    disp_ranks = list(orig_ranks)
+    for i in range(1, len(chosen)):
+        if chosen[i] == chosen[i - 1]:
+            disp_ranks[i] = disp_ranks[i - 1]
+    return chosen, disp_ranks
 
 
 def short_source(decl: str) -> str:
@@ -905,6 +951,158 @@ def _auto_frame(feats: list[dict], iso: str) -> tuple[float, float, float, float
     return (lon0, lon1, lat0, lat1, None, "")
 
 
+WORLD_W = 560.0
+WORLD_H = 280.0
+WORLD_PAD = 8.0
+WORLD_LON0 = -180.0
+WORLD_LON1 = 180.0
+WORLD_LAT0 = -60.0
+WORLD_LAT1 = 85.0
+
+
+def _world_proj(lon: float, lat: float) -> tuple[float, float]:
+    clamped_lat = max(WORLD_LAT0, min(WORLD_LAT1, lat))
+    x = WORLD_PAD + (lon - WORLD_LON0) / (WORLD_LON1 - WORLD_LON0) * (WORLD_W - 2.0 * WORLD_PAD)
+    y = WORLD_PAD + (WORLD_LAT1 - clamped_lat) / (WORLD_LAT1 - WORLD_LAT0) * (WORLD_H - 2.0 * WORLD_PAD)
+    return (x, y)
+
+
+def _world_graticule_d() -> str:
+    parts: list[str] = []
+    for lon in (-120.0, -60.0, 0.0, 60.0, 120.0):
+        x, _ = _world_proj(lon, 0.0)
+        parts.append(f"M{x:.0f} 0V{WORLD_H:.0f}")
+    for lat in (-30.0, 0.0, 30.0, 60.0):
+        _, y = _world_proj(0.0, lat)
+        parts.append(f"M0 {y:.0f}H{WORLD_W:.0f}")
+    return "".join(parts)
+
+
+_WORLD_GRAT_D = _world_graticule_d()
+
+
+def _encode_int_ring(pts: list[tuple[int, int]]) -> str:
+    """Encode an integer-coordinate closed ring compactly using relative lineto deltas."""
+    x0, y0 = pts[0]
+    deltas = []
+    px, py = x0, y0
+    for ix, iy in pts[1:]:
+        deltas.append(f"{ix - px} {iy - py}")
+        px, py = ix, iy
+    return f"M{x0} {y0}l{' '.join(deltas)}z"
+
+
+def _build_world_land_d(geo: dict) -> str:
+    """Build one shared simplified world land layer from Natural Earth GeoJSON."""
+    out: list[str] = []
+    for feat in geo["features"]:
+        if feat["properties"].get("ISO_A2_EH") == "AQ":
+            continue
+        for poly in _feature_polys(feat):
+            ring = poly[0]
+            lons = [pt[0] for pt in ring]
+            lats = [pt[1] for pt in ring]
+            if max(lons) - min(lons) > 180.0 or max(lats) < WORLD_LAT0:
+                continue
+            x0, y1 = _world_proj(min(lons), min(lats))
+            x1, y0 = _world_proj(max(lons), max(lats))
+            if (x1 - x0) < 4.0 and (y1 - y0) < 4.0:
+                continue
+            pts: list[tuple[int, int]] = []
+            last: tuple[float, float] | None = None
+            for lon, lat in ring:
+                x, y = _world_proj(lon, lat)
+                if last is not None and abs(x - last[0]) < 4.8 and abs(y - last[1]) < 4.8:
+                    continue
+                ix, iy = round(x), round(y)
+                if not pts or pts[-1] != (ix, iy):
+                    pts.append((ix, iy))
+                last = (x, y)
+            if len(pts) > 1 and pts[-1] == pts[0]:
+                pts.pop()
+            if len(set(pts)) >= 3:
+                out.append(_encode_int_ring(pts))
+    return "".join(out)
+
+
+def _world_target_and_marker(iso_feats: list[dict], iso: str) -> tuple[str, str]:
+    """Return (target_path_d, marker_svg) for the world-context view."""
+    primary = [f for f in iso_feats if f["properties"].get("TYPE") != "Dependency"] or iso_feats
+    target_feats = [f for f in iso_feats if f["properties"].get("TYPE") != "Dependency" or iso not in {"AU"}]
+    target_parts: list[str] = []
+
+    def _wring_int(ring: list, tol: float) -> str:
+        pts: list[tuple[int, int]] = []
+        last: tuple[float, float] | None = None
+        for lon, lat in ring:
+            x, y = _world_proj(lon, lat)
+            if last is not None and abs(x - last[0]) < tol and abs(y - last[1]) < tol:
+                continue
+            ix, iy = round(x), round(y)
+            if not pts or pts[-1] != (ix, iy):
+                pts.append((ix, iy))
+            last = (x, y)
+        if len(pts) > 1 and pts[-1] == pts[0]:
+            pts.pop()
+        if len(set(pts)) < 3:
+            return ""
+        return _encode_int_ring(pts)
+
+    valid_rings: list[list] = []
+    for feat in target_feats:
+        for poly in _feature_polys(feat):
+            ring = poly[0]
+            lons = [pt[0] for pt in ring]
+            lats = [pt[1] for pt in ring]
+            if max(lons) - min(lons) > 180.0 or max(lats) < WORLD_LAT0:
+                continue
+            valid_rings.append(ring)
+            x0, y1 = _world_proj(min(lons), min(lats))
+            x1, y0 = _world_proj(max(lons), max(lats))
+            if (x1 - x0) < 2.0 and (y1 - y0) < 2.0:
+                continue
+            d = _wring_int(ring, 2.8)
+            if d:
+                target_parts.append(d)
+
+    # For microstates/atolls smaller than 2px on the world map, keep one fallback ring
+    # alongside the locator ring+dot so the target path is never empty when representable.
+    if not target_parts and valid_rings:
+        pts_f: list[tuple[str, str]] = []
+        for lon, lat in valid_rings[0]:
+            x, y = _world_proj(lon, lat)
+            pt = (f"{x:.1f}", f"{y:.1f}")
+            if not pts_f or pts_f[-1] != pt:
+                pts_f.append(pt)
+        if len(pts_f) > 1 and pts_f[-1] == pts_f[0]:
+            pts_f.pop()
+        if len(set(pts_f)) >= 3:
+            target_parts.append("M" + "L".join(f"{sx} {sy}" for sx, sy in pts_f) + "Z")
+
+    bboxes: list[tuple[float, float, float, float, float]] = []
+    for feat in primary:
+        for poly in _feature_polys(feat):
+            ring = poly[0]
+            lons = [pt[0] for pt in ring]
+            lats = [pt[1] for pt in ring]
+            if max(lons) - min(lons) > 180.0 or max(lats) < WORLD_LAT0:
+                continue
+            span = (max(lons) - min(lons)) * (max(lats) - min(lats))
+            bboxes.append((span, min(lons), max(lons), min(lats), max(lats)))
+    marker_svg = ""
+    if bboxes:
+        bboxes.sort(reverse=True)
+        _, m_lon0, m_lon1, m_lat0, m_lat1 = bboxes[0]
+        wx, wy = _world_proj((m_lon0 + m_lon1) / 2.0, (m_lat0 + m_lat1) / 2.0)
+        marker_svg = (
+            f'<circle cx="{wx:.1f}" cy="{wy:.1f}" r="9" '
+            'style="fill:var(--map-pt);fill-opacity:.22;stroke:var(--map-pt);stroke-width:1.8"></circle>'
+            f'<circle cx="{wx:.1f}" cy="{wy:.1f}" r="3" '
+            'style="fill:var(--map-pt);stroke:var(--map-sea);stroke-width:1.2"></circle>'
+        )
+    return "".join(target_parts), marker_svg
+
+
 def render_locator_map(
     iso: str,
     cname: str,
@@ -912,6 +1110,8 @@ def render_locator_map(
     cap_lat: float | None,
     cap_lon: float | None,
     geo: dict,
+    *,
+    world_land_d: str | None = None,
 ) -> str:
     iso_feats = [f for f in geo["features"] if f["properties"].get("ISO_A2_EH") == iso]
     if not iso_feats:
@@ -1034,10 +1234,19 @@ def render_locator_map(
                 f'class="m-lab m-small">{html.escape(capital)}</text>'
             )
 
+    w_land = world_land_d if world_land_d is not None else _build_world_land_d(geo)
+    w_target, w_marker = _world_target_and_marker(iso_feats, iso)
+
+    cname_prose = country_in_prose(iso, cname)
     cap_text = f"{frame_note} " if frame_note else f"{country_in_prose(iso, cname, start=True)} as the game counts it. "
-    aria = f"Locator map of {country_in_prose(iso, cname)}" + (f" showing {capital}" if capital else "") + "."
+    aria = f"Locator map of {cname_prose}" + (f" showing {capital}" if capital else "") + "."
+    world_aria = f"World map showing where {cname_prose} is."
+    toggle_aria = f"Switch between close-up map and world map of {cname_prose}"
     return (
         f'<figure class="map a-map">'
+        f'<input type="checkbox" class="map-in" id="map-view" aria-label="{html.escape(toggle_aria, quote=True)}">'
+        f'<label class="map-btn" for="map-view">'
+        f'<span class="map-frame map-local">'
         f'<svg viewBox="0 0 {W:.0f} {H:.0f}" role="img" aria-label="{html.escape(aria, quote=True)}">'
         f'<rect width="{W:.0f}" height="{H:.0f}" style="fill:var(--map-sea)"></rect>'
         f'<path d="{"".join(grat)}" style="fill:none;stroke:var(--map-grid);stroke-width:.8"></path>'
@@ -1045,6 +1254,19 @@ def render_locator_map(
         f'<path d="{"".join(target_paths)}" style="fill:var(--map-pt);stroke:var(--map-pt);stroke-width:1.2;stroke-linejoin:round"></path>'
         f'{micro_svg}{cap_svg}'
         '</svg>'
+        '</span>'
+        f'<span class="map-frame map-world">'
+        f'<svg viewBox="0 0 {WORLD_W:.0f} {WORLD_H:.0f}" role="img" aria-label="{html.escape(world_aria, quote=True)}">'
+        f'<rect width="{WORLD_W:.0f}" height="{WORLD_H:.0f}" style="fill:var(--map-sea)"></rect>'
+        f'<path d="{_WORLD_GRAT_D}" style="fill:none;stroke:var(--map-grid);stroke-width:.8"></path>'
+        f'<path d="{w_land}" style="fill:var(--map-land);stroke:var(--map-edge);stroke-width:.6;stroke-linejoin:round"></path>'
+        f'<path d="{w_target}" style="fill:var(--map-pt);stroke:var(--map-pt);stroke-width:1;stroke-linejoin:round"></path>'
+        f'{w_marker}'
+        '</svg>'
+        '</span>'
+        f'<span class="map-hint map-hint-local">{MAP_HINT_LOCAL}</span>'
+        f'<span class="map-hint map-hint-world">{MAP_HINT_WORLD}</span>'
+        '</label>'
         f'<figcaption class="mapcap">{html.escape(cap_text)}Map: Natural Earth 1:50 million, public domain.</figcaption>'
         '</figure>'
     )
@@ -1142,6 +1364,7 @@ def load_game_bundle(game: pathlib.Path, ref: str, deny_list: dict[str, str]) ->
         "policy": policy,
         "allowlist": allowlist,
         "geo": geo,
+        "world_land_d": _build_world_land_d(geo),
         "capitals": capitals,
         "arb": arb,
         "axis_keys": axis_keys,
@@ -1451,8 +1674,9 @@ def compute_sheet_expectation(bundle: dict, iso_lower: str, layout: str = "full"
     rules = active_consistency_rules(bundle, iso, shown_facts)
 
     # Expand abbreviations strictly in page reading order (Finding 8):
-    # 1. Hero metadata -> 2. Map caption -> 3. Standout mini-boards (short only) -> 4. Sections (notes, then fact cards) -> 5. .a-how
+    # 0. Hero h1 -> 1. Hero metadata -> 2. Map caption -> 3. Standout mini-boards (short only) -> 4. Sections (notes, then fact cards) -> 5. .a-how
     exp = AbbrevExpander()
+    h1_name = exp.expand(cname)
 
     continent = ds["facets"]["continent"][iso]
     capital = (bundle["capitals"].get(iso) or "").strip() or None
@@ -1460,6 +1684,7 @@ def compute_sheet_expectation(bundle: dict, iso_lower: str, layout: str = "full"
     cap_lon = ds["attributes"].get("capital_lon", {}).get(iso)
     neighbours = ds["field_sets"].get("land_neighbours", {}).get(iso) or []
     border_names = ", ".join(neighbour_name(n, roster, bundle["geo"]) for n in neighbours) if neighbours else "None (island)"
+    border_names_exp = exp.expand(border_names)
     tz_count = len(ds["field_sets"].get("time_zones", {}).get(iso) or [])
 
     meta_items: list[tuple[str, str, bool]] = []
@@ -1467,36 +1692,46 @@ def compute_sheet_expectation(bundle: dict, iso_lower: str, layout: str = "full"
         meta_items.append(("Capital", exp.expand(capital), False))
     meta_items.append(("Region", exp.expand(continent), False))
     meta_items.append(("Time-zone regions", str(tz_count), False))
-    meta_items.append(("Borders", exp.expand(border_names), len(neighbours) > 3 or len(border_names) > 25))
+    meta_items.append(("Borders", border_names_exp, len(neighbours) > 3 or len(border_names_exp) > 25))
 
-    # Standout mini-boards (with collision-free decimal precision per board — Finding 2)
+    # Standout mini-boards (capped decimal precision without float noise — Finding 2)
     boards: list[dict] = []
     needed_flags: set[str] = {iso_lower}
     for f in standout:
         nb = sorted_neighbours(bundle, f["ax"], iso)
-        fmt_vals = format_board_values(nb, f["unit"])
+        fmt_vals, disp_ranks = format_board_values(nb, f["unit"], card_val=f["val_plain"])
         b_title = exp.expand(f["name"], capitalize_start=True)
         b_unit = exp.expand(f["unit"], capitalize_start=False) if f["unit"] else ""
         b_rows: list[dict] = []
-        for (r, other_iso, _raw_v), val_plain in zip(nb, fmt_vals):
+        me_idx: int | None = None
+        for idx, ((_r, other_iso, _raw_v), val_plain, dr) in enumerate(zip(nb, fmt_vals, disp_ranks)):
             needed_flags.add(other_iso.lower())
+            if other_iso == iso:
+                me_idx = idx
             b_rows.append({
                 "iso": other_iso,
                 "is_me": other_iso == iso,
-                "rank": ordinal(r),
-                "name": roster[other_iso]["name"],
+                "rank": ordinal(dr),
+                "name": exp.expand(roster[other_iso]["name"]),
                 "val": val_plain,
             })
+        if me_idx is not None:
+            me_disp_rank = disp_ranks[me_idx]
+            board_tied = sum(1 for s in fmt_vals if s == fmt_vals[me_idx]) - 1
+            eff_tied = max(f["tied"], board_tied)
+            b_rank_txt = f"{ordinal(me_disp_rank)} of {f['n']}" + (f", tied with {eff_tied}" if eff_tied else "")
+        else:
+            b_rank_txt = f["rank_txt"]
         b_src = exp.expand(f["src"], capitalize_start=True)
         b_src_yr = f'{b_src}, {f["year"]}' if f["year"] else b_src
-        b_bsrc = f'{f["rank_txt"]} \u00b7 {b_src_yr}'
+        b_bsrc = f'{b_rank_txt} \u00b7 {b_src_yr}'
         boards.append({
             "ax": f["ax"],
             "title": b_title,
             "unit": b_unit,
             "src": b_src,
             "year": f["year"],
-            "rank_txt": f["rank_txt"],
+            "rank_txt": b_rank_txt,
             "bsrc": b_bsrc,
             "rows": b_rows,
         })
@@ -1563,6 +1798,7 @@ def compute_sheet_expectation(bundle: dict, iso_lower: str, layout: str = "full"
     return {
         "iso": iso,
         "cname": cname,
+        "h1_name": h1_name,
         "continent": continent,
         "capital": capital,
         "cap_lat": cap_lat,
@@ -1589,6 +1825,7 @@ def render_sheet(
     spec = compute_sheet_expectation(bundle, iso_lower, layout=layout)
     iso = spec["iso"]
     cname = spec["cname"]
+    h1_name = spec["h1_name"]
     cname_prose = country_in_prose(iso, cname)
     continent = spec["continent"]
     ds = bundle["dataset"]
@@ -1602,12 +1839,15 @@ def render_sheet(
     hero_html = (
         f'<div class="card a-sh">'
         f'<div class="a-sh-top">{flag_img(iso, "flag-xl", 88, 66, lazy=False, prefix=asset_prefix)}'
-        f'<div><p class="a-crumb">Countries &rsaquo; {e(continent)}</p><h1 class="left">{e(cname)}</h1></div></div>'
+        f'<div><p class="a-crumb">Countries &rsaquo; {e(continent)}</p><h1 class="left">{e(h1_name)}</h1></div></div>'
         f'<div class="a-meta">{meta_html}</div>'
         f'</div>'
     )
 
-    map_html = render_locator_map(iso, cname, spec["capital"], spec["cap_lat"], spec["cap_lon"], bundle["geo"])
+    map_html = render_locator_map(
+        iso, cname, spec["capital"], spec["cap_lat"], spec["cap_lon"], bundle["geo"],
+        world_land_d=bundle.get("world_land_d"),
+    )
 
     # Standout mini-boards (summary page only)
     boards_parts: list[str] = []
@@ -1698,11 +1938,12 @@ def render_sheet(
         if iso in ds["axes"][a] and isinstance(ds["axes"][a][iso], dict)
         and _is_valid_number(ds["axes"][a][iso].get("sort_value"))
     )
+    head_prose = f"the {h1_name}" if h1_name != cname and iso == "CD" else cname_prose
     if layout == "short":
         if full_fact_count is None:
             raise SheetError(f"{iso_lower}: short sheet requires full_fact_count")
         rel = f"countries/{iso_lower}/index.html"
-        title_str = f"{cname} — Sorting Geography"
+        title_str = f"{h1_name} — Sorting Geography"
         subnav_html = ""
         closing_html = (
             '<div class="a-closing">'
@@ -1714,7 +1955,7 @@ def render_sheet(
         )
     else:
         rel = f"countries/{iso_lower}/all/index.html"
-        title_str = f"All facts about {cname_prose} — Sorting Geography"
+        title_str = f"All facts about {head_prose} — Sorting Geography"
         subnav_html = (
             '\n<nav class="a-subnav" aria-label="Country sheet view">\n'
             '  <div class="a-subnav-in">\n'
@@ -1740,7 +1981,7 @@ def render_sheet(
     )
 
     desc = (
-        f"Real, sourced facts and world rankings for {cname_prose} from Sorting Geography: "
+        f"Real, sourced facts and world rankings for {head_prose} from Sorting Geography: "
         f"size, borders, people, economy, food and energy."
     )
     raw_html = f"""<!doctype html>
@@ -1896,6 +2137,12 @@ class _SheetHTMLParser(HTMLParser):
         self.play_h3_text = ""
         self.play_p_texts: list[str] = []
         self.map_caption_text = ""
+        self.map_toggle_inputs: list[tuple[str, str]] = []
+        self.map_toggle_labels: list[str] = []
+        self.has_map_local_svg = False
+        self.has_map_world_svg = False
+        self.map_hint_local_text = ""
+        self.map_hint_world_text = ""
         self.sections_summary: list[tuple[str, int]] = []
 
         # DOM placement tracking
@@ -1930,6 +2177,10 @@ class _SheetHTMLParser(HTMLParser):
         self._in_h2: tuple[int, list[str]] | None = None
         self._in_meta_label: tuple[int, list[str]] | None = None
         self._in_mapcap: tuple[int, list[str]] | None = None
+        self._in_map_local_depth: int | None = None
+        self._in_map_world_depth: int | None = None
+        self._in_map_hint_local: tuple[int, list[str]] | None = None
+        self._in_map_hint_world: tuple[int, list[str]] | None = None
         self._in_script_depth: int | None = None
         self._in_style_depth: int | None = None
         # Fast depth flags for fact-card and mini-board inner elements
@@ -2039,10 +2290,17 @@ class _SheetHTMLParser(HTMLParser):
                 if float(prop_m.group(2)) > MAX_FIXED_WIDTH_PX:
                     self.overflow_styles.append(prop_m.group(0))
 
+        if tag == "input" and attr_map.get("type", "").strip().lower() == "checkbox" and "map-in" in classes:
+            self.map_toggle_inputs.append((attr_map.get("id", "").strip(), attr_map.get("aria-label", "").strip()))
+
         if tag == "svg":
             w_attr = attr_map.get("width", "").strip()
             if re.fullmatch(r"\d+(?:\.\d+)?", w_attr) and float(w_attr) > MAX_FIXED_WIDTH_PX:
                 self.overflow_svgs.append(w_attr)
+            if self._in_map_local_depth is not None:
+                self.has_map_local_svg = True
+            if self._in_map_world_depth is not None:
+                self.has_map_world_svg = True
 
         if not is_void:
             parent_entry = self._stack[-1] if self._stack else None
@@ -2086,6 +2344,16 @@ class _SheetHTMLParser(HTMLParser):
                 self._in_meta_label = (depth, [])
             if tag == "figcaption" and "mapcap" in classes and self._in_mapcap is None:
                 self._in_mapcap = (depth, [])
+            if tag == "label" and "map-btn" in classes:
+                self.map_toggle_labels.append(attr_map.get("for", "").strip())
+            if tag == "span" and "map-local" in classes and self._in_map_local_depth is None:
+                self._in_map_local_depth = depth
+            if tag == "span" and "map-world" in classes and self._in_map_world_depth is None:
+                self._in_map_world_depth = depth
+            if tag == "span" and "map-hint-local" in classes and self._in_map_hint_local is None:
+                self._in_map_hint_local = (depth, [])
+            if tag == "span" and "map-hint-world" in classes and self._in_map_hint_world is None:
+                self._in_map_hint_world = (depth, [])
             if self._in_play_depth is not None and self._in_play_ls_depth is None:
                 if tag == "h3" and self._in_play_h3 is None:
                     self._in_play_h3 = (depth, [])
@@ -2287,6 +2555,16 @@ class _SheetHTMLParser(HTMLParser):
             if self._in_mapcap is not None and self._in_mapcap[0] == depth:
                 self.map_caption_text = " ".join("".join(self._in_mapcap[1]).split())
                 self._in_mapcap = None
+            if self._in_map_local_depth == depth:
+                self._in_map_local_depth = None
+            if self._in_map_world_depth == depth:
+                self._in_map_world_depth = None
+            if self._in_map_hint_local is not None and self._in_map_hint_local[0] == depth:
+                self.map_hint_local_text = " ".join("".join(self._in_map_hint_local[1]).split())
+                self._in_map_hint_local = None
+            if self._in_map_hint_world is not None and self._in_map_hint_world[0] == depth:
+                self.map_hint_world_text = " ".join("".join(self._in_map_hint_world[1]).split())
+                self._in_map_hint_world = None
             if self._in_play_h3 is not None and self._in_play_h3[0] == depth:
                 self.play_h3_text = " ".join("".join(self._in_play_h3[1]).split())
                 self._in_play_h3 = None
@@ -2368,6 +2646,10 @@ class _SheetHTMLParser(HTMLParser):
             self._in_meta_label[1].append(data)
         if self._in_mapcap is not None and self._in_svg_depth is None:
             self._in_mapcap[1].append(data)
+        if self._in_map_hint_local is not None and self._in_svg_depth is None:
+            self._in_map_hint_local[1].append(data)
+        if self._in_map_hint_world is not None and self._in_svg_depth is None:
+            self._in_map_hint_world[1].append(data)
         if self._in_play_h3 is not None and self._in_svg_depth is None:
             self._in_play_h3[1].append(data)
         if self._in_play_p is not None and self._in_svg_depth is None:
@@ -2527,9 +2809,10 @@ def _check_country_wording(
     bad: list[str] = []
     cname_prose = country_in_prose(iso, cname)
     cname_start = country_in_prose(iso, cname, start=True)
+    want_h1 = AbbrevExpander().expand(cname)
 
-    if parsed.h1_text != cname:
-        bad.append(f"{rel}: <h1> {parsed.h1_text!r} != bare country name {cname!r}")
+    if parsed.h1_text != want_h1:
+        bad.append(f"{rel}: <h1> {parsed.h1_text!r} != bare country name {want_h1!r}")
 
     if "Time zones" in parsed.meta_labels:
         bad.append(f"{rel}: hero card uses 'Time zones' instead of 'Time-zone regions'")
@@ -2786,8 +3069,14 @@ def _check_page_overflow(rel: str, parsed: _SheetHTMLParser) -> list[str]:
     return bad
 
 
-def _check_boards(rel: str, got_boards: list[dict], want_boards: list[dict] | None, label: str) -> list[str]:
-    """Verify mini-board distinct-rank values (Finding 2) and exact rows/units/sources (Finding 5)."""
+def _check_boards(
+    rel: str,
+    got_boards: list[dict],
+    want_boards: list[dict] | None,
+    label: str,
+    card_vals: dict[str, str] | None = None,
+) -> list[str]:
+    """Verify mini-board distinct-rank values (Finding 2), capped decimals, and exact rows/units/sources (Finding 5)."""
     bad: list[str] = []
     for b in got_boards:
         rows = b["rows"]
@@ -2797,6 +3086,15 @@ def _check_boards(rel: str, got_boards: list[dict], want_boards: list[dict] | No
                     bad.append(
                         f"{rel}: mini-board {b['ax']!r} shows identical value {rows[i]['val']!r} "
                         f"for distinct ranks {rows[i]['rank']!r} and {rows[j]['rank']!r}"
+                    )
+        if card_vals and b["ax"] in card_vals:
+            max_dec = _formatted_decimals(card_vals[b["ax"]]) + 2
+            for r in rows:
+                got_dec = _formatted_decimals(r["val"])
+                if got_dec > max_dec:
+                    bad.append(
+                        f"{rel}: mini-board {b['ax']!r} value {r['val']!r} has {got_dec} decimals "
+                        f"(max {max_dec} for card value {card_vals[b['ax']]!r})"
                     )
 
     if not isinstance(want_boards, list):
@@ -2849,8 +3147,13 @@ def _check_card_fields(rel: str, ax: str, got: dict, exp: dict, label: str) -> l
         bad.append(f"{rel}: {ax} unit {got['unit']!r} != {label} unit {exp['unit']!r}")
     if "src_text" in exp and isinstance(exp["src_text"], str) and got["src_text"] != exp["src_text"]:
         bad.append(f"{rel}: {ax} source/year {got['src_text']!r} != {label} {exp['src_text']!r}")
-    if "url" in exp and isinstance(exp["url"], str) and got["src_href"] != exp["url"]:
-        bad.append(f"{rel}: {ax} source URL {got['src_href']!r} != {label} URL {exp['url']!r}")
+    if not got["src_href"]:
+        bad.append(f"{rel}: {ax} source link has empty URL (every fact must link to its source)")
+    if "url" in exp and isinstance(exp["url"], str):
+        if not exp["url"].strip():
+            bad.append(f"{rel}: {ax} {label} entry has empty 'url'")
+        elif got["src_href"] != exp["url"]:
+            bad.append(f"{rel}: {ax} source URL {got['src_href']!r} != {label} URL {exp['url']!r}")
     return bad
 
 
@@ -2862,6 +3165,33 @@ def _check_no_empty_sections_or_bad_literals(rel: str, parsed: _SheetHTMLParser)
     m_lit = BAD_LITERAL_RE.search(parsed.all_visible_text)
     if m_lit:
         bad.append(f"{rel}: contains forbidden literal {m_lit.group(0)!r} in visible text")
+    m_none = STRAY_NONE_RE.search(parsed.all_visible_text)
+    if m_none:
+        bad.append(f"{rel}: contains stray 'None' literal in visible text")
+    return bad
+
+
+def _check_map_toggle(rel: str, parsed: _SheetHTMLParser) -> list[str]:
+    """Verify the script-free HTML/CSS close-up <-> world map toggle, aria-label, SVGs, and captions."""
+    bad: list[str] = []
+    if len(parsed.map_toggle_inputs) != 1:
+        bad.append(f"{rel}: expected 1 map view toggle checkbox (.map-in), found {len(parsed.map_toggle_inputs)}")
+        return bad
+    in_id, aria = parsed.map_toggle_inputs[0]
+    if not in_id:
+        bad.append(f"{rel}: map view toggle checkbox (.map-in) is missing id")
+    if not aria:
+        bad.append(f"{rel}: map view toggle checkbox (.map-in) is missing aria-label")
+    if in_id and in_id not in parsed.map_toggle_labels:
+        bad.append(f"{rel}: map view toggle label (.map-btn) missing for={in_id!r}")
+    if not parsed.has_map_local_svg:
+        bad.append(f"{rel}: map view is missing close-up SVG (.map-local)")
+    if not parsed.has_map_world_svg:
+        bad.append(f"{rel}: map view is missing world SVG (.map-world)")
+    if parsed.map_hint_local_text != MAP_HINT_LOCAL:
+        bad.append(f"{rel}: close-up map hint {parsed.map_hint_local_text!r} != {MAP_HINT_LOCAL!r}")
+    if parsed.map_hint_world_text != MAP_HINT_WORLD:
+        bad.append(f"{rel}: world map hint {parsed.map_hint_world_text!r} != {MAP_HINT_WORLD!r}")
     return bad
 
 
@@ -2888,6 +3218,7 @@ def _check_single_page(
     bad += _check_page_abbreviations(rel, parsed)
     bad += _check_fromgame_bar(rel, parsed, fromgame_href)
     bad += _check_no_empty_sections_or_bad_literals(rel, parsed)
+    bad += _check_map_toggle(rel, parsed)
 
     # Check every data-axis attribute (both fact rows and standout mini-boards, any quote style)
     for ax in sorted(set(parsed.all_data_axes)):
@@ -2915,7 +3246,8 @@ def _check_single_page(
     want_boards = want_entry.get("boards")
 
     if layout == "short":
-        bad += _check_boards(rel, parsed.boards, want_boards, label)
+        card_vals = {ax: c["val"] for ax, c in rendered_map.items()}
+        bad += _check_boards(rel, parsed.boards, want_boards, label, card_vals=card_vals)
         bad += _check_short_no_nodata(rel, parsed)
         if len(rendered) == 0:
             bad.append(f"{rel}: short page has 0 facts")
@@ -3352,6 +3684,7 @@ def build(
             + _check_page_abbreviations(rel_short, parsed_short)
             + _check_fromgame_bar(rel_short, parsed_short, short_prefix)
             + _check_no_empty_sections_or_bad_literals(rel_short, parsed_short)
+            + _check_map_toggle(rel_short, parsed_short)
             + _check_short_no_nodata(rel_short, parsed_short)
             + _check_short_closing(rel_short, parsed_short, iso, cname, full_count)
             + _check_country_wording(rel_short, iso, cname, "short", parsed_short, shown_count=short_count)
@@ -3364,6 +3697,7 @@ def build(
             + _check_page_abbreviations(rel_full, parsed_full)
             + _check_fromgame_bar(rel_full, parsed_full, full_prefix)
             + _check_no_empty_sections_or_bad_literals(rel_full, parsed_full)
+            + _check_map_toggle(rel_full, parsed_full)
             + _check_full_back_link(rel_full, parsed_full)
             + _check_country_wording(rel_full, iso, cname, "full", parsed_full)
         )

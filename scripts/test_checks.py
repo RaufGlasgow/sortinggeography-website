@@ -2580,13 +2580,13 @@ def _check_countries_with_the_list() -> None:
         "SB": "Solomon Islands",
         "SC": "Seychelles",
         "US": "United States",
-        "VA": "Holy See",
     }
     expected_without_the: dict[str, str] = {
         "CD": "Congo (DRC)",
         "CG": "Congo",
         "CZ": "Czechia",
         "FM": "Micronesia",
+        "VA": "Vatican City",
     }
     errs: list[str] = []
     if set(build_sheets.COUNTRIES_WITH_THE) != set(expected_the):
@@ -2616,9 +2616,17 @@ def _check_countries_with_the_list() -> None:
         html_short = (ROOT / f"countries/{iso}/index.html").read_text(encoding="utf-8")
         if f"about the {want_name}" in html_short or f"Sort the {want_name} " in html_short:
             errs.append(f"{iso}: roster name {want_name!r} should not take 'the'")
+    va_short = (ROOT / "countries/va/index.html").read_text(encoding="utf-8")
+    if '<h1 class="left">Vatican City</h1>' not in va_short:
+        errs.append("va: <h1> is not 'Vatican City'")
+    if "Holy See (Annuario Pontificio), via UN" not in va_short:
+        errs.append("va: publisher source name 'Holy See (Annuario Pontificio), via UN' should stay")
+    it_short = (ROOT / "countries/it/index.html").read_text(encoding="utf-8")
+    if "Vatican City" not in it_short or "Holy See" in it_short:
+        errs.append("it: borders should list 'Vatican City' rather than 'Holy See'")
     ok = not errs
     extra = "" if ok else f"  <- {errs[:3]!r}"
-    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'green' if ok else 'red  '} 18.6b: COUNTRIES_WITH_THE lists all 16 roster 'the' countries and skips CD/CG/CZ/FM{extra}")
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'green' if ok else 'red  '} 18.6b: COUNTRIES_WITH_THE lists all 15 roster 'the' countries and skips CD/CG/CZ/FM/VA{extra}")
     if not ok:
         failures.append("sheet186: 18.6b COUNTRIES_WITH_THE list")
 
@@ -2702,25 +2710,469 @@ sheet_guard_case(
 )
 
 
-def _check_data_gap_edge_cases() -> None:
+sheet_guard_case(
+    "18.6b: stray 'None' literal injected into visible text goes red",
+    True,
+    lambda r: edit(
+        r,
+        "countries/va/index.html",
+        "<span>Region</span><b>Europe</b>",
+        "<span>Region</span><b>None</b>",
+    ),
+    must_match="contains stray 'None' literal",
+)
+
+
+def _break_fact_url_to_span(root: pathlib.Path) -> None:
+    """Replace one fact link with unlinked <span class='a-f-s'> and empty its manifest url."""
+    edit(
+        root,
+        "countries/va/index.html",
+        '<a class="a-f-s" href="https://unstats.un.org/unsd/demographic-social/products/dyb/" rel="noopener noreferrer">'
+        'UN Statistics Division, Demographic Yearbook, 2024 &middot; unstats.un.org</a>',
+        '<span class="a-f-s">UN Statistics Division, Demographic Yearbook, 2024</span>',
+    )
+    _mutate_manifest(
+        root,
+        lambda m: (
+            m["countries"]["va"]["short"]["values"]["land_area_km2"].__setitem__("url", ""),
+            m["countries"]["va"]["short"]["values"]["land_area_km2"].__setitem__(
+                "src_text", "UN Statistics Division, Demographic Yearbook, 2024"
+            ),
+        ),
+    )
+
+
+sheet_guard_case(
+    "18.6b: empty fact URL rendered as unlinked <span class='a-f-s'> goes red",
+    True,
+    _break_fact_url_to_span,
+    must_match="source link has empty URL",
+)
+sheet_guard_case(
+    "18.6b: empty href='' on fact source link goes red",
+    True,
+    lambda r: edit(
+        r,
+        "countries/va/index.html",
+        'href="https://unstats.un.org/unsd/demographic-social/products/dyb/"',
+        'href=""',
+    ),
+    must_match="source link has empty URL",
+)
+sheet_guard_case(
+    "a1: Congo (DRC) on CD page without full form first goes red",
+    True,
+    lambda r: edit(
+        r,
+        "countries/cd/index.html",
+        '<h1 class="left">Democratic Republic of the Congo (DRC)</h1>',
+        '<h1 class="left">Congo (DRC)</h1>',
+    ),
+    must_match="abbreviation 'DRC' appears before its full form 'Democratic Republic of the Congo'",
+)
+sheet_guard_case(
+    "a1: Congo (DRC) in AM mini-board without full form first goes red",
+    True,
+    lambda r: edit(
+        r,
+        "countries/am/index.html",
+        '<span class="bname">Democratic Republic of the Congo (DRC)</span>',
+        '<span class="bname">Congo (DRC)</span>',
+    ),
+    must_match="abbreviation 'DRC' appears before its full form 'Democratic Republic of the Congo'",
+)
+sheet_guard_case(
+    "a1: Congo (DRC) in AO borders without full form first goes red",
+    True,
+    lambda r: edit(
+        r,
+        "countries/ao/index.html",
+        "Democratic Republic of the Congo (DRC), Congo",
+        "Congo (DRC), Congo",
+    ),
+    must_match="abbreviation 'DRC' appears before its full form 'Democratic Republic of the Congo'",
+)
+sheet_guard_case(
+    "a2: mini-board value with float noise (> card_dec + 2 decimals) goes red",
+    True,
+    lambda r: edit(
+        r,
+        "countries/am/index.html",
+        '<b class="a-mb-v">8.5%</b>',
+        '<b class="a-mb-v">8.533490%</b>',
+    ),
+    must_match="has 6 decimals (max 3 for card value '8.3%')",
+)
+sheet_guard_case(
+    "c: removing map toggle checkbox goes red",
+    True,
+    lambda r: edit(
+        r,
+        "countries/va/index.html",
+        '<input type="checkbox" class="map-in" id="map-view" aria-label="Switch between close-up map and world map of Vatican City">',
+        "",
+    ),
+    must_match="expected 1 map view toggle checkbox (.map-in), found 0",
+)
+sheet_guard_case(
+    "c: removing map toggle aria-label goes red",
+    True,
+    lambda r: edit(
+        r,
+        "countries/va/index.html",
+        ' aria-label="Switch between close-up map and world map of Vatican City"',
+        "",
+    ),
+    must_match="map view toggle checkbox (.map-in) is missing aria-label",
+)
+sheet_guard_case(
+    "c: removing world map SVG goes red",
+    True,
+    lambda r: write_safe(
+        r / "countries/va/index.html",
+        re.sub(
+            r'<span class="map-frame map-world">.*?</span>',
+            '<span class="map-frame map-world"></span>',
+            (r / "countries/va/index.html").read_text(encoding="utf-8"),
+            count=1,
+            flags=re.S,
+        ),
+    ),
+    must_match="map view is missing world SVG (.map-world)",
+)
+sheet_guard_case(
+    "c: changing close-up map hint goes red",
+    True,
+    lambda r: edit(
+        r,
+        "countries/va/index.html",
+        build_sheets.MAP_HINT_LOCAL,
+        "Click to zoom out",
+    ),
+    must_match="close-up map hint 'Click to zoom out'",
+)
+sheet_guard_case(
+    "c: changing world map hint goes red",
+    True,
+    lambda r: edit(
+        r,
+        "countries/va/index.html",
+        build_sheets.MAP_HINT_WORLD,
+        "Click to zoom in",
+    ),
+    must_match="world map hint 'Click to zoom in'",
+)
+
+
+def _make_edge_bundle() -> dict:
+    """Minimal in-memory game bundle for build-time edge-case tests (never reads pre-built HTML)."""
+    def _ver(src: str = "World Bank WDI", url: str = "https://data.worldbank.org/indicator/TEST") -> dict:
+        return {"declared_source": src, "vintage": "2023", "source_url": url}
+
+    return {
+        "dataset": {
+            "version": "dataset-v1-edge",
+            "axes": {
+                "land_area_km2": {
+                    "XX": {"sort_value": 100.0, "verification": _ver()},
+                    "YY": {"sort_value": 200.0, "verification": _ver()},
+                },
+                "population": {
+                    "XX": {"sort_value": 50000.0, "verification": _ver()},
+                    "YY": {"sort_value": 90000.0, "verification": _ver()},
+                },
+                "highest_point_m": {
+                    "YY": {"sort_value": 1500.0, "verification": _ver("CIA World Factbook 2024", "https://example.org/elev")},
+                },
+                "gdp_growth_pct": {
+                    "YY": {"sort_value": 4.2, "verification": _ver()},
+                },
+                "football_matches_all_time": {
+                    "YY": {"sort_value": 120.0, "verification": _ver("Men's international football results", "https://github.com/martj42/international_results")},
+                },
+            },
+            "facets": {"continent": {"XX": "Oceania", "YY": "Europe"}},
+            "attributes": {
+                "capital_lat": {"YY": 48.0},
+                "capital_lon": {"YY": 11.0},
+            },
+            "field_sets": {
+                "land_neighbours": {"XX": [], "YY": ["CD"]},
+                "time_zones": {"XX": ["UTC+12"], "YY": ["UTC+1"]},
+            },
+        },
+        "version": "dataset-v1-edge",
+        "vnum": 1,
+        "vdate": "22 November 2026",
+        "roster": {
+            "XX": {"name": "Islandia"},
+            "YY": {"name": "Mainlandia"},
+            "CD": {"name": "Congo (DRC)"},
+        },
+        "policy": {
+            "land_area_km2": "allowed",
+            "population": "allowed",
+            "highest_point_m": "allowed",
+            "gdp_growth_pct": "allowed",
+            "football_matches_all_time": "allowed",
+        },
+        "allowlist": [],
+        "geo": {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"ISO_A2_EH": "XX", "NAME": "Islandia", "TYPE": "Sovereign country"},
+                    "geometry": {"type": "Polygon", "coordinates": [[[10.0, 10.0], [14.0, 10.0], [14.0, 14.0], [10.0, 14.0], [10.0, 10.0]]]},
+                },
+                {
+                    "type": "Feature",
+                    "properties": {"ISO_A2_EH": "YY", "NAME": "Mainlandia", "TYPE": "Sovereign country"},
+                    "geometry": {"type": "Polygon", "coordinates": [[[8.0, 46.0], [14.0, 46.0], [14.0, 50.0], [8.0, 50.0], [8.0, 46.0]]]},
+                },
+            ],
+        },
+        "capitals": {"XX": "", "YY": "Maincity"},
+        "arb": {
+            "axLand": "Land area (km²)",
+            "axPop": "Population (people)",
+            "axHigh": "Highest point (m)",
+            "axGdp": "GDP growth (annual %)",
+            "axFoot": "Football matches ()",
+        },
+        "axis_keys": {
+            "land_area_km2": "axLand",
+            "population": "axPop",
+            "highest_point_m": "axHigh",
+            "gdp_growth_pct": "axGdp",
+            "football_matches_all_time": "axFoot",
+        },
+        "published_axes": [
+            "football_matches_all_time", "gdp_growth_pct", "highest_point_m", "land_area_km2", "population",
+        ],
+        "deny_list": {},
+    }
+
+
+def _check_build_time_data_gap_edge_cases() -> None:
+    """Build-time tests (not on-disk) for empty-section omission, missing capital, and 'None (island)'."""
+    bundle = _make_edge_bundle()
     errs: list[str] = []
-    va_short = (ROOT / "countries/va/index.html").read_text(encoding="utf-8")
-    if "Food, power and travel" in va_short:
-        errs.append("va short sheet should omit empty 'Food, power and travel' section")
-    vc_short = (ROOT / "countries/vc/index.html").read_text(encoding="utf-8")
-    if "<span>Borders</span><b>None (island)</b>" not in vc_short:
-        errs.append("vc short sheet missing 'None (island)' borders entry")
-    ps_short = (ROOT / "countries/ps/index.html").read_text(encoding="utf-8")
-    if "<span>Capital</span>" in ps_short:
-        errs.append("ps short sheet should omit empty Capital row")
+
+    short_html, _entry, _flags, _cname = build_sheets.render_sheet(
+        bundle, "xx", ROOT, layout="short", full_fact_count=2,
+    )
+    parsed = build_sheets._parse_sheet_html(short_html)
+
+    # 1. Empty sections omitted at build time (work, play, land have no data for XX)
+    for empty_heading in ("Land and height", "Food, power and travel", "Football and chess"):
+        if empty_heading in short_html:
+            errs.append(f"short_html did not omit empty section {empty_heading!r}")
+    lit_errs = build_sheets._check_no_empty_sections_or_bad_literals("xx/index.html", parsed)
+    if lit_errs:
+        errs.append(f"short_html failed literal/section guard: {lit_errs!r}")
+
+    # Direct guard on compute_sheet_expectation's `if not axs: continue`
+    orig_ssf = build_sheets.short_sections_for
+    try:
+        build_sheets.short_sections_for = lambda sel: orig_ssf(sel) + [("empty_sec", "Empty Section", [])]
+        spec_empty = build_sheets.compute_sheet_expectation(bundle, "xx", layout="short")
+        if any(s["key"] == "empty_sec" for s in spec_empty["sections"]):
+            errs.append("compute_sheet_expectation failed to skip section with empty axs")
+    finally:
+        build_sheets.short_sections_for = orig_ssf
+
+    # Direct guard on render_sheet's `if not sec["cards"]: continue`
+    orig_cse = build_sheets.compute_sheet_expectation
+    try:
+        def _cse_with_empty(*args, **kwargs):
+            sp = orig_cse(*args, **kwargs)
+            sp["sections"] = list(sp["sections"]) + [{"key": "empty_render", "title": "Empty Render", "notes": [], "cards": []}]
+            return sp
+        build_sheets.compute_sheet_expectation = _cse_with_empty
+        html_empty_card, _, _, _ = build_sheets.render_sheet(bundle, "xx", ROOT, layout="short", full_fact_count=2)
+        if "Empty Render" in html_empty_card:
+            errs.append("render_sheet failed to skip section with empty cards")
+    finally:
+        build_sheets.compute_sheet_expectation = orig_cse
+
+    # 2. Missing capital omitted cleanly (no Capital row, no capital dot, no stray None)
+    if "<span>Capital</span>" in short_html:
+        errs.append("missing capital still rendered Capital metadata row")
+    if 'r="4"' in short_html:
+        errs.append("missing capital still rendered capital dot on map")
+    if "showing None" in short_html:
+        errs.append("missing capital leaked 'None' into map aria-label")
+
+    # 3. Island border fallback renders "None (island)" and passes stray-None guard
+    if "<span>Borders</span><b>None (island)</b>" not in short_html:
+        errs.append("island country missing 'None (island)' borders fallback")
+
     ok = not errs
     extra = "" if ok else f"  <- {errs!r}"
-    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'green' if ok else 'red  '} 18.6b: data-gap edge cases (va empty section omitted, vc island, ps no capital){extra}")
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'green' if ok else 'red  '} 18.6b build-time: empty-section omission, missing capital, None (island){extra}")
     if not ok:
-        failures.append("sheet186: 18.6b data-gap edge cases")
+        failures.append("sheet186: 18.6b build-time data-gap edge cases")
 
 
-_check_data_gap_edge_cases()
+_check_build_time_data_gap_edge_cases()
+
+
+def _check_antimeridian_and_microstate_maps() -> None:
+    """Build-time tests for FJ/KI antimeridian frames, microstate tol_in=0.0 fallback + r='7' ring, and world map pin."""
+    errs: list[str] = []
+
+    def _local_and_world_svgs(map_html: str) -> tuple[str, str]:
+        m_loc = re.search(r'<span class="map-frame map-local">(<svg.*?</svg>)</span>', map_html, re.S)
+        m_wld = re.search(r'<span class="map-frame map-world">(<svg.*?</svg>)</span>', map_html, re.S)
+        return (m_loc.group(1) if m_loc else "", m_wld.group(1) if m_wld else "")
+
+    def _target_path_d(svg: str) -> str:
+        m = re.search(r'<path d="([^"]*)" style="fill:var\(--map-pt\);stroke:var\(--map-pt\)', svg)
+        return m.group(1) if m else ""
+
+    # 1. Antimeridian frames: FJ and KI with polygons on BOTH sides of 180°
+    for iso, name, cap, clat, clon, polys in (
+        (
+            "FJ", "Fiji", "Suva", -18.14, 178.44,
+            [
+                [[[177.5, -18.5], [179.0, -18.5], [179.0, -17.0], [177.5, -17.0], [177.5, -18.5]]],
+                [[[-179.5, -17.0], [-178.5, -17.0], [-178.5, -16.0], [-179.5, -16.0], [-179.5, -17.0]]],
+            ],
+        ),
+        (
+            "KI", "Kiribati", "Tarawa", 1.33, 173.0,
+            [
+                [[[172.5, 1.0], [174.0, 1.0], [174.0, 2.0], [172.5, 2.0], [172.5, 1.0]]],
+                [[[-157.8, 1.5], [-156.8, 1.5], [-156.8, 2.4], [-157.8, 2.4], [-157.8, 1.5]]],
+            ],
+        ),
+    ):
+        geo = {
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "properties": {"ISO_A2_EH": iso, "NAME": name, "TYPE": "Sovereign country"},
+                "geometry": {"type": "MultiPolygon", "coordinates": polys},
+            }],
+        }
+        mhtml = build_sheets.render_locator_map(iso, name, cap, clat, clon, geo)
+        loc_svg, wld_svg = _local_and_world_svgs(mhtml)
+        td = _target_path_d(loc_svg)
+        subpaths = [p for p in td.split("Z") if p.strip()]
+        if len(subpaths) != 2:
+            errs.append(f"{iso}: expected 2 antimeridian target subpaths in close-up SVG, got {len(subpaths)} (d={td[:80]!r})")
+        else:
+            for sp in subpaths:
+                xs = [float(x) for x, _y in re.findall(r"[ML](-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)", sp)]
+                if not xs or min(xs) < 0.0 or max(xs) > 560.0:
+                    errs.append(f"{iso}: antimeridian subpath out of frame [0, 560]: {xs[:4]!r}")
+                for a, b in zip(xs, xs[1:]):
+                    if abs(b - a) > 250.0:
+                        errs.append(f"{iso}: antimeridian wrap jump {a} -> {b}")
+        if 'r="9"' not in wld_svg or 'r="3"' not in wld_svg:
+            errs.append(f"{iso}: world SVG missing locator ring/pin")
+
+    # 2. Microstate tol_in=0.0 fallback and r="7" locator ring
+    micro_geo = {
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "properties": {"ISO_A2_EH": "VA", "NAME": "Vatican City", "TYPE": "Sovereign country"},
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[12.450, 41.900], [12.458, 41.900], [12.458, 41.906], [12.450, 41.906], [12.450, 41.900]]],
+            },
+        }],
+    }
+    va_html = build_sheets.render_locator_map("VA", "Vatican City", "Vatican City", 41.9029, 12.4534, micro_geo)
+    va_loc, va_wld = _local_and_world_svgs(va_html)
+    va_td = _target_path_d(va_loc)
+    if not (va_td.startswith("M") and va_td.endswith("Z")):
+        errs.append(f"VA microstate: tol_in=0.0 fallback did not emit target path (got {va_td!r})")
+    if 'r="7"' not in va_loc:
+        errs.append("VA microstate: close-up SVG missing r='7' locator ring")
+    if 'r="9"' not in va_wld or 'r="3"' not in va_wld:
+        errs.append("VA microstate: world SVG missing locator ring/pin")
+
+    # Normal-sized country must NOT get the close-up microstate r="7" ring
+    normal_geo = {
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "properties": {"ISO_A2_EH": "ZZ", "NAME": "Bigland", "TYPE": "Sovereign country"},
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[10.0, 40.0], [16.0, 40.0], [16.0, 45.0], [10.0, 45.0], [10.0, 40.0]]],
+            },
+        }],
+    }
+    zz_loc, _ = _local_and_world_svgs(build_sheets.render_locator_map("ZZ", "Bigland", "Bigcity", 42.5, 13.0, normal_geo))
+    if 'r="7"' in zz_loc:
+        errs.append("normal-sized country unexpectedly rendered close-up r='7' microstate ring")
+
+    ok = not errs
+    extra = "" if ok else f"  <- {errs!r}"
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'green' if ok else 'red  '} 18.6b build-time: antimeridian frames (FJ, KI), microstate tol_in=0.0 + r=7 ring, world pin{extra}")
+    if not ok:
+        failures.append("sheet186: 18.6b antimeridian & microstate map tests")
+
+
+_check_antimeridian_and_microstate_maps()
+
+
+def _check_board_float_noise_and_drc_build() -> None:
+    """Build-time tests for A1 (DRC first-sight expansion) and A2 (board float-noise cap + ties)."""
+    errs: list[str] = []
+
+    # A1: AbbrevExpander expands first Congo (DRC), leaves second Congo (DRC) short
+    exp = build_sheets.AbbrevExpander()
+    first = exp.expand("Congo (DRC)")
+    second = exp.expand("Congo (DRC)")
+    if first != "Democratic Republic of the Congo (DRC)":
+        errs.append(f"A1 first expand got {first!r}")
+    if second != "Congo (DRC)":
+        errs.append(f"A1 second expand got {second!r}")
+
+    # A2: float noise collapses to card precision and shares tied rank
+    vals_am, ranks_am = build_sheets.format_board_values(
+        [(8, "CD", 8.533490), (9, "AM", 8.300000), (10, "TJ", 8.299999)], "% a year", card_val="8.3%",
+    )
+    if vals_am != ["8.5%", "8.3%", "8.3%"] or ranks_am != [8, 9, 9]:
+        errs.append(f"A2 float noise got vals={vals_am!r} ranks={ranks_am!r}")
+
+    # A2: genuine difference within +2 decimals stays distinct
+    vals_fem, ranks_fem = build_sheets.format_board_values(
+        [(2, "LV", 53.68), (3, "AM", 53.61), (4, "RU", 53.57)], "%", card_val="53.6%",
+    )
+    if vals_fem != ["53.68%", "53.61%", "53.57%"] or ranks_fem != [2, 3, 4]:
+        errs.append(f"A2 +1 decimal separation got vals={vals_fem!r} ranks={ranks_fem!r}")
+
+    # A2: cap at card_dec + 2 (CF card is 105 -> 0 dec -> max 2 dec -> 98.164 vs 98.159 tie at 98.2)
+    vals_cf, ranks_cf = build_sheets.format_board_values(
+        [(1, "CF", 105.178), (2, "NE", 98.164), (3, "MC", 98.159)], "", card_val="105",
+    )
+    if vals_cf != ["105", "98.2", "98.2"] or ranks_cf != [1, 2, 2]:
+        errs.append(f"A2 card_dec+2 cap got vals={vals_cf!r} ranks={ranks_cf!r}")
+
+    # Built Armenia page check for A1 + A2 together
+    am_short = (ROOT / "countries/am/index.html").read_text(encoding="utf-8")
+    if "8.533490%" in am_short or "8.299999%" in am_short or "8.300000%" in am_short:
+        errs.append("am/index.html still contains 6-decimal float noise")
+    if "Democratic Republic of the Congo (DRC)" not in am_short:
+        errs.append("am/index.html missing first-sight full name for DRC")
+    if "9th of 188, tied with 1" not in am_short:
+        errs.append("am/index.html gdp_growth_pct board missing tie wording '9th of 188, tied with 1'")
+
+    ok = not errs
+    extra = "" if ok else f"  <- {errs!r}"
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'green' if ok else 'red  '} a1/a2 build-time: DRC first-sight expansion and board float-noise tie handling{extra}")
+    if not ok:
+        failures.append("sheet186: a1/a2 build-time checks")
+
+
+_check_board_float_noise_and_drc_build()
 
 FIXTURE_COUNTRIES: tuple[str, ...] = (
     "au", "br", "ca", "ch", "cn", "de", "eg", "fr", "gb", "il",

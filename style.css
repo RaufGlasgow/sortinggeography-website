@@ -965,12 +965,64 @@ table.facts th {
   border-radius: 16px;
   border: 1.5px solid var(--border);
 }
+.a-map {
+  position: relative;
+}
+.map-in {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  border: 0;
+}
+.map-btn {
+  display: block;
+  cursor: pointer;
+  border-radius: 16px;
+}
+.map-btn:hover svg {
+  border-color: var(--hi);
+}
+.map-in:focus-visible + .map-btn svg {
+  outline: 3px solid var(--secondary);
+  outline-offset: 2px;
+}
+.map-frame {
+  display: block;
+}
+.map-hint {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hi);
+  margin-top: 8px;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.map-world,
+.map-hint-world {
+  display: none;
+}
+.map-in:checked + .map-btn .map-local,
+.map-in:checked + .map-btn .map-hint-local {
+  display: none;
+}
+.map-in:checked + .map-btn .map-world,
+.map-in:checked + .map-btn .map-hint-world {
+  display: block;
+}
 .mapcap {
   font-size: 13px;
   color: var(--muted);
   margin-top: 8px;
   text-wrap: pretty;
   overflow-wrap: anywhere;
+}
+.a-map .mapcap {
+  margin-top: 4px;
 }
 .m-lab {
   font: 600 14px var(--f-ui);
