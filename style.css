@@ -979,21 +979,33 @@ table.facts th {
   border: 0;
 }
 .map-btn {
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   cursor: pointer;
   border-radius: 16px;
 }
-.map-btn:hover svg {
+.map-frame {
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  background: var(--map-sea);
+  border-radius: 16px;
+  border: 1.5px solid var(--border);
+  overflow: hidden;
+}
+.map-frame svg {
+  border: 0;
+  border-radius: 0;
+}
+.map-btn:hover .map-frame {
   border-color: var(--hi);
 }
-.map-in:focus-visible + .map-btn svg {
+.map-in:focus-visible + .map-btn .map-frame {
   outline: 3px solid var(--secondary);
   outline-offset: 2px;
 }
-.map-frame {
-  display: block;
-}
 .map-hint {
+  grid-area: 2 / 1;
   display: block;
   font-size: 13px;
   font-weight: 600;
@@ -1004,15 +1016,21 @@ table.facts th {
 }
 .map-world,
 .map-hint-world {
-  display: none;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 .map-in:checked + .map-btn .map-local,
 .map-in:checked + .map-btn .map-hint-local {
-  display: none;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 .map-in:checked + .map-btn .map-world,
 .map-in:checked + .map-btn .map-hint-world {
-  display: block;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
 }
 .mapcap {
   font-size: 13px;

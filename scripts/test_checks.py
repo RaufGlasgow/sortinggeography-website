@@ -2772,11 +2772,11 @@ sheet_guard_case(
     must_match="abbreviation 'DRC' appears before its full form 'Democratic Republic of the Congo'",
 )
 sheet_guard_case(
-    "a1: Congo (DRC) in AM mini-board without full form first goes red",
+    "a1: Congo (DRC) in ML mini-board without full form first goes red",
     True,
     lambda r: edit(
         r,
-        "countries/am/index.html",
+        "countries/ml/index.html",
         '<span class="bname">Democratic Republic of the Congo (DRC)</span>',
         '<span class="bname">Congo (DRC)</span>',
     ),
@@ -2794,15 +2794,15 @@ sheet_guard_case(
     must_match="abbreviation 'DRC' appears before its full form 'Democratic Republic of the Congo'",
 )
 sheet_guard_case(
-    "a2: mini-board value with float noise (> card_dec + 2 decimals) goes red",
+    "a2: mini-board value with float noise (> 2 decimals) goes red",
     True,
     lambda r: edit(
         r,
         "countries/am/index.html",
-        '<b class="a-mb-v">8.5%</b>',
-        '<b class="a-mb-v">8.533490%</b>',
+        '<b class="a-mb-v">65.8%</b>',
+        '<b class="a-mb-v">65.833490%</b>',
     ),
-    must_match="has 6 decimals (max 3 for card value '8.3%')",
+    must_match="has 6 decimals (max 2)",
 )
 sheet_guard_case(
     "c: removing map toggle checkbox goes red",
@@ -3112,14 +3112,94 @@ def _check_antimeridian_and_microstate_maps() -> None:
     if 'r="7"' in zz_loc:
         errs.append("normal-sized country unexpectedly rendered close-up r='7' microstate ring")
 
+    # 3. Minor 1: world-map locator ring must not be clipped at any map edge (date line or poles)
+    def _check_world_ring_in_bounds(tag: str, wld_svg: str) -> None:
+        m_vb = re.search(r'viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"', wld_svg)
+        if not m_vb:
+            errs.append(f"{tag}: world SVG missing viewBox")
+            return
+        vw, vh = float(m_vb.group(1)), float(m_vb.group(2))
+        m_ring = re.search(
+            r'<circle cx="(-?\d+(?:\.\d+)?)" cy="(-?\d+(?:\.\d+)?)" r="(\d+(?:\.\d+)?)"[^>]*stroke-width:(\d+(?:\.\d+)?)',
+            wld_svg,
+        )
+        if not m_ring:
+            errs.append(f"{tag}: world SVG missing locator ring circle")
+            return
+        cx, cy, r, sw = (float(m_ring.group(i)) for i in range(1, 5))
+        outer = r + sw / 2.0
+        if cx - outer < 0.0 or cx + outer > vw or cy - outer < 0.0 or cy + outer > vh:
+            errs.append(
+                f"{tag}: world locator ring clipped (cx={cx}, cy={cy}, outer={outer:.1f}, viewBox=0 0 {vw:.0f} {vh:.0f})"
+            )
+
+    for iso_e, name_e, lon_e, lat_e in (
+        ("TV", "Tuvalu", 179.2, -8.5),
+        ("WS", "EdgeWest", -179.5, -13.8),
+        ("NO", "EdgeNorth", 20.0, 84.5),
+        ("CL", "EdgeSouth", -70.0, -59.5),
+    ):
+        edge_geo = {
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "properties": {"ISO_A2_EH": iso_e, "NAME": name_e, "TYPE": "Sovereign country"},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[lon_e - 0.1, lat_e - 0.1], [lon_e + 0.1, lat_e - 0.1], [lon_e + 0.1, lat_e + 0.1], [lon_e - 0.1, lat_e + 0.1], [lon_e - 0.1, lat_e - 0.1]]],
+                },
+            }],
+        }
+        _, e_wld = _local_and_world_svgs(build_sheets.render_locator_map(iso_e, name_e, None, None, None, edge_geo))
+        _check_world_ring_in_bounds(f"{iso_e} ({lon_e},{lat_e})", e_wld)
+
+    tv_short = (ROOT / "countries/tv/index.html").read_text(encoding="utf-8")
+    _, tv_wld_built = _local_and_world_svgs(tv_short)
+    _check_world_ring_in_bounds("built tv/index.html", tv_wld_built)
+
     ok = not errs
     extra = "" if ok else f"  <- {errs!r}"
-    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'green' if ok else 'red  '} 18.6b build-time: antimeridian frames (FJ, KI), microstate tol_in=0.0 + r=7 ring, world pin{extra}")
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'green' if ok else 'red  '} 18.6b build-time: antimeridian frames (FJ, KI), microstate tol_in=0.0 + r=7 ring, world pin & edge bounds{extra}")
     if not ok:
         failures.append("sheet186: 18.6b antimeridian & microstate map tests")
 
 
 _check_antimeridian_and_microstate_maps()
+
+
+def _check_map_toggle_stable_height() -> None:
+    """Major 2: tapping the map must reserve the same height for both views in CSS (no display:none jump)."""
+    errs: list[str] = []
+    css = (ROOT / "style.css").read_text(encoding="utf-8")
+    rules = build_sheets._iter_css_rules(re.sub(r"/\*.*?\*/", "", css, flags=re.S))
+    by_sel: dict[str, dict[str, str]] = {}
+    for sel, body in rules:
+        decls = by_sel.setdefault(sel, {})
+        for part in body.split(";"):
+            if ":" in part:
+                k, v = part.split(":", 1)
+                decls[k.strip().lower()] = v.strip().lower()
+
+    map_btn = by_sel.get(".map-btn", {})
+    if map_btn.get("display") != "grid":
+        errs.append(f".map-btn must use display: grid to stack both map views in one box (got {map_btn.get('display')!r})")
+    if ".map-frame" not in by_sel or by_sel[".map-frame"].get("grid-area") != "1 / 1":
+        errs.append(".map-frame must share grid-area: 1 / 1 so both map views reserve the same height")
+    if ".map-hint" not in by_sel or by_sel[".map-hint"].get("grid-area") != "2 / 1":
+        errs.append(".map-hint must share grid-area: 2 / 1 so toggling hints cannot shift captions")
+    for sel, decls in by_sel.items():
+        if any(tok in sel for tok in (".map-world", ".map-local", ".map-hint-world", ".map-hint-local")):
+            if decls.get("display") == "none":
+                errs.append(f"{sel} uses display: none (collapses height and causes layout shift on tap)")
+
+    ok = not errs
+    extra = "" if ok else f"  <- {errs!r}"
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'green' if ok else 'red  '} r2-major2: CSS reserves stable height across both map views (no display:none shift){extra}")
+    if not ok:
+        failures.append("sheet186: r2-major2 map toggle stable height")
+
+
+_check_map_toggle_stable_height()
 
 
 def _check_board_float_noise_and_drc_build() -> None:
@@ -3149,21 +3229,102 @@ def _check_board_float_noise_and_drc_build() -> None:
     if vals_fem != ["53.68%", "53.61%", "53.57%"] or ranks_fem != [2, 3, 4]:
         errs.append(f"A2 +1 decimal separation got vals={vals_fem!r} ranks={ranks_fem!r}")
 
-    # A2: cap at card_dec + 2 (CF card is 105 -> 0 dec -> max 2 dec -> 98.164 vs 98.159 tie at 98.2)
+    # A2: cap at 2 decimals independent of host page (CF=105.178, NE=98.164, MC=98.159 -> NE & MC tie at 98.2)
     vals_cf, ranks_cf = build_sheets.format_board_values(
-        [(1, "CF", 105.178), (2, "NE", 98.164), (3, "MC", 98.159)], "", card_val="105",
+        [(1, "CF", 105.178), (2, "NE", 98.164), (2, "MC", 98.159)], "",
     )
     if vals_cf != ["105", "98.2", "98.2"] or ranks_cf != [1, 2, 2]:
-        errs.append(f"A2 card_dec+2 cap got vals={vals_cf!r} ranks={ranks_cf!r}")
+        errs.append(f"A2 host-independent cap got vals={vals_cf!r} ranks={ranks_cf!r}")
 
-    # Built Armenia page check for A1 + A2 together
+    # Major 1: same country gets the same rank on every page's mini-board AND fact card
+    tie_bundle = {
+        "dataset": {
+            "version": "dataset-v1-tie",
+            "axes": {
+                "age_dependency_ratio": {
+                    "CF": {"sort_value": 105.178, "verification": {"declared_source": "World Bank WDI", "vintage": "2023", "source_url": "https://data.worldbank.org/indicator/SP.POP.DPND"}},
+                    "NE": {"sort_value": 98.164, "verification": {"declared_source": "World Bank WDI", "vintage": "2023", "source_url": "https://data.worldbank.org/indicator/SP.POP.DPND"}},
+                    "MC": {"sort_value": 98.159, "verification": {"declared_source": "World Bank WDI", "vintage": "2023", "source_url": "https://data.worldbank.org/indicator/SP.POP.DPND"}},
+                },
+                "gdp_growth_pct": {
+                    "CD": {"sort_value": 8.533490, "verification": {"declared_source": "World Bank WDI", "vintage": "2023", "source_url": "https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG"}},
+                    "AM": {"sort_value": 8.300000, "verification": {"declared_source": "World Bank WDI", "vintage": "2023", "source_url": "https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG"}},
+                    "TJ": {"sort_value": 8.299999, "verification": {"declared_source": "World Bank WDI", "vintage": "2023", "source_url": "https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG"}},
+                },
+            },
+            "facets": {"continent": {"CF": "Africa", "NE": "Africa", "MC": "Europe", "CD": "Africa", "AM": "Asia", "TJ": "Asia"}},
+            "attributes": {"capital_lat": {}, "capital_lon": {}},
+            "field_sets": {"land_neighbours": {}, "time_zones": {}},
+        },
+        "version": "dataset-v1-tie",
+        "vnum": 1,
+        "vdate": "22 November 2026",
+        "roster": {
+            "CF": {"name": "Central African Republic"},
+            "NE": {"name": "Niger"},
+            "MC": {"name": "Monaco"},
+            "CD": {"name": "Congo (DRC)"},
+            "AM": {"name": "Armenia"},
+            "TJ": {"name": "Tajikistan"},
+        },
+        "policy": {"age_dependency_ratio": "allowed", "gdp_growth_pct": "allowed"},
+        "allowlist": [],
+        "geo": {"type": "FeatureCollection", "features": []},
+        "capitals": {},
+        "arb": {"axDep": "Dependants per 100 people 15-64 ()", "axGdp": "GDP growth (annual %)"},
+        "axis_keys": {"age_dependency_ratio": "axDep", "gdp_growth_pct": "axGdp"},
+        "published_axes": ["age_dependency_ratio", "gdp_growth_pct"],
+        "deny_list": {},
+    }
+    cf_spec = build_sheets.compute_sheet_expectation(tie_bundle, "cf", layout="short")
+    ne_spec = build_sheets.compute_sheet_expectation(tie_bundle, "ne", layout="short")
+    mc_spec = build_sheets.compute_sheet_expectation(tie_bundle, "mc", layout="short")
+    am_spec = build_sheets.compute_sheet_expectation(tie_bundle, "am", layout="short")
+    tj_spec = build_sheets.compute_sheet_expectation(tie_bundle, "tj", layout="short")
+
+    cf_dep_board = next(b for b in cf_spec["boards"] if b["ax"] == "age_dependency_ratio")
+    ne_dep_board = next(b for b in ne_spec["boards"] if b["ax"] == "age_dependency_ratio")
+    if [(r["iso"], r["rank"], r["val"]) for r in cf_dep_board["rows"]] != [(r["iso"], r["rank"], r["val"]) for r in ne_dep_board["rows"]]:
+        errs.append(f"Major 1: CF board {cf_dep_board['rows']!r} != NE board {ne_dep_board['rows']!r}")
+    if ne_spec["cards"]["age_dependency_ratio"]["rank"] != "2nd of 3, tied with 1":
+        errs.append(f"Major 1: NE card rank {ne_spec['cards']['age_dependency_ratio']['rank']!r} != '2nd of 3, tied with 1'")
+    if mc_spec["cards"]["age_dependency_ratio"]["rank"] != "2nd of 3, tied with 1":
+        errs.append(f"Major 1: MC card rank {mc_spec['cards']['age_dependency_ratio']['rank']!r} != '2nd of 3, tied with 1'")
+    if ne_dep_board["rank_txt"] != ne_spec["cards"]["age_dependency_ratio"]["rank"]:
+        errs.append(f"Major 1: NE board rank_txt {ne_dep_board['rank_txt']!r} != card rank {ne_spec['cards']['age_dependency_ratio']['rank']!r}")
+
+    am_gdp_board = next(b for b in am_spec["boards"] if b["ax"] == "gdp_growth_pct")
+    if am_gdp_board["rank_txt"] != am_spec["cards"]["gdp_growth_pct"]["rank"]:
+        errs.append(f"Major 1: AM board rank_txt {am_gdp_board['rank_txt']!r} != card rank {am_spec['cards']['gdp_growth_pct']['rank']!r}")
+    if tj_spec["cards"]["gdp_growth_pct"]["rank"] != "2nd of 3, tied with 1":
+        errs.append(f"Major 1: TJ card rank {tj_spec['cards']['gdp_growth_pct']['rank']!r} != '2nd of 3, tied with 1'")
+
+    # Built pages check for Major 1 + A1 + A2
     am_short = (ROOT / "countries/am/index.html").read_text(encoding="utf-8")
     if "8.533490%" in am_short or "8.299999%" in am_short or "8.300000%" in am_short:
         errs.append("am/index.html still contains 6-decimal float noise")
-    if "Democratic Republic of the Congo (DRC)" not in am_short:
-        errs.append("am/index.html missing first-sight full name for DRC")
-    if "9th of 188, tied with 1" not in am_short:
-        errs.append("am/index.html gdp_growth_pct board missing tie wording '9th of 188, tied with 1'")
+    ml_short = (ROOT / "countries/ml/index.html").read_text(encoding="utf-8")
+    if "Democratic Republic of the Congo (DRC)" not in ml_short:
+        errs.append("ml/index.html missing first-sight full name for DRC")
+    am_all_parsed = build_sheets._parse_sheet_html((ROOT / "countries/am/all/index.html").read_text(encoding="utf-8"))
+    am_gdp_card = next(c for c in am_all_parsed.facts if c["ax"] == "gdp_growth_pct")
+    if am_gdp_card["rank"] != "9th of 188, tied with 1":
+        errs.append(f"built am/all/index.html gdp_growth_pct card rank {am_gdp_card['rank']!r} != '9th of 188, tied with 1'")
+    tj_parsed = build_sheets._parse_sheet_html((ROOT / "countries/tj/all/index.html").read_text(encoding="utf-8"))
+    tj_gdp_card = next(c for c in tj_parsed.facts if c["ax"] == "gdp_growth_pct")
+    if tj_gdp_card["rank"] != "9th of 188, tied with 1":
+        errs.append(f"built tj/all/index.html gdp_growth_pct card rank {tj_gdp_card['rank']!r} != '9th of 188, tied with 1'")
+    ne_short = (ROOT / "countries/ne/index.html").read_text(encoding="utf-8")
+    if "98.164" in ne_short or "98.159" in ne_short or "105.178" in ne_short:
+        errs.append("built ne/index.html still contains 3-decimal noise on age_dependency_ratio")
+    ne_all_parsed = build_sheets._parse_sheet_html((ROOT / "countries/ne/all/index.html").read_text(encoding="utf-8"))
+    ne_dep_card = next(c for c in ne_all_parsed.facts if c["ax"] == "age_dependency_ratio")
+    if ne_dep_card["rank"] != "2nd of 194, tied with 1":
+        errs.append(f"built ne/all/index.html age_dependency_ratio card rank {ne_dep_card['rank']!r} != '2nd of 194, tied with 1'")
+    mc_parsed = build_sheets._parse_sheet_html((ROOT / "countries/mc/all/index.html").read_text(encoding="utf-8"))
+    mc_dep_card = next(c for c in mc_parsed.facts if c["ax"] == "age_dependency_ratio")
+    if mc_dep_card["rank"] != "2nd of 194, tied with 1":
+        errs.append(f"built mc/all/index.html age_dependency_ratio card rank {mc_dep_card['rank']!r} != '2nd of 194, tied with 1'")
 
     ok = not errs
     extra = "" if ok else f"  <- {errs!r}"
@@ -3184,6 +3345,7 @@ def _make_fixture_game_repo(
     game_countries: list[str] | None,
     pop_policy: str | None = "allowed",
     roster_list: tuple[str, ...] = FIXTURE_COUNTRIES,
+    empty_url_iso: str | None = None,
 ) -> pathlib.Path:
     """Create a minimal git game repo that exercises real build_sheets.build() and check_game()."""
     g = pathlib.Path(tempfile.mkdtemp(prefix="sg-s186-game-"))
@@ -3210,7 +3372,7 @@ def _make_fixture_game_repo(
                 "verification": {
                     "declared_source": src_decl,
                     "vintage": "2023",
-                    "source_url": "https://data.worldbank.org/indicator/TEST",
+                    "source_url": "" if (empty_url_iso is not None and iso == empty_url_iso and ax == "population") else "https://data.worldbank.org/indicator/TEST",
                 },
             }
             for i, iso in enumerate(isos_u)
@@ -3445,6 +3607,33 @@ sheet_game_fixture_case(
     mutate_built=lambda r: edit(r, "countries/us/index.html", 'href="./all/"', 'href="https://example.com/"'),
     must_match="short page closing link href 'https://example.com/' must be './all/'",
 )
+
+
+def _check_build_enforces_same_checks_as_check() -> None:
+    """Major 3: build() must fail closed on empty source_url (and refuse to write pages) without waiting for --check."""
+    root = copy_site(copy_assets=True, copy_countries="skip")
+    g = _make_fixture_game_repo(list(FIXTURE_COUNTRIES), pop_policy="allowed", empty_url_iso="US")
+    errs: list[str] = []
+    try:
+        try:
+            build_sheets.build(g, ref="main", root=root)
+            errs.append("build() succeeded despite empty source_url on US population")
+        except build_sheets.SheetError as e:
+            if "empty URL" not in str(e) and "empty 'url'" not in str(e):
+                errs.append(f"build() raised unexpected SheetError: {e!s}")
+        if (root / "countries/us/index.html").exists():
+            errs.append("build() wrote countries/us/index.html to disk despite empty source_url")
+    finally:
+        shutil.rmtree(g)
+        shutil.rmtree(root)
+    ok = not errs
+    extra = "" if ok else f"  <- {errs!r}"
+    print(f"{'ok  ' if ok else 'FAIL'} sheet186 {'red  ' if ok else 'green'} r2-major3: build() fails closed on empty source_url before writing pages{extra}")
+    if not ok:
+        failures.append("sheet186: r2-major3 build() empty source_url guard")
+
+
+_check_build_enforces_same_checks_as_check()
 
 if failures:
     print(f"\n{len(failures)} mutation case(s) wrong:")

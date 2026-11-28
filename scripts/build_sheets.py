@@ -794,53 +794,81 @@ def _format_at_decimals(vals: list[float | int], unit: str, d: int) -> list[str]
     return [f"{v:,.{d}f}" for v in vals]
 
 
+def _rank_key(v: float | int, unit: str) -> float:
+    """Canonical tie-resolution value shared by fact cards and mini-boards (host-independent).
+
+    Rounds at the maximum display precision allowed on mini-boards so that float noise
+    (e.g. 8.300000 vs 8.299999) and sub-hundredth jitter (e.g. 98.164 vs 98.159)
+    produce the exact same rank and tie count on every fact card and every mini-board.
+    """
+    if unit.startswith("%"):
+        d = 4 if abs(v) < 0.001 else (3 if abs(v) < 0.01 else 2)
+        return float(f"{float(v):.{d}f}")
+    if abs(v) >= 1_000_000_000_000:
+        return float(f"{float(v) / 1e12:.4f}") * 1e12
+    if abs(v) >= 10_000_000_000 and unit == "US$":
+        return float(f"{float(v) / 1e9:.3f}") * 1e9
+    d = 4 if abs(v) < 0.01 else (3 if abs(v) < 0.1 else 2)
+    return float(f"{float(v):.{d}f}")
+
+
+def _board_max_decimals(vals: list[float | int], unit: str) -> int:
+    """Maximum decimal places allowed on a mini-board for these values (independent of host page)."""
+    if unit.startswith("%"):
+        if any(0 < abs(v) < 0.001 for v in vals):
+            return 4
+        if any(0 < abs(v) < 0.01 for v in vals):
+            return 3
+        return 2
+    if any(abs(v) >= 1_000_000_000_000 for v in vals):
+        return 4
+    if unit == "US$" and any(abs(v) >= 10_000_000_000 for v in vals):
+        return 3
+    if any(0 < abs(v) < 0.01 for v in vals):
+        return 4
+    if any(0 < abs(v) < 0.1 for v in vals):
+        return 3
+    return 2
+
+
 def format_board_values(
     rows: list[tuple[int, str, float | int]],
     unit: str,
     card_val: str | None = None,
 ) -> tuple[list[str], list[int]]:
-    """Format mini-board values without float noise (at most +2 decimals beyond card precision).
+    """Format mini-board values using one host-independent precision rule.
 
-    Returns (formatted_values, display_ranks). Values that remain equal at the maximum
-    allowed precision (card_dec + 2) are treated as ties and share the same display rank.
+    Returns (formatted_values, display_ranks). Values with the same `_rank_key(v, unit)`
+    are treated as ties and share the same display rank; distinct ranks that collide at
+    default display precision step up to at most `_board_max_decimals(vals, unit)`.
     """
+    del card_val  # host-independent: never depends on the host page's card decimals
     vals = [v for _, _, v in rows]
     orig_ranks = [r for r, _, _ in rows]
+    rkeys = [_rank_key(v, unit) for v in vals]
+    disp_ranks = list(orig_ranks)
+    for i in range(1, len(rkeys)):
+        if rkeys[i] == rkeys[i - 1]:
+            disp_ranks[i] = disp_ranks[i - 1]
     default = [fmt_plain(v, unit) for v in vals]
 
-    def has_collision(strs: list[str], equiv: list[str] | None = None) -> bool:
+    def has_distinct_collision(strs: list[str]) -> bool:
         for i in range(len(vals)):
             for j in range(i + 1, len(vals)):
-                if equiv is not None:
-                    if equiv[i] != equiv[j] and strs[i] == strs[j]:
-                        return True
-                elif vals[i] != vals[j] and strs[i] == strs[j]:
+                if rkeys[i] != rkeys[j] and strs[i] == strs[j]:
                     return True
         return False
 
-    if not has_collision(default):
-        return default, orig_ranks
+    if not has_distinct_collision(default):
+        return default, disp_ranks
 
-    card_dec = _formatted_decimals(card_val) if card_val is not None else max(
-        (_formatted_decimals(s) for s in default), default=0
-    )
-    max_dec = card_dec + 2
-    max_strs = _format_at_decimals(vals, unit, max_dec)
-
-    chosen = max_strs
-    if not has_collision(default, equiv=max_strs):
-        chosen = default
-    else:
-        for d in range(card_dec + 1, max_dec + 1):
-            cand = _format_at_decimals(vals, unit, d)
-            if not has_collision(cand, equiv=max_strs):
-                chosen = cand
-                break
-
-    disp_ranks = list(orig_ranks)
-    for i in range(1, len(chosen)):
-        if chosen[i] == chosen[i - 1]:
-            disp_ranks[i] = disp_ranks[i - 1]
+    max_dec = _board_max_decimals(vals, unit)
+    chosen = _format_at_decimals(vals, unit, max_dec)
+    for d in range(1, max_dec + 1):
+        cand = _format_at_decimals(vals, unit, d)
+        if not has_distinct_collision(cand):
+            chosen = cand
+            break
     return chosen, disp_ranks
 
 
@@ -953,7 +981,7 @@ def _auto_frame(feats: list[dict], iso: str) -> tuple[float, float, float, float
 
 WORLD_W = 560.0
 WORLD_H = 280.0
-WORLD_PAD = 8.0
+WORLD_PAD = 12.0
 WORLD_LON0 = -180.0
 WORLD_LON1 = 180.0
 WORLD_LAT0 = -60.0
@@ -1447,8 +1475,8 @@ def compute_axis_facts(bundle: dict, iso_upper: str) -> dict[str, dict]:
         name = SHEET_NAME_OVERRIDES.get(ax, name)
         unit = normalize_unit(raw_unit)
         unit_txt = unit[1:].strip() if unit.startswith("%") else unit
-        vals = sorted(
-            (c["sort_value"] for c in cs.values() if isinstance(c, dict) and _is_valid_number(c.get("sort_value"))),
+        rkeys = sorted(
+            (_rank_key(c["sort_value"], unit) for c in cs.values() if isinstance(c, dict) and _is_valid_number(c.get("sort_value"))),
             reverse=True,
         )
         rec = cs.get(iso_upper)
@@ -1460,7 +1488,7 @@ def compute_axis_facts(bundle: dict, iso_upper: str) -> dict[str, dict]:
                 "name": name,
                 "unit": unit,
                 "unit_txt": unit_txt,
-                "n": len(vals),
+                "n": len(rkeys),
                 "nodata": True,
                 "val_plain": "No data",
                 "val_html": "No data",
@@ -1475,15 +1503,16 @@ def compute_axis_facts(bundle: dict, iso_upper: str) -> dict[str, dict]:
 
         v = rec["sort_value"]
         ver = rec["verification"]
-        rank = 1 + sum(1 for x in vals if x > v)
-        tied = sum(1 for x in vals if x == v) - 1
-        rank_txt = f"{ordinal(rank)} of {len(vals)}" + (f", tied with {tied}" if tied else "")
+        rk = _rank_key(v, unit)
+        rank = 1 + sum(1 for x in rkeys if x > rk)
+        tied = sum(1 for x in rkeys if x == rk) - 1
+        rank_txt = f"{ordinal(rank)} of {len(rkeys)}" + (f", tied with {tied}" if tied else "")
         facts[ax] = {
             "ax": ax,
             "name": name,
             "unit": unit,
             "unit_txt": unit_txt,
-            "n": len(vals),
+            "n": len(rkeys),
             "nodata": False,
             "v": v,
             "val_plain": fmt_plain(v, unit),
@@ -1537,13 +1566,16 @@ def active_consistency_rules(bundle: dict, iso_upper: str, facts: dict[str, dict
     return out
 
 
-def sorted_neighbours(bundle: dict, ax: str, iso_upper: str) -> list[tuple[int, str, float | int]]:
+def sorted_neighbours(bundle: dict, ax: str, iso_upper: str, unit: str | None = None) -> list[tuple[int, str, float | int]]:
     cs = bundle["dataset"]["axes"][ax]
+    if unit is None:
+        _name, raw_unit = split_name(bundle["arb"][bundle["axis_keys"][ax]])
+        unit = normalize_unit(raw_unit)
     rows = sorted(
-        ((c["sort_value"], i) for i, c in cs.items() if isinstance(c, dict) and _is_valid_number(c.get("sort_value"))),
-        key=lambda t: (-t[0], t[1]),
+        ((_rank_key(c["sort_value"], unit), c["sort_value"], i) for i, c in cs.items() if isinstance(c, dict) and _is_valid_number(c.get("sort_value"))),
+        key=lambda t: (-t[0], t[2]),
     )
-    idx = [i for _, i in rows].index(iso_upper)
+    idx = [i for _, _, i in rows].index(iso_upper)
     if idx == 0:
         picks = [0, 1, 2]
     elif idx == len(rows) - 1:
@@ -1553,8 +1585,8 @@ def sorted_neighbours(bundle: dict, ax: str, iso_upper: str) -> list[tuple[int, 
     out = []
     for j in picks:
         if 0 <= j < len(rows):
-            v, i = rows[j]
-            rank = 1 + sum(1 for x, _ in rows if x > v)
+            rk, v, i = rows[j]
+            rank = 1 + sum(1 for x, _, _ in rows if x > rk)
             out.append((rank, i, v))
     return out
 
@@ -1698,16 +1730,13 @@ def compute_sheet_expectation(bundle: dict, iso_lower: str, layout: str = "full"
     boards: list[dict] = []
     needed_flags: set[str] = {iso_lower}
     for f in standout:
-        nb = sorted_neighbours(bundle, f["ax"], iso)
-        fmt_vals, disp_ranks = format_board_values(nb, f["unit"], card_val=f["val_plain"])
+        nb = sorted_neighbours(bundle, f["ax"], iso, unit=f["unit"])
+        fmt_vals, disp_ranks = format_board_values(nb, f["unit"])
         b_title = exp.expand(f["name"], capitalize_start=True)
         b_unit = exp.expand(f["unit"], capitalize_start=False) if f["unit"] else ""
         b_rows: list[dict] = []
-        me_idx: int | None = None
-        for idx, ((_r, other_iso, _raw_v), val_plain, dr) in enumerate(zip(nb, fmt_vals, disp_ranks)):
+        for (_r, other_iso, _raw_v), val_plain, dr in zip(nb, fmt_vals, disp_ranks):
             needed_flags.add(other_iso.lower())
-            if other_iso == iso:
-                me_idx = idx
             b_rows.append({
                 "iso": other_iso,
                 "is_me": other_iso == iso,
@@ -1715,13 +1744,7 @@ def compute_sheet_expectation(bundle: dict, iso_lower: str, layout: str = "full"
                 "name": exp.expand(roster[other_iso]["name"]),
                 "val": val_plain,
             })
-        if me_idx is not None:
-            me_disp_rank = disp_ranks[me_idx]
-            board_tied = sum(1 for s in fmt_vals if s == fmt_vals[me_idx]) - 1
-            eff_tied = max(f["tied"], board_tied)
-            b_rank_txt = f"{ordinal(me_disp_rank)} of {f['n']}" + (f", tied with {eff_tied}" if eff_tied else "")
-        else:
-            b_rank_txt = f["rank_txt"]
+        b_rank_txt = f["rank_txt"]
         b_src = exp.expand(f["src"], capitalize_start=True)
         b_src_yr = f'{b_src}, {f["year"]}' if f["year"] else b_src
         b_bsrc = f'{b_rank_txt} \u00b7 {b_src_yr}'
@@ -3075,8 +3098,9 @@ def _check_boards(
     want_boards: list[dict] | None,
     label: str,
     card_vals: dict[str, str] | None = None,
+    card_ranks: dict[str, str] | None = None,
 ) -> list[str]:
-    """Verify mini-board distinct-rank values (Finding 2), capped decimals, and exact rows/units/sources (Finding 5)."""
+    """Verify mini-board distinct-rank values (Finding 2), capped decimals, card rank agreement, and exact rows/units/sources (Finding 5)."""
     bad: list[str] = []
     for b in got_boards:
         rows = b["rows"]
@@ -3087,15 +3111,33 @@ def _check_boards(
                         f"{rel}: mini-board {b['ax']!r} shows identical value {rows[i]['val']!r} "
                         f"for distinct ranks {rows[i]['rank']!r} and {rows[j]['rank']!r}"
                     )
-        if card_vals and b["ax"] in card_vals:
-            max_dec = _formatted_decimals(card_vals[b["ax"]]) + 2
-            for r in rows:
-                got_dec = _formatted_decimals(r["val"])
-                if got_dec > max_dec:
-                    bad.append(
-                        f"{rel}: mini-board {b['ax']!r} value {r['val']!r} has {got_dec} decimals "
-                        f"(max {max_dec} for card value {card_vals[b['ax']]!r})"
-                    )
+        for r in rows:
+            rv = r["val"]
+            if "trillion" in rv:
+                row_max_dec = 4
+            elif "billion" in rv:
+                row_max_dec = 3
+            else:
+                m_num = re.search(r"-?\d+(?:,\d+)*(?:\.\d+)?", rv)
+                num_v = abs(float(m_num.group(0).replace(",", ""))) if m_num else 1.0
+                if 0 < num_v < 0.01:
+                    row_max_dec = 4
+                elif 0 < num_v < 0.1:
+                    row_max_dec = 3
+                else:
+                    row_max_dec = 2
+            got_dec = _formatted_decimals(rv)
+            if got_dec > row_max_dec:
+                bad.append(
+                    f"{rel}: mini-board {b['ax']!r} value {rv!r} has {got_dec} decimals "
+                    f"(max {row_max_dec})"
+                )
+        if card_ranks and b["ax"] in card_ranks:
+            board_rank_txt = b["bsrc"].split(" \u00b7 ", 1)[0]
+            if board_rank_txt != card_ranks[b["ax"]]:
+                bad.append(
+                    f"{rel}: mini-board {b['ax']!r} rank {board_rank_txt!r} != fact card rank {card_ranks[b['ax']]!r}"
+                )
 
     if not isinstance(want_boards, list):
         bad.append(f"{rel}: {label} is missing mini-boards ('boards')")
@@ -3247,7 +3289,8 @@ def _check_single_page(
 
     if layout == "short":
         card_vals = {ax: c["val"] for ax, c in rendered_map.items()}
-        bad += _check_boards(rel, parsed.boards, want_boards, label, card_vals=card_vals)
+        card_ranks = {ax: c["rank"] for ax, c in rendered_map.items()}
+        bad += _check_boards(rel, parsed.boards, want_boards, label, card_vals=card_vals, card_ranks=card_ranks)
         bad += _check_short_no_nodata(rel, parsed)
         if len(rendered) == 0:
             bad.append(f"{rel}: short page has 0 facts")
@@ -3670,39 +3713,52 @@ def build(
         all_flags.update(full_flags)
         all_flags.update(short_flags)
 
-    # Validate every generated page (short and full) BEFORE writing anything (fail closed).
+    # Validate site CSS/.assetsignore and every generated page (short and full) BEFORE writing anything (fail closed).
+    problems = _check_assetsignore(root) + _check_sheet_css_overflow(root)
+    policy = bundle["policy"]
+    expected_axes = bundle["published_axes"]
     for iso in countries:
         cname = manifest_countries[iso]["name"]
         full_count = manifest_countries[iso]["full_fact_count"]
-        short_count = len(manifest_countries[iso]["short"]["shown_axes"])
 
         rel_short = f"countries/{iso}/index.html"
         parsed_short = _parse_sheet_html(short_pages_out[iso])
-        problems = (
-            _check_page_security_and_seo(rel_short, f"{SITE}/countries/{iso}/", parsed_short)
-            + _check_page_overflow(rel_short, parsed_short)
-            + _check_page_abbreviations(rel_short, parsed_short)
-            + _check_fromgame_bar(rel_short, parsed_short, short_prefix)
-            + _check_no_empty_sections_or_bad_literals(rel_short, parsed_short)
-            + _check_map_toggle(rel_short, parsed_short)
-            + _check_short_no_nodata(rel_short, parsed_short)
-            + _check_short_closing(rel_short, parsed_short, iso, cname, full_count)
-            + _check_country_wording(rel_short, iso, cname, "short", parsed_short, shown_count=short_count)
+        problems += _check_single_page(
+            rel_short,
+            f"{SITE}/countries/{iso}/",
+            parsed_short,
+            "short",
+            policy,
+            deny_list,
+            expected_axes,
+            manifest_countries[iso]["short"],
+            f"{ref} dataset",
+            iso=iso,
+            cname=cname,
+            full_fact_count=full_count,
+            fromgame_href=short_prefix,
+            ref_note=ref,
         )
         rel_full = f"countries/{iso}/all/index.html"
         parsed_full = _parse_sheet_html(full_pages_out[iso])
-        problems += (
-            _check_page_security_and_seo(rel_full, f"{SITE}/countries/{iso}/all/", parsed_full)
-            + _check_page_overflow(rel_full, parsed_full)
-            + _check_page_abbreviations(rel_full, parsed_full)
-            + _check_fromgame_bar(rel_full, parsed_full, full_prefix)
-            + _check_no_empty_sections_or_bad_literals(rel_full, parsed_full)
-            + _check_map_toggle(rel_full, parsed_full)
-            + _check_full_back_link(rel_full, parsed_full)
-            + _check_country_wording(rel_full, iso, cname, "full", parsed_full)
+        problems += _check_single_page(
+            rel_full,
+            f"{SITE}/countries/{iso}/all/",
+            parsed_full,
+            "full",
+            policy,
+            deny_list,
+            expected_axes,
+            manifest_countries[iso]["full"],
+            f"{ref} dataset",
+            iso=iso,
+            cname=cname,
+            full_fact_count=full_count,
+            fromgame_href=full_prefix,
+            ref_note=ref,
         )
-        if problems:
-            raise SheetError("refusing to write invalid sheet:\n  " + "\n  ".join(problems))
+    if problems:
+        raise SheetError("refusing to write invalid sheet:\n  " + "\n  ".join(problems))
 
     # Copy referenced flag SVGs from the game repo at ref.
     if is_custom_out:
